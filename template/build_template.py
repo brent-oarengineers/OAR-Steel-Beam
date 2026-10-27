@@ -553,7 +553,7 @@ def chart(title, xcol, ycols, first_row, ytitle, reverse, colors, w=17.6, h=5.6)
     ch_.title = None
     ch_.style = 2
     ch_.height = h; ch_.width = w
-    ch_.legend.position = "b"
+    ch_.legend.position = "t"
     x = Reference(ws, min_col=xcol, min_row=first_row + 1, max_row=first_row + 1 + NPTS)
     for ycol, colr in zip(ycols, colors):
         y = Reference(ws, min_col=ycol, min_row=first_row, max_row=first_row + 1 + NPTS)
@@ -563,8 +563,13 @@ def chart(title, xcol, ycols, first_row, ytitle, reverse, colors, w=17.6, h=5.6)
         se.graphicalProperties.line.solidFill = colr
         se.graphicalProperties.line.width = 19050
         ch_.series.append(se)
-    ch_.x_axis.title = "x (m)"
+    ch_.x_axis.title = None
     ch_.y_axis.title = ytitle
+    from openpyxl.chart.axis import ChartLines
+    from openpyxl.chart.shapes import GraphicalProperties
+    from openpyxl.drawing.line import LineProperties
+    grid = ChartLines(); grid.spPr = GraphicalProperties(ln=LineProperties(solidFill="E3E3E3", w=6350))
+    ch_.y_axis.majorGridlines = grid
     ch_.x_axis.delete = False; ch_.y_axis.delete = False
     ch_.x_axis.scaling.min = 0
     ch_.x_axis.majorGridlines = None
@@ -585,15 +590,15 @@ SLS_ANCHOR = f"B{r+2}"
 dyn(SLS_ANCHOR, f"=OAR.SLS(SectionSize,Span,E_mod,IncludeSW,{LOADS},{CRIT_RANGE},PsiL,PsiS)")
 spill_format(r + 2, r + 6, "BCDEFG", [None, "0.00", "#,##0", "0.00", '"L/"0', "0%"], util_col="G")
 label(f"H{r+2}", "Δ1kN: 1 kN at midspan,", 7, GREY); label(f"H{r+3}", "beam alone", 7, GREY)
-label(f"B{r+8}", "Deflected shapes (mm, plotted downward)", 8, GREEN, b=True)
+label(f"B{r+8}", "Deflected shapes (mm, plotted downward;  x in m)", 8, GREEN, b=True)
 ws.add_chart(chart("", HX + 6, [HX + 7, HX + 8, HX + 9, HX + 10], def_r, "δ (mm)", True,
                    [GREEN, "8FA89C", TAUPE, "595959"], h=5.4), f"B{r+9}")
 r = r + 21
 
 # ULS bending
 heading(r, "ULS Strength Checks – Bending (AS 4100 Cl. 5.6)")
-label(f"B{r+1}", "Bending moment envelope (kN·m, sagging plotted down)", 8, GREEN, b=True)
-label(f"F{r+1}", "Shear force envelope (kN)", 8, GREEN, b=True)
+label(f"B{r+1}", "Bending moment envelope (kN·m, sagging down;  x in m)", 8, GREEN, b=True)
+label(f"F{r+1}", "Shear force envelope (kN;  x in m)", 8, GREEN, b=True)
 ws.add_chart(chart("", HX, [HX + 1, HX + 2], env_r, "M* (kN·m)", True, [GREEN, TAUPE], w=8.7, h=6.2), f"B{r+2}")
 ws.add_chart(chart("", HX, [HX + 3, HX + 4], env_r, "V* (kN)", False, [GREEN, TAUPE], w=8.7, h=6.2), f"F{r+2}")
 r = r + 16
