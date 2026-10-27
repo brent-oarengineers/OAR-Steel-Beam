@@ -14,6 +14,7 @@ from openpyxl.formatting.rule import Rule
 from openpyxl.styles.differential import DifferentialStyle
 from openpyxl.styles.numbers import NumberFormat
 from PIL import Image
+import os
 import sys
 
 OUT = sys.argv[1]
@@ -507,7 +508,7 @@ from openpyxl.chart.layout import Layout, ManualLayout
 CRIT_RANGE = f"$E${hdr+1}:$F${hdr+5}"
 LOADS = "Loads_B1[[Case]:[End (mm)]]"
 COMBOS = f"_xlfn.ANCHORARRAY({COMBO_ANCHOR})"
-ARGS_ULS = f"SectionSize,Grade,Span,E_mod,IncludeSW,{LOADS},{COMBOS},Restraints_B1,{KF_RANGE}"
+ARGS_ULS = f"SectionSize,Grade,Span,E_mod,IncludeSW,{LOADS},{COMBOS},Restraints_B1[#Data],{KF_RANGE}"
 
 def dyn(cell, formula, nf=None, f=None, al=None):
     c = ws[cell]
@@ -550,7 +551,19 @@ label(f"{hc(12)}7", "Sections (OAR.SECTIONLIST)", 7, GREY, i=True)
 SL_ANCHOR = f"{hc(12)}8"
 dyn(SL_ANCHOR, "=OAR.SECTIONLIST(SectionType)")
 sl_col = hc(12)
-dv_size = DataValidation(type="list", formula1=f"OFFSET(${sl_col}$8,0,0,MAX(1,COUNTA(${sl_col}$8:${sl_col}$300)),1)",
+# static fallback list (used if the add-in has not loaded, so the dropdown never offers "#NAME?")
+import csv as _csv
+_rows = [l for l in open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src", "OAR.Steel.Core", "Data", "sections.csv"), encoding="utf-8") if l.strip() and not l.startswith("#")]
+_all = [r["Designation"] for r in _csv.DictReader(_rows)]
+fb_col = hc(14)
+ws.column_dimensions[fb_col].width = 12
+label(f"{fb_col}7", "All sections (fallback)", 7, GREY, i=True)
+for i_, d_ in enumerate(_all):
+    ws[f"{fb_col}{8+i_}"] = d_
+    ws[f"{fb_col}{8+i_}"].font = font(8, color=GREY)
+fb_rng = f"${fb_col}$8:${fb_col}${7+len(_all)}"
+dv_size = DataValidation(type="list",
+                         formula1=f"IF(ISERROR(${sl_col}$8),{fb_rng},OFFSET(${sl_col}$8,0,0,MAX(1,COUNTA(${sl_col}$8:${sl_col}$300)),1))",
                          showErrorMessage=True, errorTitle="Section size", error="Pick a section from the list for the selected Section type.")
 ws.add_data_validation(dv_size)
 dv_size.add(names["SectionSize"].replace("$", ""))
