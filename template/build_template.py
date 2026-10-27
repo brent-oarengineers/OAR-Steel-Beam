@@ -366,6 +366,25 @@ for rr in range(first, last + 1):
     ws[f"G{rr}"].number_format = '0.00'
 tbl = Table(displayName="Loads_B1", ref=f"B{th}:J{last}")
 tbl.tableStyleInfo = TableStyleInfo(name="TableStyleLight15", showRowStripes=False)
+from openpyxl.worksheet.table import TableColumn
+tbl.tableColumns = [TableColumn(id=i + 1, name=str(ws[f"{col}{th}"].value)) for i, col in enumerate("BCDEFGHIJ")]
+# Load column as a table calculated column, so Excel fills it on new or cleared rows
+from openpyxl.worksheet.table import TableFormula
+TR = "Loads_B1[[#This Row],[{}]]"
+load_f = (f'IF({TR.format("Case")}="","",N({TR.format("Trib (m | m²)")})*N({TR.format("Press. (kPa)")})'
+          f'+N({TR.format("+ Direct (kN/m | kN)")}))')
+press_f = f'IFERROR(INDEX(LoadLib_B1[kPa],MATCH({TR.format("Description")},LoadLib_B1[Description],0)),"")'
+for tc in tbl.tableColumns:
+    if tc.name == "Load":
+        tc.calculatedColumnFormula = TableFormula(attr_text=load_f)
+    if tc.name == "Press. (kPa)":
+        tc.calculatedColumnFormula = TableFormula(attr_text=press_f)
+for rr in range(first, last + 1):
+    v = ws[f"F{rr}"].value
+    if v is None or (isinstance(v, str) and v.startswith("=IFERROR(INDEX(LoadLib_B1")):
+        ws[f"F{rr}"].value = "=" + press_f
+for rr in range(first, last + 1):
+    ws[f"J{rr}"].value = "=" + load_f
 ws.add_table(tbl)
 for col in "BCDEFGHIJ":
     ws[f"{col}{th}"].fill = F_HDR
