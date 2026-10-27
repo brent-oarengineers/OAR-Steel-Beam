@@ -1,4 +1,4 @@
-# OAR Steel – Excel add-in (v0.2.6)
+# OAR Steel – Excel add-in (v0.2.7)
 
 F# / Excel-DNA add-in for the OAR steel beam calc sheet. Engineering lives in `OAR.Steel.Core`
 (no Excel references, fully testable); `OAR.Steel.Excel` only converts worksheet values.

@@ -3,6 +3,9 @@
 Each version that reaches `main` is built, tested and published automatically as a GitHub Release.
 The calc sheet shows the version it was calculated with (title block, under the green bar).
 
+## v0.2.7
+- Release is a single zip laid out like `X:\Programs\Spreadsheets` (Add-Ins\OAR Steel, Releases archive, Calc Templates); template keeps its proper name. No calculation changes.
+
 ## v0.2.6
 - Install script reads the release folder `X:\Programs\Spreadsheets\Add-Ins\OAR Steel` (or `\\LOA-TrueNAS\Data\...`, whichever is reachable). No calculation changes.
 

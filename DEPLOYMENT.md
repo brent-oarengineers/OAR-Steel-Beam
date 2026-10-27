@@ -5,13 +5,14 @@
 2. GitHub builds the add-in on Windows and runs every benchmark test. The pull request shows a green tick
    (passed) or red cross (failed). The built add-in can be downloaded from the run's "Artifacts" for checking.
 3. You review and click **Merge**. That is the sign-off.
-4. GitHub publishes a Release named after the version (e.g. *OAR Steel v0.2.5*) with:
-   `OAR.Steel-AddIn64.xll`, `OAR.Steel-AddIn32.xll`, `Steel Beam Design - Base.xlsx`,
-   `Install-OARSteel.cmd`, `Install-OARSteel.ps1`, `CHANGELOG.md`, `RELEASE_NOTES.md`.
-   Releases page: https://github.com/brent-oarengineers/OAR-Steel-Beam/releases
-5. Download the files and copy them into `X:\Programs\Spreadsheets\Add-Ins\OAR Steel\` (overwrite).
-   Also copy the `.xll` files into `X:\Programs\Spreadsheets\Add-Ins\OAR Steel\Releases\v0.2.5\` so old calcs can be reproduced.
-   Copy the template into `X:\Programs\Spreadsheets\Calc Templates\` if it changed.
+4. GitHub publishes a Release named after the version (e.g. *OAR Steel v0.2.7*) with one file,
+   `OAR-Steel-v0.2.7.zip`. Releases page: https://github.com/brent-oarengineers/OAR-Steel-Beam/releases
+   (ignore the "Source code" downloads GitHub adds to every release).
+5. Download the zip and extract it into `X:\Programs\Spreadsheets\`, choosing **Replace** when asked.
+   Its folders match the server:
+   - `Add-Ins\OAR Steel\` – add-ins (64/32-bit), install script, changelog, release notes
+   - `Add-Ins\OAR Steel\Releases\v0.2.7\` – archive copy of this version's add-ins
+   - `Calc Templates\Steel Beam Design - Base.xlsx` – the calc template
 
 Staff pick up the new add-in at their next login.
 
