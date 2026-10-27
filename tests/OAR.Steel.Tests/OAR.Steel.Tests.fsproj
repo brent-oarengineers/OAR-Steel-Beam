@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <GenerateProgramFile>false</GenerateProgramFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Helpers.fs" />
+    <Compile Include="SectionTests.fs" />
+    <Compile Include="AnalysisTests.fs" />
+    <Compile Include="ServiceabilityTests.fs" />
+    <Compile Include="CapacityTests.fs" />
+    <Compile Include="InputTests.fs" />
+    <Compile Include="UlsTests.fs" />
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Expecto" Version="10.2.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\OAR.Steel.Core\OAR.Steel.Core.fsproj" />
+  </ItemGroup>
+
+</Project>

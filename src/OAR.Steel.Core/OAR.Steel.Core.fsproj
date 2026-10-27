@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <RootNamespace>OAR.Steel</RootNamespace>
+    <Version>0.2.0</Version>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Data/sections.csv" LogicalName="sections.csv" />
+  </ItemGroup>
+
+  <!-- F# compiles files in this order: each file can only use what is above it. -->
+  <ItemGroup>
+    <Compile Include="Units.fs" />
+    <Compile Include="Sections.fs" />
+    <Compile Include="Loads.fs" />
+    <Compile Include="Analysis.fs" />
+    <Compile Include="Serviceability.fs" />
+    <Compile Include="Capacity.fs" />
+    <Compile Include="Uls.fs" />
+    <Compile Include="Inputs.fs" />
+  </ItemGroup>
+
+</Project>

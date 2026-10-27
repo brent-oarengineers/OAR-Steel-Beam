@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- .NET Framework 4.8 is built into Windows 10/11, so users need nothing but the .xll -->
+    <TargetFramework>net48</TargetFramework>
+    <Version>0.2.0</Version>
+    <!-- copy FSharp.Core.dll next to the add-in so the .dna can pack it -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Functions.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="OAR.Steel.Excel-AddIn.dna" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ExcelDna.AddIn" Version="1.8.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\OAR.Steel.Core\OAR.Steel.Core.fsproj" />
+  </ItemGroup>
+
+</Project>
