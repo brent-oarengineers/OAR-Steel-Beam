@@ -9,7 +9,7 @@ open OAR.Steel
 [<Literal>]
 let Category = "OAR Steel"
 
-let private version = "0.2.2"
+let private version = "0.2.3"
 
 // ---------- conversion helpers ----------
 
@@ -560,3 +560,35 @@ let oarSectionList ([<ExcelArgument(Name = "[family]", Description = "UB, UC, WB
             |> List.filter (fun s -> f = "" || (sprintf "%A" s.Family) = f)
             |> List.map (fun s -> [ box s.Designation ])
         if list.IsEmpty then box (sprintf "no complete sections for '%s'" f) else table list)
+
+[<ExcelFunction(Name = "OAR.LOADDIAGRAM",
+                Description = "Applied load diagram data for charts. kind \"line\" (default): x m | G | Q | Wd | Wu | Wid | Wiu (kN/m, + down) padded with #N/A to 80 rows. kind \"point\": x m | P kN (+ down) | label, padded to 20 rows.",
+                Category = Category)>]
+let oarLoadDiagram
+    ([<ExcelArgument(Name = "designation")>] designation: obj)
+    ([<ExcelArgument(Name = "span", Description = "mm")>] span: obj)
+    ([<ExcelArgument(Name = "includeSW")>] includeSW: obj)
+    ([<ExcelArgument(Name = "loads")>] loads: obj)
+    ([<ExcelArgument(Name = "[kind]", Description = "line (default) or point")>] kind: obj)
+    : obj =
+    guard (fun () ->
+        let s = section designation
+        let l = num "span" span
+        let ls = arg "loads" (fun () -> loadsWithSW s l includeSW loads)
+        let na = box ExcelError.ExcelErrorNA
+        let pad (n: int) (width: int) (rows: obj list list) =
+            if rows.Length > n then failwithf "too many load steps to plot (%d, max %d)" rows.Length n
+            rows @ List.replicate (n - rows.Length) (List.replicate width na)
+        match (str kind).ToUpperInvariant() with
+        | "POINT" ->
+            let rows =
+                Analysis.pointLoads ls
+                |> List.map (fun (x, p, c) ->
+                    [ box (m1 x); box (Units.toKN p); box (sprintf "%s %.1f kN" (LoadCase.name c) (abs (Units.toKN p))) ])
+            table ([ box "x (m)"; box "P (kN)"; box "label" ] :: pad 20 3 rows)
+        | _ ->
+            let rows =
+                Analysis.lineLoadProfile l ls
+                |> List.map (fun (x, ws) -> box (m1 x) :: (ws |> List.map box))
+            let header = box "x (m)" :: (LoadCase.all |> List.map (LoadCase.name >> box))
+            table (header :: pad 80 7 rows))

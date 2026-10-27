@@ -14,6 +14,7 @@ from openpyxl.formatting.rule import Rule
 from openpyxl.styles.differential import DifferentialStyle
 from openpyxl.styles.numbers import NumberFormat
 from PIL import Image
+import os
 import sys
 
 OUT = sys.argv[1]
@@ -330,10 +331,10 @@ for col, txt in zip("BCDEFGHIJ", cols):
     put(f"{col}{th}", txt, font(8, b=True), al=Alignment(horizontal="center", vertical="center", wrap_text=True))
 ws.row_dimensions[th].height = 26
 loads = [
-    ("G", "UDL", "Roof sheeting + purlins", 5.65, 0.10, None, None, None),
-    ("G", "UDL", "Ceiling + services", 5.65, 0.15, None, None, None),
+    ("G", "UDL", "Roof sheeting + purlins", 5.65, "LIB", None, None, None),
+    ("G", "UDL", "Ceiling + services", 5.65, "LIB", None, None, None),
     ("G", "UDL", "Beam bracket / misc.", None, None, 0.05, None, None),
-    ("Q", "UDL", "Roof live (non-trafficable)", 5.65, 0.25, None, None, None),
+    ("Q", "UDL", "Roof – non-trafficable", 5.65, "LIB", None, None, None),
     ("Wu", "UDL", "External wind – net uplift", 5.65, 1.72, None, None, None),
     ("Wd", "UDL", "External wind – downward", 5.65, 0.0, None, None, None),
     ("Wiu", "UDL", "Internal pressure (+cpi)", 5.65, 0.0, None, None, None),
@@ -346,6 +347,8 @@ first = th + 1
 for i, rowv in enumerate(loads):
     rr = first + i
     for col, v, nf in zip("BCDEFGHI", rowv, [None, None, None, "0.00", "0.00", "0.00", "#,##0", "#,##0"]):
+        if v == "LIB":
+            v = f'=IFERROR(INDEX(LoadLib_B1[kPa],MATCH(D{rr},LoadLib_B1[Description],0)),"")'
         inp(f"{col}{rr}", v, nf, L if col == "D" else C)
     out(f"J{rr}", f'=IF(B{rr}="","",N(E{rr})*N(F{rr})+N(G{rr}))', '0.000 "kN/m"')
 last = first + len(loads) - 1
@@ -377,6 +380,60 @@ for col, case in zip("EFGHIJ", ["G", "Q", "Wd", "Wu", "Wid", "Wiu"]):
     put(f"{col}{sr}", case, font(8, b=True), F_HDR, B_IN, C)
     out(f"{col}{sr+1}", f'=SUMIFS(Loads_B1[Load],Loads_B1[Case],"{case}",Loads_B1[Type],"UDL")', '0.000 "kN/m"')
     name(f"w_{case}", f"${col}${sr+1}")
+
+HX = 26  # column Z: start of the add-in helper area
+from openpyxl.utils import get_column_letter as gcl
+hc = lambda i: gcl(HX + i)
+# ---------------- Load library (right-hand side, not printed) ----------------
+LL = [hc(16), hc(17), hc(18), hc(19)]  # AP..AS
+for col, w in zip(LL, [7, 38, 8, 46]):
+    ws.column_dimensions[col].width = w
+put(f"{LL[0]}6", "Load Library  (not printed)", font(10, b=True, color=GREEN), al=Alignment(vertical="bottom"))
+label(f"{LL[0]}7", "Typical starting values only – verify for each job. Picking a Description in the loads table fills Press. (kPa); type over it to change. "
+      "Keep rows grouped by case (insert new rows inside the case's block).", 7, GREY, i=True)
+kg = lambda m: round(m * 9.81 / 1000, 3)
+load_lib = [
+    ("G", "Roof sheeting + purlins", 0.10, "allowance – check sheeting and purlin weights"),
+    ("G", "Light sheet roof (20 kg/m²)", kg(20), "20 kg/m² x 9.81"),
+    ("G", "Sheet roof (40 kg/m²)", kg(40), "40 kg/m² x 9.81"),
+    ("G", "Tiled roof (90 kg/m²)", kg(90), "90 kg/m² x 9.81"),
+    ("G", "Ceiling + services", 0.15, "allowance"),
+    ("G", "Services allowance", 0.25, "allowance"),
+    ("G", "Typical floor (60 kg/m²)", kg(60), "60 kg/m² x 9.81"),
+    ("G", "RC slab – per 100 mm (25 kN/m³)", 2.50, "scale by thickness / 100"),
+    ("G", "Partitions allowance", 1.00, "allowance – check AS/NZS 1170.1"),
+    ("Q", "Roof – non-trafficable", 0.25, "AS/NZS 1170.1 Cl. 3.5.1: 0.12 + 1.2/A ≥ 0.25 kPa"),
+    ("Q", "Residential – habitable areas", 1.50, "AS/NZS 1170.1 Table 3.1 – verify category"),
+    ("Q", "Residential – balconies", 2.00, "AS/NZS 1170.1 Table 3.1 – verify category"),
+    ("Q", "Offices – general use", 3.00, "AS/NZS 1170.1 Table 3.1 – verify category"),
+    ("Q", "Retail", 4.00, "AS/NZS 1170.1 Table 3.1 – verify category"),
+    ("Q", "Assembly / crowds", 5.00, "AS/NZS 1170.1 Table 3.1 – verify category"),
+    ("Q", "Car park – light vehicles", 2.50, "AS/NZS 1170.1 Table 3.1 – verify category"),
+    ("Q", "Plant room – light", 5.00, "AS/NZS 1170.1 Table 3.1 – verify category"),
+    ("Q", "Storage – per metre of height", 2.40, "multiply by storage height"),
+    ("Wd", "External wind – downward", None, "AS/NZS 1170.2 – enter pressure"),
+    ("Wu", "External wind – net uplift", None, "AS/NZS 1170.2 – enter pressure"),
+    ("Wid", "Internal suction (−cpi)", None, "AS/NZS 1170.2 – enter pressure"),
+    ("Wiu", "Internal pressure (+cpi)", None, "AS/NZS 1170.2 – enter pressure"),
+]
+llh = 9
+for col, txt in zip(LL, ["Case", "Description", "kPa", "Source / note"]):
+    put(f"{col}{llh}", txt, font(8, b=True), F_HDR, None, C)
+for i, (cs, d, kpa, note) in enumerate(load_lib):
+    rr = llh + 1 + i
+    inp(f"{LL[0]}{rr}", cs); inp(f"{LL[1]}{rr}", d, al=L); inp(f"{LL[2]}{rr}", kpa, "0.00"); inp(f"{LL[3]}{rr}", note, al=L)
+    ws[f"{LL[3]}{rr}"].font = font(8, color=GREY)
+ll_last = llh + len(load_lib)
+tll = Table(displayName="LoadLib_B1", ref=f"{LL[0]}{llh}:{LL[3]}{ll_last}")
+tll.tableStyleInfo = TableStyleInfo(name="TableStyleLight15", showRowStripes=False)
+ws.add_table(tll)
+# Description dropdown in the loads table, filtered by the row's case (free text still allowed)
+ll_case = f"${LL[0]}${llh+1}:${LL[0]}${ll_last+40}"
+dv_desc = DataValidation(type="list",
+    formula1=f"OFFSET(${LL[1]}${llh+1},MATCH($B{first},{ll_case},0)-1,0,COUNTIF({ll_case},$B{first}),1)",
+    showErrorMessage=False, allow_blank=True)
+ws.add_data_validation(dv_desc)
+dv_desc.add(f"D{first}:D{last}")
 
 # ---------------- Load combination library (right-hand side, not printed) ----------------
 LIB_COLS = "MNOPQRSTUVWX"
@@ -427,7 +484,9 @@ out(f"S{llast+2}", '=COUNTIFS(CombLib_B1[Active],1,CombLib_B1[Crit. flange],"Bot
 name("NumUpliftCombos", f"$S${llast+2}")
 
 # ---------------- Load combinations (printed: active rows only) ----------------
-r = sr + 3
+LD_ROW = sr + 3   # applied load diagram (chart added later, once chart() exists)
+label(f"B{LD_ROW}", "Applied loads (unfactored; line loads kN/m, point loads kN with stems; + = downward;  x in m)", 8, GREEN, b=True)
+r = sr + 16
 heading(r, "Load Combinations (AS/NZS 1170.0)")
 label(f"B{r+1}", "Combination set", 9); inp(f"E{r+1}", "Roof"); name("CombSet", f"$E${r+1}")
 dv_set = DataValidation(type="list", formula1='"Floor,Roof,All,Custom"')
@@ -503,11 +562,14 @@ for srow in range(sum_hdr + 1, sum_last + 1):
 
 # ---------------- Outputs (add-in) ----------------
 from openpyxl.chart import ScatterChart, Reference, Series
+from openpyxl.chart.axis import ChartLines
+from openpyxl.chart.shapes import GraphicalProperties
+from openpyxl.drawing.line import LineProperties
 from openpyxl.chart.layout import Layout, ManualLayout
 CRIT_RANGE = f"$E${hdr+1}:$F${hdr+5}"
 LOADS = "Loads_B1[[Case]:[End (mm)]]"
 COMBOS = f"_xlfn.ANCHORARRAY({COMBO_ANCHOR})"
-ARGS_ULS = f"SectionSize,Grade,Span,E_mod,IncludeSW,{LOADS},{COMBOS},Restraints_B1,{KF_RANGE}"
+ARGS_ULS = f"SectionSize,Grade,Span,E_mod,IncludeSW,{LOADS},{COMBOS},Restraints_B1[#Data],{KF_RANGE}"
 
 def dyn(cell, formula, nf=None, f=None, al=None):
     c = ws[cell]
@@ -550,7 +612,19 @@ label(f"{hc(12)}7", "Sections (OAR.SECTIONLIST)", 7, GREY, i=True)
 SL_ANCHOR = f"{hc(12)}8"
 dyn(SL_ANCHOR, "=OAR.SECTIONLIST(SectionType)")
 sl_col = hc(12)
-dv_size = DataValidation(type="list", formula1=f"OFFSET(${sl_col}$8,0,0,MAX(1,COUNTA(${sl_col}$8:${sl_col}$300)),1)",
+# static fallback list (used if the add-in has not loaded, so the dropdown never offers "#NAME?")
+import csv as _csv
+_rows = [l for l in open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src", "OAR.Steel.Core", "Data", "sections.csv"), encoding="utf-8") if l.strip() and not l.startswith("#")]
+_all = [r["Designation"] for r in _csv.DictReader(_rows)]
+fb_col = hc(14)
+ws.column_dimensions[fb_col].width = 12
+label(f"{fb_col}7", "All sections (fallback)", 7, GREY, i=True)
+for i_, d_ in enumerate(_all):
+    ws[f"{fb_col}{8+i_}"] = d_
+    ws[f"{fb_col}{8+i_}"].font = font(8, color=GREY)
+fb_rng = f"${fb_col}$8:${fb_col}${7+len(_all)}"
+dv_size = DataValidation(type="list",
+                         formula1=f"IF(ISERROR(${sl_col}$8),{fb_rng},OFFSET(${sl_col}$8,0,0,MAX(1,COUNTA(${sl_col}$8:${sl_col}$300)),1))",
                          showErrorMessage=True, errorTitle="Section size", error="Pick a section from the list for the selected Section type.")
 ws.add_data_validation(dv_size)
 dv_size.add(names["SectionSize"].replace("$", ""))
@@ -595,6 +669,38 @@ def chart(title, xcol, ycols, first_row, ytitle, reverse, colors, w=17.6, h=5.6)
     return ch_
 
 env_r = int(ENV_ANCHOR[len(hc(0)):]); def_r = int(DEF_ANCHOR[len(hc(6)):])
+
+# applied load diagram: data in the helper area, chart under the loads table
+LDL_ROW = 90
+label(f"{hc(0)}{LDL_ROW-1}", "Applied line loads (OAR.LOADDIAGRAM)", 7, GREY, i=True)
+label(f"{hc(8)}{LDL_ROW-1}", "Point loads", 7, GREY, i=True)
+dyn(f"{hc(0)}{LDL_ROW}", f'=OAR.LOADDIAGRAM(SectionSize,Span,IncludeSW,{LOADS},"line")')
+dyn(f"{hc(8)}{LDL_ROW}", f'=OAR.LOADDIAGRAM(SectionSize,Span,IncludeSW,{LOADS},"point")')
+from openpyxl.chart.error_bar import ErrorBars
+from openpyxl.chart.marker import Marker
+ld = ScatterChart(); ld.title = None; ld.style = 2; ld.height = 5.0; ld.width = 17.6; ld.legend.position = "t"
+xr = Reference(ws, min_col=HX, min_row=LDL_ROW + 1, max_row=LDL_ROW + 80)
+case_colors = [GREEN, "C07A2C", "6E8FB5", "9C5DA6", "8FA89C", "B8ADA5"]
+for k, colr in enumerate(case_colors):
+    y = Reference(ws, min_col=HX + 1 + k, min_row=LDL_ROW, max_row=LDL_ROW + 80)
+    se = Series(y, xr, title_from_data=True)
+    se.marker.symbol = "none"; se.smooth = False
+    se.graphicalProperties.line.solidFill = colr; se.graphicalProperties.line.width = 19050
+    ld.series.append(se)
+px = Reference(ws, min_col=HX + 8, min_row=LDL_ROW + 1, max_row=LDL_ROW + 20)
+py = Reference(ws, min_col=HX + 9, min_row=LDL_ROW, max_row=LDL_ROW + 20)
+ps = Series(py, px, title_from_data=False, title="Point loads (kN)")
+ps.marker = Marker(symbol="triangle", size=7)
+ps.marker.graphicalProperties = GraphicalProperties(solidFill="262626")
+ps.graphicalProperties.line.noFill = True
+ps.errBars = ErrorBars(errDir="y", errBarType="minus", errValType="percentage", val=100, noEndCap=True)
+ld.series.append(ps)
+ld.x_axis.title = None; ld.y_axis.title = "kN/m · kN"
+ld.x_axis.delete = False; ld.y_axis.delete = False
+ld.x_axis.scaling.min = 0; ld.x_axis.majorGridlines = None
+ld.x_axis.tickLblPos = "low"; ld.y_axis.tickLblPos = "low"
+_g = ChartLines(); _g.spPr = GraphicalProperties(ln=LineProperties(solidFill="E3E3E3", w=6350)); ld.y_axis.majorGridlines = _g
+ws.add_chart(ld, f"B{LD_ROW+1}")
 r = rlast + 2
 ws.row_breaks.append(Break(id=r - 1))
 
@@ -612,11 +718,9 @@ r = r + 21
 
 # ULS bending
 heading(r, "ULS Strength Checks – Bending (AS 4100 Cl. 5.6)")
-label(f"B{r+1}", "Bending moment envelope (kN·m, sagging down;  x in m)", 8, GREEN, b=True)
-label(f"F{r+1}", "Shear force envelope (kN;  x in m)", 8, GREEN, b=True)
-ws.add_chart(chart("", HX, [HX + 1, HX + 2], env_r, "M* (kN·m)", True, [GREEN, TAUPE], w=8.7, h=6.2), f"B{r+2}")
-ws.add_chart(chart("", HX, [HX + 3, HX + 4], env_r, "V* (kN)", False, [GREEN, TAUPE], w=8.7, h=6.2), f"F{r+2}")
-r = r + 16
+label(f"B{r+1}", "Bending moment envelope, all active combinations (kN·m, sagging plotted down;  x in m)", 8, GREEN, b=True)
+ws.add_chart(chart("", HX, [HX + 1, HX + 2], env_r, "M* (kN·m)", True, [GREEN, TAUPE], h=5.4), f"B{r+2}")
+r = r + 14
 out_header(r, "BCDEFGHIJ", ["Combo", "Segment (m)", "Ends", "Le (m)", "αm", "αs", "φMb (kN·m)", "M* (kN·m)", "Utilisation"])
 ws.row_dimensions[r].height = 16
 ULS_ANCHOR = f"B{r+1}"

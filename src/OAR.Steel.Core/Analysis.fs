@@ -162,3 +162,37 @@ module Analysis =
           Shape = FullSpan
           Magnitude = Units.selfWeight s.Mass
           Description = sprintf "Self-weight %s" s.Designation }
+
+    /// Line-load step profile per case for plotting, rows of (x, [w for G; Q; Wd; Wu; Wid; Wiu]).
+    /// w in N/mm (= kN/m), positive = downward (gravity direction). Includes zero-height start and end rows.
+    let lineLoadProfile (span: float) (loads: Load list) =
+        let dist =
+            loads
+            |> List.choose (fun l ->
+                let w = l.Magnitude * LoadCase.direction l.Case
+                match l.Shape with
+                | FullSpan -> Some(l.Case, w, 0.0, span)
+                | Partial(a, b) -> Some(l.Case, w, a, b)
+                | Point _ -> None)
+        let xs =
+            (0.0 :: span :: (dist |> List.collect (fun (_, _, a, b) -> [ a; b ])))
+            |> List.distinct
+            |> List.sort
+        let zero = LoadCase.all |> List.map (fun _ -> 0.0)
+        let wAt (c: LoadCase) (xm: float) =
+            dist |> List.sumBy (fun (lc, w, a, b) -> if lc = c && xm > a && xm < b then w else 0.0)
+        [ yield (0.0, zero)
+          for x1, x2 in List.pairwise xs do
+              let xm = (x1 + x2) / 2.0
+              let ws = LoadCase.all |> List.map (fun c -> wAt c xm)
+              yield (x1, ws)
+              yield (x2, ws)
+          yield (span, zero) ]
+
+    /// Point loads for plotting: (x mm, P N signed +down, case)
+    let pointLoads (loads: Load list) =
+        loads
+        |> List.choose (fun l ->
+            match l.Shape with
+            | Point x -> Some(x, l.Magnitude * LoadCase.direction l.Case, l.Case)
+            | _ -> None)
