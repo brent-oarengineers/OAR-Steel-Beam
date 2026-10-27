@@ -392,6 +392,8 @@ dv_case = DataValidation(type="list", formula1='"G,Q,Wd,Wu,Wid,Wiu"', allow_blan
 dv_lt = DataValidation(type="list", formula1='"UDL,PUDL,Point"', allow_blank=True)
 ws.add_data_validation(dv_case); ws.add_data_validation(dv_lt)
 dv_case.add(f"B{first}:B{last}"); dv_lt.add(f"C{first}:C{last}")
+# print tidy-up (add-in): rows of these key columns that show nothing are hidden when printing
+name("OAR_Flex_Loads", "Loads_B1[Case]")
 
 sr = last + 2
 label(f"B{sr+1}", "Full-span UDL totals (excl. self-weight):", 8, GREY, i=True)
@@ -527,6 +529,7 @@ for rr in range(ch + 1, ch + 1 + spill_rows):
 ws.conditional_formatting.add(f"B{ch+1}:J{ch+spill_rows}", Rule(type="expression", formula=[f'$B{ch+1}<>""'],
     dxf=DifferentialStyle(fill=PatternFill("solid", bgColor="E6ECE9"), border=Border(left=hair, right=hair, top=hair, bottom=hair))))
 clast = ch + spill_rows
+name("OAR_Flex_Combos", f"$B${ch+1}:$B${clast}")
 
 # ---------------- Lateral restraints ----------------
 r = clast + 1
@@ -552,6 +555,7 @@ trs.tableStyleInfo = TableStyleInfo(name="TableStyleLight15", showRowStripes=Fal
 ws.add_table(trs)
 dv_r = DataValidation(type="list", formula1='"F,P,L,U,–"')
 ws.add_data_validation(dv_r); dv_r.add(f"E{rh+1}:F{rlast}")
+name("OAR_Flex_Restraints", "Restraints_B1[x (mm)]")
 label(f"B{rlast+1}", "αm top / αm bot. → override αm for that flange's segment from this row to the next restraint on that flange "
       "(blank = Cl. 5.6.1.1(a)(iii)). Flagged * in the output.", 7, GREY, i=True)
 kb = rlast + 3
@@ -733,6 +737,7 @@ out_header(r, "BCDEFGHIJ", ["Combo", "Segment (m)", "Ends", "Le (m)", "αm", "α
 ws.row_dimensions[r].height = 16
 ULS_ANCHOR = f"B{r+1}"
 dyn(ULS_ANCHOR, f"=OAR.ULS({ARGS_ULS})")
+name("OAR_Flex_ULS", f"$B${r+1}:$B${r+16}")
 spill_format(r + 1, r + 16, "BCDEFGHIJ", [None, None, None, "0.00", "0.000", "0.000", "0.0", "0.0", "0%"], util_col="J")
 ws.conditional_formatting.add(f"C{r+1}:C{r+16}", Rule(type="expression", formula=[f'RIGHT(C{r+1},1)="*"'],
     dxf=DifferentialStyle(font=Font(color="9C5700", bold=True))))
@@ -756,6 +761,7 @@ heading(r, "Shear (AS 4100 Cl. 5.11)")
 out_header(r + 1, "BCDEFG", ["Combo", "V* (kN)", "at x (m)", "φVv (kN)", "Utilisation", "Note"])
 SH_ANCHOR = f"B{r+2}"
 dyn(SH_ANCHOR, f"=OAR.SHEAR(SectionSize,Grade,Span,IncludeSW,{LOADS},{COMBOS})")
+name("OAR_Flex_Shear", f"$B${r+2}:$B${r+9}")
 spill_format(r + 2, r + 9, "BCDEF", [None, "0.0", "0.00", "0.0", "0%"], util_col="F")
 for rr in range(r + 2, r + 10):
     ws[f"G{rr}"].font = font(7, color="9C5700"); ws[f"G{rr}"].alignment = L
@@ -786,6 +792,7 @@ out_header(r + 1, "BCD", ["ID", "Left (kN)", "Right (kN)"])
 RX_ANCHOR = f"B{r+2}"
 dyn(RX_ANCHOR, f"=OAR.REACTIONS(SectionSize,Span,IncludeSW,{LOADS},{COMBOS})")
 spill_format(r + 2, r + 15, "BCD", [None, "0.00", "0.00"])
+name("OAR_Flex_Reactions", f"$B${r+2}:$B${r+15}")
 name("Out_Reactions", f"$B${r+2}")
 r = r + 7
 lastrow = r + 9
@@ -809,7 +816,8 @@ for cell in ws[f"B{sum_hdr}:J{sum_last}"]:
 
 # ---------------- Names, print setup ----------------
 for nm, ref in names.items():
-    ws.defined_names[nm] = DefinedName(nm, attr_text=f"'{ws.title}'!{ref}")
+    # structured references (Table[Column]) carry no sheet prefix
+    ws.defined_names[nm] = DefinedName(nm, attr_text=ref if "[" in ref else f"'{ws.title}'!{ref}")
 
 ws.print_area = f"A1:K{lastrow}"
 ws.page_setup.paperSize = ws.PAPERSIZE_A4
