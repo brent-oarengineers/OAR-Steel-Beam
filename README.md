@@ -1,4 +1,4 @@
-# OAR Steel – Excel add-in (v0.2.1)
+# OAR Steel – Excel add-in (v0.2.2)
 
 F# / Excel-DNA add-in for the OAR steel beam calc sheet. Engineering lives in `OAR.Steel.Core`
 (no Excel references, fully testable); `OAR.Steel.Excel` only converts worksheet values.
@@ -49,6 +49,7 @@ All lengths mm. Section properties use catalogue units (×10⁶ mm⁴ etc.). Err
 |---|---|
 | `OAR.VERSION()` | version text – put it in the sheet header |
 | `OAR.SECTION(size, prop, [grade])` | one property: Mass, d, bf, tf, tw, Ag, Ix, Zx, Sx, Iy, J, Iw, fyf, fyw, Ze, phiMsx, phiVv, Class |
+| `OAR.SECTIONLIST([family])` | spills the designations with complete data for UB, UC, WB or PFC (feeds the Section size dropdown) |
 | `OAR.SECTIONPROPS(size, [grade])` | spills name / value / unit / note, incl. λe flange & web, Ze and class |
 | `OAR.LOADS(loads, span)` | spills how the loads table was read (case, shape, magnitude, a, b, direction) |
 | `OAR.SLS(size, span, E, includeSW, loads, criteria, psiL, psiS)` | spills 5 rows: case, Δmax, x at max, limit, L/Δ, utilisation |

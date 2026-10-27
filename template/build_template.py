@@ -259,7 +259,7 @@ for i, (lab, nm, val, nf, unit) in enumerate(rows):
     inp(f"E{rr}", val, nf)
     if unit: label(f"F{rr}", unit, color=GREY)
     name(nm, f"$E${rr}")
-dv_type = DataValidation(type="list", formula1='"UB,UC,PFC,WB,WC,RHS,SHS,CHS,TFB"', allow_blank=False)
+dv_type = DataValidation(type="list", formula1='"UB,UC,WB,PFC"', allow_blank=False)
 dv_yn = DataValidation(type="list", formula1='"Yes,No"')
 dv_sup = DataValidation(type="list", formula1='"Simply supported"')
 dv_grade = DataValidation(type="list", formula1='"250,300,350,400"')
@@ -268,6 +268,7 @@ dv_type.add(f"E{r+1}"); dv_grade.add(f"E{r+3}"); dv_sup.add(f"E{r+5}"); dv_yn.ad
 ws[f"E{r+5}"].alignment = L
 ws.merge_cells(f"E{r+5}:F{r+5}")
 
+SECTION_PROP_CELLS = []
 props = [
     ("Mass", "Mass", "kg/m", "0.0"), ("Ix", "Ix", "×10⁶ mm⁴", "0.0"), ("Iy", "Iy", "×10⁶ mm⁴", "0.00"),
     ("J", "J", "×10³ mm⁴", "0.0"), ("Iw", "Iw", "×10⁹ mm⁶", "0.0"), ("Zex", "Zex", "×10³ mm³", "0"),
@@ -280,6 +281,7 @@ for i, (lab, nm, unit, nf) in enumerate(props):
     out(f"H{rr}", None, nf)
     label(f"I{rr}", unit, color=GREY)
     name(nm, f"$H${rr}")
+    SECTION_PROP_CELLS.append((f"H{rr}", {"Zex": "Ze", "phiMsx": "phiMsx"}.get(nm, nm)))
 
 # ---------------- Serviceability criteria ----------------
 r = r + 10
@@ -542,6 +544,19 @@ GOV_ANCHOR = f"{hc(0)}8"
 label(f"{hc(0)}7", "Governing (OAR.GOVERNING)", 7, GREY, i=True)
 dyn(GOV_ANCHOR, f"=OAR.GOVERNING({ARGS_ULS})")
 ENV_ANCHOR = f"{hc(0)}13"; DEF_ANCHOR = f"{hc(6)}13"
+# section list for the Section size dropdown, filtered by Section type
+ws.column_dimensions[hc(12)].width = 12
+label(f"{hc(12)}7", "Sections (OAR.SECTIONLIST)", 7, GREY, i=True)
+SL_ANCHOR = f"{hc(12)}8"
+dyn(SL_ANCHOR, "=OAR.SECTIONLIST(SectionType)")
+sl_col = hc(12)
+dv_size = DataValidation(type="list", formula1=f"OFFSET(${sl_col}$8,0,0,MAX(1,COUNTA(${sl_col}$8:${sl_col}$300)),1)",
+                         showErrorMessage=True, errorTitle="Section size", error="Pick a section from the list for the selected Section type.")
+ws.add_data_validation(dv_size)
+dv_size.add(names["SectionSize"].replace("$", ""))
+for cell, prop in SECTION_PROP_CELLS:
+    dyn(cell, f'=OAR.SECTION(SectionSize,"{prop}",Grade)', ws[cell].number_format).fill = F_OUT
+    ws[cell].border = B_IN; ws[cell].alignment = C
 NPTS = 60
 label(f"{hc(0)}12", "Envelope (OAR.ENVELOPE)", 7, GREY, i=True)
 label(f"{hc(6)}12", "Deflected shapes (OAR.DEFLECTIONS)", 7, GREY, i=True)

@@ -9,7 +9,7 @@ open OAR.Steel
 [<Literal>]
 let Category = "OAR Steel"
 
-let private version = "0.2.1"
+let private version = "0.2.2"
 
 // ---------- conversion helpers ----------
 
@@ -548,3 +548,15 @@ let oarDeflections
             Serviceability.curves c.Beam c.Loads (num "psiL" psiL) (num "psiS" psiS) n
             |> List.map (fun (x, a, b, d, q) -> [ box (m1 x); box a; box b; box d; box q ])
         table ([ box "x (m)"; box "Δg"; box "Δg+ψl·q"; box "Δg+ψs·q"; box "Δq" ] :: rows))
+
+[<ExcelFunction(Name = "OAR.SECTIONLIST",
+                Description = "Spills the designations with complete data for a family (UB, UC, WB, PFC), largest first; blank = all",
+                Category = Category)>]
+let oarSectionList ([<ExcelArgument(Name = "[family]", Description = "UB, UC, WB or PFC")>] family: obj) : obj =
+    guard (fun () ->
+        let f = (str family).ToUpperInvariant()
+        let list =
+            Sections.all ()
+            |> List.filter (fun s -> f = "" || (sprintf "%A" s.Family) = f)
+            |> List.map (fun s -> [ box s.Designation ])
+        if list.IsEmpty then box (sprintf "no complete sections for '%s'" f) else table list)
