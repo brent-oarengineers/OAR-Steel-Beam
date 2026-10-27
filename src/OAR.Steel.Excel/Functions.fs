@@ -9,7 +9,7 @@ open OAR.Steel
 [<Literal>]
 let Category = "OAR Steel"
 
-let private version = "0.2.0"
+let private version = "0.2.1"
 
 // ---------- conversion helpers ----------
 
@@ -26,8 +26,21 @@ let private toCell (o: obj) : Cell =
 
 let private grid (o: obj) : Cell[,] =
     match o with
-    | :? (obj[,]) as a -> Array2D.map toCell a
+    | :? (obj[,]) as a ->
+        a
+        |> Array2D.mapi (fun i j v ->
+            match v with
+            | :? ExcelError as err ->
+                failwithf "input range has an Excel error (%A) at row %d, column %d of the range" err (i + 1) (j + 1)
+            | _ -> toCell v)
     | v -> Array2D.create 1 1 (toCell v)
+
+/// Name the argument in any error raised while reading it
+let private arg (name: string) (f: unit -> 'T) : 'T =
+    try
+        f ()
+    with ex ->
+        failwithf "%s: %s" name ex.Message
 
 let private isMissing (o: obj) =
     match o with
@@ -338,12 +351,12 @@ let private ctx designation gr span e includeSW loads : BeamCtx =
       Grade = grade gr
       E = ee
       Beam = { Span = l; EI = ee * s.Ix }
-      Loads = loadsWithSW s l includeSW loads }
+      Loads = arg "loads" (fun () -> loadsWithSW s l includeSW loads) }
 
 let private segmentChecks (c: BeamCtx) combos restraints kfactors =
-    let cs = Inputs.combinations (grid combos)
-    let pts = Inputs.restraints (grid restraints)
-    let k = Inputs.kFactors (grid kfactors)
+    let cs = arg "combos" (fun () -> Inputs.combinations (grid combos))
+    let pts = arg "restraints" (fun () -> Inputs.restraints (grid restraints))
+    let k = arg "kfactors" (fun () -> Inputs.kFactors (grid kfactors))
     Uls.checkAll c.Sec c.Grade c.E c.Beam c.Loads pts k cs
 
 let private m1 (v: float) = v / 1000.0 // mm -> m
