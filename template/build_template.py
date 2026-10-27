@@ -533,42 +533,44 @@ r = clast + 1
 heading(r, "Lateral Restraints (AS 4100 Cl. 5.4)")
 label(f"B{r+1}", "Restraint type at each cross-section for the critical flange: F, P, L or U (– = none). Supports must be F or P.", 7, GREY, i=True)
 rh = r + 2
-rcols = ["x (mm)", "Ref", "Restraint provided by", "Top flange", "Bottom fl.", "αm override"]
-for col, txt in zip("BCDEFG", rcols):
+rcols = ["x (mm)", "Ref", "Restraint provided by", "Top flange", "Bottom fl.", "αm top →", "αm bot. →"]
+for col, txt in zip("BCDEFGH", rcols):
     put(f"{col}{rh}", txt, font(8, b=True), F_HDR, None, C)
 restr = [
-    ("=0", "A", "Left support – cleat", "F", "F", None),
-    (2767, "", "Purlin + fly brace", "L", "F", None),
-    (5533, "", "Purlin + fly brace", "L", "F", None),
-    ("=Span", "B", "Right support – cleat", "F", "F", None),
-    (None, None, None, None, None, None),
+    ("=0", "A", "Left support – cleat", "F", "F", None, None),
+    (2767, "", "Purlin + fly brace", "L", "F", None, None),
+    (5533, "", "Purlin + fly brace", "L", "F", None, None),
+    ("=Span", "B", "Right support – cleat", "F", "F", None, None),
+    (None, None, None, None, None, None, None),
 ]
 for i, rv in enumerate(restr):
     rr = rh + 1 + i
-    for col, v, nf in zip("BCDEFG", rv, ["#,##0", None, None, None, None, "0.00"]):
+    for col, v, nf in zip("BCDEFGH", rv, ["#,##0", None, None, None, None, "0.00", "0.00"]):
         if isinstance(v, str) and v.startswith("="):
             out(f"{col}{rr}", v, nf)
         else:
             inp(f"{col}{rr}", v, nf, L if col == "D" else C)
 rlast = rh + len(restr)
-trs = Table(displayName="Restraints_B1", ref=f"B{rh}:G{rlast}")
+trs = Table(displayName="Restraints_B1", ref=f"B{rh}:H{rlast}")
 trs.tableStyleInfo = TableStyleInfo(name="TableStyleLight15", showRowStripes=False)
 ws.add_table(trs)
 dv_r = DataValidation(type="list", formula1='"F,P,L,U,–"')
 ws.add_data_validation(dv_r); dv_r.add(f"E{rh+1}:F{rlast}")
-label(f"B{rlast+1}", "αm override applies to the segment starting at that row (blank = Cl. 5.6.1.1(a)(iii)); flagged * in the output.", 7, GREY, i=True)
-for col, txt in zip("HIJ", ["Factor", "Top", "Bottom"]):
-    put(f"{col}{rh}", txt, font(8, b=True), F_HDR, None, C)
+label(f"B{rlast+1}", "αm top / αm bot. → override αm for that flange's segment from this row to the next restraint on that flange "
+      "(blank = Cl. 5.6.1.1(a)(iii)). Flagged * in the output.", 7, GREY, i=True)
+kb = rlast + 3
+for col, txt in zip("EFG", ["Factor", "Top", "Bottom"]):
+    put(f"{col}{kb}", txt, font(8, b=True), F_HDR, None, C)
 kf = [("kl", 1.4, 1.0, "kl"), ("kr", 1.0, 1.0, "kr")]
 for i, (lab, top, bot, nm) in enumerate(kf):
-    rr = rh + 1 + i
-    label(f"H{rr}", lab, 9, al=C)
-    inp(f"I{rr}", top, "0.00"); inp(f"J{rr}", bot, "0.00")
-    name(f"{nm}_Top", f"$I${rr}"); name(f"{nm}_Bot", f"$J${rr}")
-KF_RANGE = f"$I${rh+1}:$J${rh+2}"
-label(f"H{rh+3}", "kt from restraint", 7, GREY, i=True)
-label(f"H{rh+4}", "types (add-in)", 7, GREY, i=True)
-rlast = rlast + 1
+    rr = kb + 1 + i
+    label(f"E{rr}", lab, 9, al=C)
+    inp(f"F{rr}", top, "0.00"); inp(f"G{rr}", bot, "0.00")
+    name(f"{nm}_Top", f"$F${rr}"); name(f"{nm}_Bot", f"$G${rr}")
+KF_RANGE = f"$F${kb+1}:$G${kb+2}"
+label(f"H{kb+1}", "kl: load height, Table 5.6.3(2)", 7, GREY, i=True)
+label(f"H{kb+2}", "kr: rotation, Table 5.6.3(3); kt from restraints", 7, GREY, i=True)
+rlast = kb + 2
 
 # uplift summary row: say so and grey it out when no uplift combinations are active
 for srow in range(sum_hdr + 1, sum_last + 1):

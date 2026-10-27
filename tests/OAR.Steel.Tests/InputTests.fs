@@ -71,15 +71,16 @@ let tests =
           test "restraints table: codes, blanks and αm override" {
               let g =
                   grid
-                      [ [ "0"; "A"; "support"; "F"; "F"; "" ]
-                        [ "2767"; ""; "purlin"; "L"; "–"; "1.2" ]
-                        [ ""; ""; ""; ""; ""; "" ]
-                        [ "8300"; "B"; "support"; "P"; "F"; "" ] ]
+                      [ [ "0"; "A"; "support"; "F"; "F"; ""; "" ]
+                        [ "2767"; ""; "purlin"; "L"; "–"; "1.2"; "" ]
+                        [ ""; ""; ""; ""; ""; ""; "" ]
+                        [ "8300"; "B"; "support"; "P"; "F"; ""; "" ] ]
               let r = Inputs.restraints g |> List.toArray
               Expect.equal r.Length 3 "blank row skipped"
               Expect.equal r.[1].Top (Some RL) "L"
               Expect.equal r.[1].Bottom None "– = none"
-              Expect.equal r.[1].AlphaMOverride (Some 1.2) "override"
+              Expect.equal r.[1].AlphaMTop (Some 1.2) "αm top"
+              Expect.equal r.[1].AlphaMBottom None "αm bottom blank"
               Expect.equal r.[2].Top (Some RP) "P"
               Expect.throws (fun () -> Inputs.restraints (grid [ [ "0"; ""; ""; "X"; "F"; "" ] ]) |> ignore) "bad code"
           }

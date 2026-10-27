@@ -9,7 +9,7 @@ open OAR.Steel
 [<Literal>]
 let Category = "OAR Steel"
 
-let private version = "0.2.3"
+let private version = "0.2.4"
 
 // ---------- conversion helpers ----------
 
@@ -375,7 +375,7 @@ let oarUls
     ([<ExcelArgument(Name = "includeSW")>] includeSW: obj)
     ([<ExcelArgument(Name = "loads")>] loads: obj)
     ([<ExcelArgument(Name = "combos", Description = "active combinations (ID..Wiu)")>] combos: obj)
-    ([<ExcelArgument(Name = "restraints", Description = "Restraints table: x | Ref | Description | Top | Bottom | αm override")>] restraints: obj)
+    ([<ExcelArgument(Name = "restraints", Description = "Restraints table: x | Ref | Description | Top | Bottom | αm top | αm bottom")>] restraints: obj)
     ([<ExcelArgument(Name = "kfactors", Description = "2x2: kl top, kl bottom / kr top, kr bottom")>] kfactors: obj)
     : obj =
     guard (fun () ->

@@ -137,8 +137,9 @@ module Inputs =
                   { Ratio = ratio
                     MaxMm = optNum (i + 1) "max" grid.[i, 1] } ]
 
-    /// Restraints table, 5 or 6 columns:
-    /// x (mm) | Ref | Description | Top flange | Bottom flange | [αm override for the segment starting here]
+    /// Restraints table, 5 to 7 columns:
+    /// x (mm) | Ref | Description | Top flange | Bottom flange | [αm top] | [αm bottom]
+    /// αm top / bottom = override for that flange's segment that starts at this row and runs to the next restraint.
     /// Restraint codes F, P, L, U; blank or "–" = no restraint to that flange at this point.
     let restraints (grid: Cell[,]) : RestraintPoint list =
         if Array2D.length2 grid < 5 then failwith "restraints: expected at least 5 columns (x, Ref, Description, Top, Bottom)"
@@ -156,17 +157,20 @@ module Inputs =
               let row = i + 1
               let xo = optNum row "x" grid.[i, 0]
               if xo.IsSome then
-                  let am =
-                      if Array2D.length2 grid >= 6 then optNum row "αm override" grid.[i, 5] else None
-                  match am with
-                  | Some v when v <= 0.0 || v > 2.5 -> failwithf "restraint row %d: αm override must be > 0 and <= 2.5" row
-                  | _ -> ()
+                  let amCol (j: int) name =
+                      let v = if Array2D.length2 grid > j then optNum row name grid.[i, j] else None
+                      match v with
+                      | Some a when a <= 0.0 || a > 2.5 -> failwithf "restraint row %d: %s must be > 0 and <= 2.5" row name
+                      | _ -> v
+                  let amTop = amCol 5 "αm top"
+                  let amBot = amCol 6 "αm bottom"
                   let p: RestraintPoint =
                       { X = xo.Value
                         Ref = text grid.[i, 1]
                         Top = code row "top" grid.[i, 3]
                         Bottom = code row "bottom" grid.[i, 4]
-                        AlphaMOverride = am }
+                        AlphaMTop = amTop
+                        AlphaMBottom = amBot }
                   yield p ]
 
     /// k factors, 2 x 2: [kl top, kl bottom; kr top, kr bottom]

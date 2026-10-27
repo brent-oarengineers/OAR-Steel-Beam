@@ -5,7 +5,7 @@ open OAR.Steel
 open Helpers
 
 let private pt x top bottom am : RestraintPoint =
-    { X = x; Ref = ""; Top = top; Bottom = bottom; AlphaMOverride = am }
+    { X = x; Ref = ""; Top = top; Bottom = bottom; AlphaMTop = am; AlphaMBottom = am }
 
 let private k1 = { KlTop = 1.0; KlBottom = 1.0; KrTop = 1.0; KrBottom = 1.0 }
 
@@ -136,4 +136,27 @@ let tests =
               let _, mmax, mmin, _, _ = env.[1]
               within 1e-9 (3.9 * 8300.0 ** 2.0 / 8.0) mmax "envelope max at midspan"
               within 1e-9 (2.7 * 8300.0 ** 2.0 / 8.0) mmin "envelope min at midspan"
+          } 
+          test "αm overrides are per flange and must start a segment" {
+              let s = Sections.find "310UB40.4"
+              let beam = { Span = 8300.0; EI = 200000.0 * s.Ix }
+              let loads = [ { Case = G; Shape = FullSpan; Magnitude = 3.0; Description = "" } ]
+              let p0Base = pt 0.0 (Some RF) (Some RF) None
+              let p0 = { p0Base with AlphaMTop = Some 1.13 }
+              let pts = [ p0; pt 8300.0 (Some RF) (Some RF) None ]
+              let top = Uls.checkCombination s 300 200000.0 beam loads pts k1 gravity |> List.exactlyOne
+              within 1e-12 1.13 top.MemberCap.AlphaM "top override used"
+              let botCombo = { gravity with CriticalFlange = Bottom }
+              let bot = Uls.checkCombination s 300 200000.0 beam loads pts k1 botCombo |> List.exactlyOne
+              Expect.isFalse bot.MemberCap.AlphaMOverridden "bottom flange ignores the top override"
+              // override at the right support, or where the flange is unrestrained, is an error rather than silently ignored
+              let endBase = pt 8300.0 (Some RF) (Some RF) None
+              let atEnd = [ pt 0.0 (Some RF) (Some RF) None; { endBase with AlphaMTop = Some 1.0 } ]
+              Expect.throws (fun () -> Uls.checkCombination s 300 200000.0 beam loads atEnd k1 gravity |> ignore) "override at right support"
+              let midBase = pt 4000.0 None (Some RF) None
+              let unrestrained =
+                  [ pt 0.0 (Some RF) (Some RF) None
+                    { midBase with AlphaMTop = Some 1.0 }
+                    pt 8300.0 (Some RF) (Some RF) None ]
+              Expect.throws (fun () -> Uls.checkCombination s 300 200000.0 beam loads unrestrained k1 gravity |> ignore) "top override where top is unrestrained"
           } ]

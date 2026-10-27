@@ -38,8 +38,10 @@ type RestraintPoint =
       Ref: string
       Top: RestraintType option
       Bottom: RestraintType option
-      /// αm for the segment that starts at this point (overrides Cl. 5.6.1.1(a)(iii))
-      AlphaMOverride: float option }
+      /// αm for the top-flange segment that starts at this point (overrides Cl. 5.6.1.1(a)(iii))
+      AlphaMTop: float option
+      /// αm for the bottom-flange segment that starts at this point
+      AlphaMBottom: float option }
 
 /// kl and kr for each critical flange (sheet inputs)
 type KFactors =
@@ -106,6 +108,11 @@ module Uls =
         | Top -> r.Top
         | Bottom -> r.Bottom
 
+    let alphaMFor (flange: Flange) (r: RestraintPoint) =
+        match flange with
+        | Top -> r.AlphaMTop
+        | Bottom -> r.AlphaMBottom
+
     let flangeName =
         function
         | Top -> "top"
@@ -133,6 +140,18 @@ module Uls =
 
         if restrained |> List.exists (fun (p, _) -> p.X < -tol || p.X > span + tol) then
             failwith "restraints: a restraint position is outside the span"
+
+        // an αm override must sit on a row that starts a segment for that flange, otherwise it would be ignored
+        for p in pts do
+            match alphaMFor flange p with
+            | None -> ()
+            | Some _ ->
+                if (restraintFor flange p).IsNone then
+                    failwithf "restraints: αm %s is given at x = %g but the %s flange is not restrained there (no segment starts at that row)"
+                        (flangeName flange) p.X (flangeName flange)
+                if abs (p.X - span) <= tol then
+                    failwithf "restraints: αm %s is given at the right support (x = %g); it applies to the segment starting at that row, so leave it blank"
+                        (flangeName flange) p.X
 
         restrained
         |> List.pairwise
@@ -168,7 +187,7 @@ module Uls =
             let xm, mm = Analysis.maxAbsOn p1.X p2.X bps m
             let amFormula = Capacity.alphaMFormula mm m2 m3 m4
             let am, overridden =
-                match p1.AlphaMOverride with
+                match alphaMFor flange p1 with
                 | Some v -> (v, true)
                 | None -> (amFormula, false)
             let ktv = kt s len t1 t2
