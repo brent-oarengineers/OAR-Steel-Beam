@@ -5,9 +5,14 @@
 # in the Startup folder): it only copies when the share has a newer file, and skips quietly if Excel
 # has the add-in open.
 #
-# Settings: change $Share if the release folder moves.
+# Settings: the first folder in $Shares that exists is used. The UNC path works even if a PC maps
+# the NAS to a different drive letter. Change these if the release folder moves.
 
-$Share   = 'Z:\Programs\OAR Steel'
+$Shares = @(
+    '\\LOA-TrueNAS\Data\Programs\Spreadsheets\Add-Ins\OAR Steel',
+    'X:\Programs\Spreadsheets\Add-Ins\OAR Steel'
+)
+$Share = $Shares | Where-Object { Test-Path $_ } | Select-Object -First 1
 $Local   = Join-Path $env:LOCALAPPDATA 'OAR'
 $LogFile = Join-Path $Local 'install.log'
 
@@ -21,11 +26,13 @@ try {
     if ($platform -eq 'x86') { $bits = '32' }
 } catch { }
 
+if (-not $Share) { Log "release folder not reachable: $($Shares -join ' | ')"; exit 0 }
+
 $fileName = "OAR.Steel-AddIn$bits.xll"
 $source   = Join-Path $Share $fileName
 $target   = Join-Path $Local $fileName
 
-if (-not (Test-Path $source)) { Log "share not available or file missing: $source"; exit 0 }
+if (-not (Test-Path $source)) { Log "file missing: $source"; exit 0 }
 
 # copy when missing or the share copy is newer
 $needCopy = (-not (Test-Path $target)) -or ((Get-Item $source).LastWriteTimeUtc -gt (Get-Item $target).LastWriteTimeUtc)

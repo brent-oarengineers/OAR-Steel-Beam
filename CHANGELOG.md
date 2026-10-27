@@ -3,6 +3,9 @@
 Each version that reaches `main` is built, tested and published automatically as a GitHub Release.
 The calc sheet shows the version it was calculated with (title block, under the green bar).
 
+## v0.2.6
+- Install script reads the release folder `X:\Programs\Spreadsheets\Add-Ins\OAR Steel` (or `\\LOA-TrueNAS\Data\...`, whichever is reachable). No calculation changes.
+
 ## v0.2.5
 - Continuous restraint option per flange (factor box, "Continuous" Yes/No): critical flange continuously restrained gives φMb = φMsx over the full span.
 - Restraints table starts with the two supports and five blank rows for internal restraints.
