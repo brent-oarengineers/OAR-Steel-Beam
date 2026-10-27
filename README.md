@@ -11,7 +11,9 @@ tests/OAR.Steel.Tests   Expecto benchmark tests (console app)                   
 tools/reference_check.py independent Python re-implementation for cross-checking
 ```
 
-## 1. One-off setup (Windows)
+See **DEPLOYMENT.md** for releases and staff installs, **CHANGELOG.md** for what changed.
+
+## 1. One-off setup (Windows, development only)
 
 1. Check Excel bitness: File > Account > About Excel (64-bit is normal).
 2. Install **one** of:

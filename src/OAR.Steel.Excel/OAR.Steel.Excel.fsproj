@@ -18,6 +18,8 @@
 
   <ItemGroup>
     <PackageReference Include="ExcelDna.AddIn" Version="1.8.0" />
+    <!-- lets the .NET Framework 4.8 build run on any machine (including the GitHub build server) without the targeting pack -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>

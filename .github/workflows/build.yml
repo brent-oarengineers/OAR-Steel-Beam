@@ -1,0 +1,67 @@
+name: Build, test and release
+
+# Every push and pull request: build on Windows, run the benchmark tests, keep the add-in as a download.
+# Every push to main with a version number that has not been released yet: publish a GitHub Release
+# with the add-in, the calc template, the install script and the release notes from CHANGELOG.md.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Run benchmark tests
+        run: dotnet run --project tests/OAR.Steel.Tests -c Release -- --summary
+
+      - name: Build add-in
+        run: dotnet build src/OAR.Steel.Excel -c Release
+
+      - name: Collect release files
+        shell: pwsh
+        run: |
+          $version = ([xml](Get-Content src/OAR.Steel.Excel/OAR.Steel.Excel.fsproj)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
+          "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
+          $pub = "src/OAR.Steel.Excel/bin/Release/net48/publish"
+          if (-not (Test-Path "$pub/OAR.Steel.Excel-AddIn64-packed.xll")) { $pub = "src/OAR.Steel.Excel/bin/Release/net48" }
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item "$pub/OAR.Steel.Excel-AddIn64-packed.xll" "dist/OAR.Steel-AddIn64.xll"
+          Copy-Item "$pub/OAR.Steel.Excel-AddIn-packed.xll"   "dist/OAR.Steel-AddIn32.xll"
+          Copy-Item "template/Steel Beam Design - Base.xlsx"   "dist/Steel Beam Design - Base.xlsx"
+          Copy-Item "deploy/Install-OARSteel.ps1"              "dist/"
+          Copy-Item "deploy/Install-OARSteel.cmd"              "dist/"
+          Copy-Item "CHANGELOG.md"                             "dist/"
+          # release notes = this version's section of CHANGELOG.md
+          $text = Get-Content CHANGELOG.md -Raw
+          $m = [regex]::Match($text, "(?ms)^## v$([regex]::Escape($version))\b.*?(?=^## v|\z)")
+          $notes = if ($m.Success) { $m.Value } else { "Version $version" }
+          $notes | Out-File -Encoding utf8 dist/RELEASE_NOTES.md
+          Get-ChildItem dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OAR-Steel-v${{ env.VERSION }}-build-${{ github.run_number }}
+          path: dist/
+
+      - name: Publish release (main only, new version only)
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "v$env:VERSION"
+          gh release view $tag 2>$null
+          if ($LASTEXITCODE -eq 0) { Write-Host "$tag already released - nothing to do"; exit 0 }
+          gh release create $tag dist/* --title "OAR Steel $tag" --notes-file dist/RELEASE_NOTES.md --target $env:GITHUB_SHA

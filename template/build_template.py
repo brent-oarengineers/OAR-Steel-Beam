@@ -790,6 +790,9 @@ name("Out_Reactions", f"$B${r+2}")
 r = r + 7
 lastrow = r + 9
 
+# add-in version on every printed calc
+dyn("B7", '=IFERROR("Calculated with "&OAR.VERSION(),"OAR Steel add-in not loaded")', None, font(7, i=True, color=GREY), L)
+
 # ---------------- Summary cells wired to add-in results ----------------
 sls_map = {"Res_Dg": 1, "Res_Dl": 2, "Res_Ds": 3, "Res_Dq": 4, "Res_D1": 5}
 for nm, k in sls_map.items():
