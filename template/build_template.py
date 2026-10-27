@@ -654,16 +654,18 @@ label(f"{hc(6)}12", "Deflected shapes (OAR.DEFLECTIONS)", 7, GREY, i=True)
 dyn(ENV_ANCHOR, f"=OAR.ENVELOPE(SectionSize,Span,IncludeSW,{LOADS},{COMBOS},{NPTS})")
 dyn(DEF_ANCHOR, f"=OAR.DEFLECTIONS(SectionSize,Span,E_mod,IncludeSW,{LOADS},PsiL,PsiS,{NPTS})")
 
-def chart(title, xcol, ycols, first_row, ytitle, reverse, colors, w=17.6, h=5.6):
+def chart(title, xcol, ycols, first_row, ytitle, reverse, colors, w=17.6, h=5.6, names=None):
+    """Scatter chart over a fixed block: x in xcol, series in ycols, data rows first_row .. first_row + NPTS.
+    Series names are literal (not cell references) so Excel never regroups the series."""
     ch_ = ScatterChart()
     ch_.title = None
     ch_.style = 2
     ch_.height = h; ch_.width = w
     ch_.legend.position = "t"
-    x = Reference(ws, min_col=xcol, min_row=first_row + 1, max_row=first_row + 1 + NPTS)
-    for ycol, colr in zip(ycols, colors):
-        y = Reference(ws, min_col=ycol, min_row=first_row, max_row=first_row + 1 + NPTS)
-        se = Series(y, x, title_from_data=True)
+    x = Reference(ws, min_col=xcol, min_row=first_row, max_row=first_row + NPTS)
+    for k, (ycol, colr) in enumerate(zip(ycols, colors)):
+        y = Reference(ws, min_col=ycol, min_row=first_row, max_row=first_row + NPTS)
+        se = Series(y, x, title=names[k])
         se.marker.symbol = "none"
         se.smooth = False
         se.graphicalProperties.line.solidFill = colr
@@ -687,6 +689,23 @@ def chart(title, xcol, ycols, first_row, ytitle, reverse, colors, w=17.6, h=5.6)
 
 env_r = int(ENV_ANCHOR[len(hc(0)):]); def_r = int(DEF_ANCHOR[len(hc(6)):])
 
+# fixed chart blocks: plain cells that copy the spilled data (or #N/A), so the charts always see
+# a stable numeric range even while the add-in is loading or a spill is being resized
+CB = 46  # column AT
+label(f"{gcl(CB)}12", "Chart data (fixed copies of the spills above)", 7, GREY, i=True)
+def mirror(anchor, src_cols, dest_col):
+    for i in range(NPTS + 1):
+        for j, sc in enumerate(src_cols):
+            cell = f"{gcl(dest_col + j)}{13 + i}"
+            dyn(cell, f"=IFERROR(INDEX(_xlfn.ANCHORARRAY({anchor}),{i + 2},{sc}),NA())", "0.000")
+            ws[cell].font = font(7, color=GREY)
+DEF_BLOCK = CB            # AT..AX: x, Δg, Δg+ψl·q, Δg+ψs·q, Δq
+ENV_BLOCK = CB + 6        # AZ..BB: x, M* max, M* min
+mirror(DEF_ANCHOR, [1, 2, 3, 4, 5], DEF_BLOCK)
+mirror(ENV_ANCHOR, [1, 2, 3], ENV_BLOCK)
+for i in range(9):
+    ws.column_dimensions[gcl(CB + i)].width = 7
+
 
 r = rlast + 2
 ws.row_breaks.append(Break(id=r - 1))
@@ -699,14 +718,15 @@ dyn(SLS_ANCHOR, f"=OAR.SLS(SectionSize,Span,E_mod,IncludeSW,{LOADS},{CRIT_RANGE}
 spill_format(r + 2, r + 6, "BCDEFG", [None, "0.00", "#,##0", "0.00", '"L/"0', "0%"], util_col="G")
 label(f"H{r+2}", "Δ1kN: 1 kN at midspan,", 7, GREY); label(f"H{r+3}", "beam alone", 7, GREY)
 label(f"B{r+8}", "Deflected shapes (mm, plotted downward;  x in m)", 8, GREEN, b=True)
-ws.add_chart(chart("", HX + 6, [HX + 7, HX + 8, HX + 9, HX + 10], def_r, "δ (mm)", True,
-                   [GREEN, "8FA89C", TAUPE, "595959"], h=5.4), f"B{r+9}")
+ws.add_chart(chart("", DEF_BLOCK, [DEF_BLOCK + 1, DEF_BLOCK + 2, DEF_BLOCK + 3, DEF_BLOCK + 4], 13, "δ (mm)", True,
+                   [GREEN, "8FA89C", TAUPE, "595959"], h=5.4, names=["Δg", "Δg+ψl·q", "Δg+ψs·q", "Δq"]), f"B{r+9}")
 r = r + 21
 
 # ULS bending
 heading(r, "ULS Strength Checks – Bending (AS 4100 Cl. 5.6)")
 label(f"B{r+1}", "Bending moment envelope, all active combinations (kN·m, sagging plotted down;  x in m)", 8, GREEN, b=True)
-ws.add_chart(chart("", HX, [HX + 1, HX + 2], env_r, "M* (kN·m)", True, [GREEN, TAUPE], h=5.4), f"B{r+2}")
+ws.add_chart(chart("", ENV_BLOCK, [ENV_BLOCK + 1, ENV_BLOCK + 2], 13, "M* (kN·m)", True, [GREEN, TAUPE], h=5.4,
+                   names=["M* max", "M* min"]), f"B{r+2}")
 r = r + 14
 out_header(r, "BCDEFGHIJ", ["Combo", "Segment (m)", "Ends", "Le (m)", "αm", "αs", "φMb (kN·m)", "M* (kN·m)", "Utilisation"])
 ws.row_dimensions[r].height = 16
