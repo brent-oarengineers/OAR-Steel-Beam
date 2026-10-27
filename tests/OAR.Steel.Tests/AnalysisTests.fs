@@ -68,4 +68,17 @@ let tests =
               let acts = Analysis.actions span combo loads
               let m = Analysis.moment beam acts (span / 2.0)
               within 1e-12 ((0.9 - 3.0) * span * span / 8.0) m "net uplift moment (hogging, negative)"
+          } 
+          test "line-load profile for the load diagram" {
+              let loads =
+                  [ { Case = G; Shape = FullSpan; Magnitude = 1.0; Description = "" }
+                    { Case = Q; Shape = Partial(1000.0, 3000.0); Magnitude = 2.0; Description = "" }
+                    { Case = Wu; Shape = FullSpan; Magnitude = 3.0; Description = "" }
+                    { Case = G; Shape = Point 4150.0; Magnitude = 2750.0; Description = "" } ]
+              let rows = Analysis.lineLoadProfile span loads |> List.toArray
+              Expect.equal rows.Length 8 "start + 2 rows x 3 intervals + end"
+              let x, ws = rows.[3] // second interval (1000 to 3000), left end
+              near 1e-9 1000.0 x "x"
+              Expect.equal ws [ 1.0; 2.0; 0.0; -3.0; 0.0; 0.0 ] "G, Q, Wd, Wu (up = negative), Wid, Wiu"
+              Expect.equal (Analysis.pointLoads loads) [ 4150.0, 2750.0, G ] "point loads"
           } ]

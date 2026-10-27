@@ -1,4 +1,4 @@
-# OAR Steel – Excel add-in (v0.2.2)
+# OAR Steel – Excel add-in (v0.2.3)
 
 F# / Excel-DNA add-in for the OAR steel beam calc sheet. Engineering lives in `OAR.Steel.Core`
 (no Excel references, fully testable); `OAR.Steel.Excel` only converts worksheet values.
@@ -63,6 +63,7 @@ All lengths mm. Section properties use catalogue units (×10⁶ mm⁴ etc.). Err
 | `OAR.GOVERNING(…same…)` | 3 rows: bending top flange, bending bottom flange, shear – action, capacity, where |
 | `OAR.SHEAR(size, grade, span, SW, loads, combos)` | per combination: V*, x, φVv, utilisation, interaction note |
 | `OAR.ENVELOPE(size, span, SW, loads, combos, [n])` | x, M* max/min, V* max/min for charts |
+| `OAR.LOADDIAGRAM(size, span, SW, loads, ["line"\|"point"])` | applied load diagram data: line-load steps per case (kN/m) or point loads (kN), padded with #N/A for charts |
 | `OAR.DEFLECTIONS(size, span, E, SW, loads, ψl, ψs, [n])` | x and the four deflected shapes for charts |
 
 `restraints` = Restraints table (x | Ref | Description | Top | Bottom | αm override); `k` = 2 × 2 range

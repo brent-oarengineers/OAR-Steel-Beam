@@ -484,7 +484,9 @@ out(f"S{llast+2}", '=COUNTIFS(CombLib_B1[Active],1,CombLib_B1[Crit. flange],"Bot
 name("NumUpliftCombos", f"$S${llast+2}")
 
 # ---------------- Load combinations (printed: active rows only) ----------------
-r = sr + 3
+LD_ROW = sr + 3   # applied load diagram (chart added later, once chart() exists)
+label(f"B{LD_ROW}", "Applied loads (unfactored; line loads kN/m, point loads kN with stems; + = downward;  x in m)", 8, GREEN, b=True)
+r = sr + 16
 heading(r, "Load Combinations (AS/NZS 1170.0)")
 label(f"B{r+1}", "Combination set", 9); inp(f"E{r+1}", "Roof"); name("CombSet", f"$E${r+1}")
 dv_set = DataValidation(type="list", formula1='"Floor,Roof,All,Custom"')
@@ -560,6 +562,9 @@ for srow in range(sum_hdr + 1, sum_last + 1):
 
 # ---------------- Outputs (add-in) ----------------
 from openpyxl.chart import ScatterChart, Reference, Series
+from openpyxl.chart.axis import ChartLines
+from openpyxl.chart.shapes import GraphicalProperties
+from openpyxl.drawing.line import LineProperties
 from openpyxl.chart.layout import Layout, ManualLayout
 CRIT_RANGE = f"$E${hdr+1}:$F${hdr+5}"
 LOADS = "Loads_B1[[Case]:[End (mm)]]"
@@ -664,6 +669,38 @@ def chart(title, xcol, ycols, first_row, ytitle, reverse, colors, w=17.6, h=5.6)
     return ch_
 
 env_r = int(ENV_ANCHOR[len(hc(0)):]); def_r = int(DEF_ANCHOR[len(hc(6)):])
+
+# applied load diagram: data in the helper area, chart under the loads table
+LDL_ROW = 90
+label(f"{hc(0)}{LDL_ROW-1}", "Applied line loads (OAR.LOADDIAGRAM)", 7, GREY, i=True)
+label(f"{hc(8)}{LDL_ROW-1}", "Point loads", 7, GREY, i=True)
+dyn(f"{hc(0)}{LDL_ROW}", f'=OAR.LOADDIAGRAM(SectionSize,Span,IncludeSW,{LOADS},"line")')
+dyn(f"{hc(8)}{LDL_ROW}", f'=OAR.LOADDIAGRAM(SectionSize,Span,IncludeSW,{LOADS},"point")')
+from openpyxl.chart.error_bar import ErrorBars
+from openpyxl.chart.marker import Marker
+ld = ScatterChart(); ld.title = None; ld.style = 2; ld.height = 5.0; ld.width = 17.6; ld.legend.position = "t"
+xr = Reference(ws, min_col=HX, min_row=LDL_ROW + 1, max_row=LDL_ROW + 80)
+case_colors = [GREEN, "C07A2C", "6E8FB5", "9C5DA6", "8FA89C", "B8ADA5"]
+for k, colr in enumerate(case_colors):
+    y = Reference(ws, min_col=HX + 1 + k, min_row=LDL_ROW, max_row=LDL_ROW + 80)
+    se = Series(y, xr, title_from_data=True)
+    se.marker.symbol = "none"; se.smooth = False
+    se.graphicalProperties.line.solidFill = colr; se.graphicalProperties.line.width = 19050
+    ld.series.append(se)
+px = Reference(ws, min_col=HX + 8, min_row=LDL_ROW + 1, max_row=LDL_ROW + 20)
+py = Reference(ws, min_col=HX + 9, min_row=LDL_ROW, max_row=LDL_ROW + 20)
+ps = Series(py, px, title_from_data=False, title="Point loads (kN)")
+ps.marker = Marker(symbol="triangle", size=7)
+ps.marker.graphicalProperties = GraphicalProperties(solidFill="262626")
+ps.graphicalProperties.line.noFill = True
+ps.errBars = ErrorBars(errDir="y", errBarType="minus", errValType="percentage", val=100, noEndCap=True)
+ld.series.append(ps)
+ld.x_axis.title = None; ld.y_axis.title = "kN/m · kN"
+ld.x_axis.delete = False; ld.y_axis.delete = False
+ld.x_axis.scaling.min = 0; ld.x_axis.majorGridlines = None
+ld.x_axis.tickLblPos = "low"; ld.y_axis.tickLblPos = "low"
+_g = ChartLines(); _g.spPr = GraphicalProperties(ln=LineProperties(solidFill="E3E3E3", w=6350)); ld.y_axis.majorGridlines = _g
+ws.add_chart(ld, f"B{LD_ROW+1}")
 r = rlast + 2
 ws.row_breaks.append(Break(id=r - 1))
 
@@ -681,11 +718,9 @@ r = r + 21
 
 # ULS bending
 heading(r, "ULS Strength Checks – Bending (AS 4100 Cl. 5.6)")
-label(f"B{r+1}", "Bending moment envelope (kN·m, sagging down;  x in m)", 8, GREEN, b=True)
-label(f"F{r+1}", "Shear force envelope (kN;  x in m)", 8, GREEN, b=True)
-ws.add_chart(chart("", HX, [HX + 1, HX + 2], env_r, "M* (kN·m)", True, [GREEN, TAUPE], w=8.7, h=6.2), f"B{r+2}")
-ws.add_chart(chart("", HX, [HX + 3, HX + 4], env_r, "V* (kN)", False, [GREEN, TAUPE], w=8.7, h=6.2), f"F{r+2}")
-r = r + 16
+label(f"B{r+1}", "Bending moment envelope, all active combinations (kN·m, sagging plotted down;  x in m)", 8, GREEN, b=True)
+ws.add_chart(chart("", HX, [HX + 1, HX + 2], env_r, "M* (kN·m)", True, [GREEN, TAUPE], h=5.4), f"B{r+2}")
+r = r + 14
 out_header(r, "BCDEFGHIJ", ["Combo", "Segment (m)", "Ends", "Le (m)", "αm", "αs", "φMb (kN·m)", "M* (kN·m)", "Utilisation"])
 ws.row_dimensions[r].height = 16
 ULS_ANCHOR = f"B{r+1}"
