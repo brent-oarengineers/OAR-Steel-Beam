@@ -9,7 +9,7 @@ open OAR.Steel
 [<Literal>]
 let Category = "OAR Steel"
 
-let private version = "0.2.3"
+let private version = "0.2.5"
 
 // ---------- conversion helpers ----------
 
@@ -375,8 +375,8 @@ let oarUls
     ([<ExcelArgument(Name = "includeSW")>] includeSW: obj)
     ([<ExcelArgument(Name = "loads")>] loads: obj)
     ([<ExcelArgument(Name = "combos", Description = "active combinations (ID..Wiu)")>] combos: obj)
-    ([<ExcelArgument(Name = "restraints", Description = "Restraints table: x | Ref | Description | Top | Bottom | αm override")>] restraints: obj)
-    ([<ExcelArgument(Name = "kfactors", Description = "2x2: kl top, kl bottom / kr top, kr bottom")>] kfactors: obj)
+    ([<ExcelArgument(Name = "restraints", Description = "Restraints table: x | Ref | Description | Top | Bottom | αm top | αm bottom")>] restraints: obj)
+    ([<ExcelArgument(Name = "kfactors", Description = "kl top, kl bottom / kr top, kr bottom / [continuous Yes/No top, bottom]")>] kfactors: obj)
     : obj =
     guard (fun () ->
         let c = ctx designation gr span e includeSW loads
@@ -442,7 +442,7 @@ let oarUlsDetail
                   row "αm, Cl. 5.6.1.1(a)(iii)" (box r.AlphaMFormula) ""
                   row "αm used" (box mc.AlphaM) (if mc.AlphaMOverridden then "override" else "formula")
                   row "Msx" (box (Units.toKNm mc.Ms)) "kN·m"
-                  row "Mo" (box (Units.toKNm mc.Mo)) "kN·m"
+                  row "Mo" (if Double.IsInfinity mc.Mo then box "–" else box (Units.toKNm mc.Mo)) (if Double.IsInfinity mc.Mo then "continuous restraint" else "kN·m")
                   row "αs" (box mc.AlphaS) ""
                   row "φMb = φ αm αs Msx ≤ φMsx" (box (Units.toKNm mc.PhiMb)) "kN·m"
                   row "φMsx" (box (Units.toKNm mc.PhiMs)) "kN·m"

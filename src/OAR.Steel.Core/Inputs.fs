@@ -137,8 +137,9 @@ module Inputs =
                   { Ratio = ratio
                     MaxMm = optNum (i + 1) "max" grid.[i, 1] } ]
 
-    /// Restraints table, 5 or 6 columns:
-    /// x (mm) | Ref | Description | Top flange | Bottom flange | [αm override for the segment starting here]
+    /// Restraints table, 5 to 7 columns:
+    /// x (mm) | Ref | Description | Top flange | Bottom flange | [αm top] | [αm bottom]
+    /// αm top / bottom = override for that flange's segment that starts at this row and runs to the next restraint.
     /// Restraint codes F, P, L, U; blank or "–" = no restraint to that flange at this point.
     let restraints (grid: Cell[,]) : RestraintPoint list =
         if Array2D.length2 grid < 5 then failwith "restraints: expected at least 5 columns (x, Ref, Description, Top, Bottom)"
@@ -156,31 +157,44 @@ module Inputs =
               let row = i + 1
               let xo = optNum row "x" grid.[i, 0]
               if xo.IsSome then
-                  let am =
-                      if Array2D.length2 grid >= 6 then optNum row "αm override" grid.[i, 5] else None
-                  match am with
-                  | Some v when v <= 0.0 || v > 2.5 -> failwithf "restraint row %d: αm override must be > 0 and <= 2.5" row
-                  | _ -> ()
+                  let amCol (j: int) name =
+                      let v = if Array2D.length2 grid > j then optNum row name grid.[i, j] else None
+                      match v with
+                      | Some a when a <= 0.0 || a > 2.5 -> failwithf "restraint row %d: %s must be > 0 and <= 2.5" row name
+                      | _ -> v
+                  let amTop = amCol 5 "αm top"
+                  let amBot = amCol 6 "αm bottom"
                   let p: RestraintPoint =
                       { X = xo.Value
                         Ref = text grid.[i, 1]
                         Top = code row "top" grid.[i, 3]
                         Bottom = code row "bottom" grid.[i, 4]
-                        AlphaMOverride = am }
+                        AlphaMTop = amTop
+                        AlphaMBottom = amBot }
                   yield p ]
 
     /// k factors, 2 x 2: [kl top, kl bottom; kr top, kr bottom]
     let kFactors (grid: Cell[,]) : KFactors =
-        if Array2D.length1 grid <> 2 || Array2D.length2 grid <> 2 then
-            failwith "k factors: expected a 2 x 2 range (kl top, kl bottom / kr top, kr bottom)"
+        let rows = Array2D.length1 grid
+        if (rows <> 2 && rows <> 3) || Array2D.length2 grid <> 2 then
+            failwith "k factors: expected 2 x 2 (kl, kr) or 3 x 2 (kl, kr, continuous restraint Yes/No) for top and bottom flanges"
         let v i j name =
             match optNum (i + 1) name grid.[i, j] with
             | Some x when x > 0.0 -> x
             | _ -> failwithf "k factors: %s must be a positive number" name
+        let cont j =
+            if rows = 3 then
+                (match (text grid.[2, j]).ToUpperInvariant() with
+                 | "YES" | "Y" | "TRUE" | "1" -> true
+                 | "NO" | "N" | "FALSE" | "0" | "" -> false
+                 | t -> failwithf "continuous restraint must be Yes or No (got '%s')" t)
+            else false
         { KlTop = v 0 0 "kl top"
           KlBottom = v 0 1 "kl bottom"
           KrTop = v 1 0 "kr top"
-          KrBottom = v 1 1 "kr bottom" }
+          KrBottom = v 1 1 "kr bottom"
+          ContinuousTop = cont 0
+          ContinuousBottom = cont 1 }
 
     let yesNo (c: Cell) =
         match (text c).ToUpperInvariant() with

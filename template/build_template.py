@@ -366,6 +366,25 @@ for rr in range(first, last + 1):
     ws[f"G{rr}"].number_format = '0.00'
 tbl = Table(displayName="Loads_B1", ref=f"B{th}:J{last}")
 tbl.tableStyleInfo = TableStyleInfo(name="TableStyleLight15", showRowStripes=False)
+from openpyxl.worksheet.table import TableColumn
+tbl.tableColumns = [TableColumn(id=i + 1, name=str(ws[f"{col}{th}"].value)) for i, col in enumerate("BCDEFGHIJ")]
+# Load column as a table calculated column, so Excel fills it on new or cleared rows
+from openpyxl.worksheet.table import TableFormula
+TR = "Loads_B1[[#This Row],[{}]]"
+load_f = (f'IF({TR.format("Case")}="","",N({TR.format("Trib (m | m²)")})*N({TR.format("Press. (kPa)")})'
+          f'+N({TR.format("+ Direct (kN/m | kN)")}))')
+press_f = f'IFERROR(INDEX(LoadLib_B1[kPa],MATCH({TR.format("Description")},LoadLib_B1[Description],0)),"")'
+for tc in tbl.tableColumns:
+    if tc.name == "Load":
+        tc.calculatedColumnFormula = TableFormula(attr_text=load_f)
+    if tc.name == "Press. (kPa)":
+        tc.calculatedColumnFormula = TableFormula(attr_text=press_f)
+for rr in range(first, last + 1):
+    v = ws[f"F{rr}"].value
+    if v is None or (isinstance(v, str) and v.startswith("=IFERROR(INDEX(LoadLib_B1")):
+        ws[f"F{rr}"].value = "=" + press_f
+for rr in range(first, last + 1):
+    ws[f"J{rr}"].value = "=" + load_f
 ws.add_table(tbl)
 for col in "BCDEFGHIJ":
     ws[f"{col}{th}"].fill = F_HDR
@@ -484,9 +503,7 @@ out(f"S{llast+2}", '=COUNTIFS(CombLib_B1[Active],1,CombLib_B1[Crit. flange],"Bot
 name("NumUpliftCombos", f"$S${llast+2}")
 
 # ---------------- Load combinations (printed: active rows only) ----------------
-LD_ROW = sr + 3   # applied load diagram (chart added later, once chart() exists)
-label(f"B{LD_ROW}", "Applied loads (unfactored; line loads kN/m, point loads kN with stems; + = downward;  x in m)", 8, GREEN, b=True)
-r = sr + 16
+r = sr + 3
 heading(r, "Load Combinations (AS/NZS 1170.0)")
 label(f"B{r+1}", "Combination set", 9); inp(f"E{r+1}", "Roof"); name("CombSet", f"$E${r+1}")
 dv_set = DataValidation(type="list", formula1='"Floor,Roof,All,Custom"')
@@ -516,42 +533,43 @@ r = clast + 1
 heading(r, "Lateral Restraints (AS 4100 Cl. 5.4)")
 label(f"B{r+1}", "Restraint type at each cross-section for the critical flange: F, P, L or U (– = none). Supports must be F or P.", 7, GREY, i=True)
 rh = r + 2
-rcols = ["x (mm)", "Ref", "Restraint provided by", "Top flange", "Bottom fl.", "αm override"]
-for col, txt in zip("BCDEFG", rcols):
+rcols = ["x (mm)", "Ref", "Restraint provided by", "Top flange", "Bottom fl.", "αm top →", "αm bot. →"]
+for col, txt in zip("BCDEFGH", rcols):
     put(f"{col}{rh}", txt, font(8, b=True), F_HDR, None, C)
-restr = [
-    ("=0", "A", "Left support – cleat", "F", "F", None),
-    (2767, "", "Purlin + fly brace", "L", "F", None),
-    (5533, "", "Purlin + fly brace", "L", "F", None),
-    ("=Span", "B", "Right support – cleat", "F", "F", None),
-    (None, None, None, None, None, None),
-]
+restr = [("=0", "A", "Left support – cleat", "F", "F", None, None)] + \
+        [(None, None, None, None, None, None, None)] * 5 + \
+        [("=Span", "B", "Right support – cleat", "F", "F", None, None)]
 for i, rv in enumerate(restr):
     rr = rh + 1 + i
-    for col, v, nf in zip("BCDEFG", rv, ["#,##0", None, None, None, None, "0.00"]):
+    for col, v, nf in zip("BCDEFGH", rv, ["#,##0", None, None, None, None, "0.00", "0.00"]):
         if isinstance(v, str) and v.startswith("="):
             out(f"{col}{rr}", v, nf)
         else:
             inp(f"{col}{rr}", v, nf, L if col == "D" else C)
 rlast = rh + len(restr)
-trs = Table(displayName="Restraints_B1", ref=f"B{rh}:G{rlast}")
+trs = Table(displayName="Restraints_B1", ref=f"B{rh}:H{rlast}")
 trs.tableStyleInfo = TableStyleInfo(name="TableStyleLight15", showRowStripes=False)
 ws.add_table(trs)
 dv_r = DataValidation(type="list", formula1='"F,P,L,U,–"')
 ws.add_data_validation(dv_r); dv_r.add(f"E{rh+1}:F{rlast}")
-label(f"B{rlast+1}", "αm override applies to the segment starting at that row (blank = Cl. 5.6.1.1(a)(iii)); flagged * in the output.", 7, GREY, i=True)
-for col, txt in zip("HIJ", ["Factor", "Top", "Bottom"]):
-    put(f"{col}{rh}", txt, font(8, b=True), F_HDR, None, C)
-kf = [("kl", 1.4, 1.0, "kl"), ("kr", 1.0, 1.0, "kr")]
-for i, (lab, top, bot, nm) in enumerate(kf):
-    rr = rh + 1 + i
-    label(f"H{rr}", lab, 9, al=C)
-    inp(f"I{rr}", top, "0.00"); inp(f"J{rr}", bot, "0.00")
-    name(f"{nm}_Top", f"$I${rr}"); name(f"{nm}_Bot", f"$J${rr}")
-KF_RANGE = f"$I${rh+1}:$J${rh+2}"
-label(f"H{rh+3}", "kt from restraint", 7, GREY, i=True)
-label(f"H{rh+4}", "types (add-in)", 7, GREY, i=True)
-rlast = rlast + 1
+label(f"B{rlast+1}", "αm top / αm bot. → override αm for that flange's segment from this row to the next restraint on that flange "
+      "(blank = Cl. 5.6.1.1(a)(iii)). Flagged * in the output.", 7, GREY, i=True)
+kb = rlast + 3
+for col, txt in zip("EFG", ["Factor", "Top", "Bottom"]):
+    put(f"{col}{kb}", txt, font(8, b=True), F_HDR, None, C)
+kf = [("kl", 1.4, 1.0, "kl", "0.00"), ("kr", 1.0, 1.0, "kr", "0.00"), ("Continuous", "No", "No", "Cont", None)]
+for i, (lab, top, bot, nm, nf) in enumerate(kf):
+    rr = kb + 1 + i
+    label(f"E{rr}", lab, 9, al=C)
+    inp(f"F{rr}", top, nf); inp(f"G{rr}", bot, nf)
+    name(f"{nm}_Top", f"$F${rr}"); name(f"{nm}_Bot", f"$G${rr}")
+dv_cont = DataValidation(type="list", formula1='"Yes,No"')
+ws.add_data_validation(dv_cont); dv_cont.add(f"F{kb+3}:G{kb+3}")
+KF_RANGE = f"$F${kb+1}:$G${kb+3}"
+label(f"H{kb+1}", "kl: load height, Table 5.6.3(2)", 7, GREY, i=True)
+label(f"H{kb+2}", "kr: rotation, Table 5.6.3(3); kt from restraints", 7, GREY, i=True)
+label(f"H{kb+3}", "Yes = flange continuously restrained: φMb = φMsx", 7, GREY, i=True)
+rlast = kb + 3
 
 # uplift summary row: say so and grey it out when no uplift combinations are active
 for srow in range(sum_hdr + 1, sum_last + 1):
@@ -637,16 +655,18 @@ label(f"{hc(6)}12", "Deflected shapes (OAR.DEFLECTIONS)", 7, GREY, i=True)
 dyn(ENV_ANCHOR, f"=OAR.ENVELOPE(SectionSize,Span,IncludeSW,{LOADS},{COMBOS},{NPTS})")
 dyn(DEF_ANCHOR, f"=OAR.DEFLECTIONS(SectionSize,Span,E_mod,IncludeSW,{LOADS},PsiL,PsiS,{NPTS})")
 
-def chart(title, xcol, ycols, first_row, ytitle, reverse, colors, w=17.6, h=5.6):
+def chart(title, xcol, ycols, first_row, ytitle, reverse, colors, w=17.6, h=5.6, names=None):
+    """Scatter chart over a fixed block: x in xcol, series in ycols, data rows first_row .. first_row + NPTS.
+    Series names are literal (not cell references) so Excel never regroups the series."""
     ch_ = ScatterChart()
     ch_.title = None
     ch_.style = 2
     ch_.height = h; ch_.width = w
     ch_.legend.position = "t"
-    x = Reference(ws, min_col=xcol, min_row=first_row + 1, max_row=first_row + 1 + NPTS)
-    for ycol, colr in zip(ycols, colors):
-        y = Reference(ws, min_col=ycol, min_row=first_row, max_row=first_row + 1 + NPTS)
-        se = Series(y, x, title_from_data=True)
+    x = Reference(ws, min_col=xcol, min_row=first_row, max_row=first_row + NPTS)
+    for k, (ycol, colr) in enumerate(zip(ycols, colors)):
+        y = Reference(ws, min_col=ycol, min_row=first_row, max_row=first_row + NPTS)
+        se = Series(y, x, title=names[k])
         se.marker.symbol = "none"
         se.smooth = False
         se.graphicalProperties.line.solidFill = colr
@@ -670,37 +690,24 @@ def chart(title, xcol, ycols, first_row, ytitle, reverse, colors, w=17.6, h=5.6)
 
 env_r = int(ENV_ANCHOR[len(hc(0)):]); def_r = int(DEF_ANCHOR[len(hc(6)):])
 
-# applied load diagram: data in the helper area, chart under the loads table
-LDL_ROW = 90
-label(f"{hc(0)}{LDL_ROW-1}", "Applied line loads (OAR.LOADDIAGRAM)", 7, GREY, i=True)
-label(f"{hc(8)}{LDL_ROW-1}", "Point loads", 7, GREY, i=True)
-dyn(f"{hc(0)}{LDL_ROW}", f'=OAR.LOADDIAGRAM(SectionSize,Span,IncludeSW,{LOADS},"line")')
-dyn(f"{hc(8)}{LDL_ROW}", f'=OAR.LOADDIAGRAM(SectionSize,Span,IncludeSW,{LOADS},"point")')
-from openpyxl.chart.error_bar import ErrorBars
-from openpyxl.chart.marker import Marker
-ld = ScatterChart(); ld.title = None; ld.style = 2; ld.height = 5.0; ld.width = 17.6; ld.legend.position = "t"
-xr = Reference(ws, min_col=HX, min_row=LDL_ROW + 1, max_row=LDL_ROW + 80)
-case_colors = [GREEN, "C07A2C", "6E8FB5", "9C5DA6", "8FA89C", "B8ADA5"]
-for k, colr in enumerate(case_colors):
-    y = Reference(ws, min_col=HX + 1 + k, min_row=LDL_ROW, max_row=LDL_ROW + 80)
-    se = Series(y, xr, title_from_data=True)
-    se.marker.symbol = "none"; se.smooth = False
-    se.graphicalProperties.line.solidFill = colr; se.graphicalProperties.line.width = 19050
-    ld.series.append(se)
-px = Reference(ws, min_col=HX + 8, min_row=LDL_ROW + 1, max_row=LDL_ROW + 20)
-py = Reference(ws, min_col=HX + 9, min_row=LDL_ROW, max_row=LDL_ROW + 20)
-ps = Series(py, px, title_from_data=False, title="Point loads (kN)")
-ps.marker = Marker(symbol="triangle", size=7)
-ps.marker.graphicalProperties = GraphicalProperties(solidFill="262626")
-ps.graphicalProperties.line.noFill = True
-ps.errBars = ErrorBars(errDir="y", errBarType="minus", errValType="percentage", val=100, noEndCap=True)
-ld.series.append(ps)
-ld.x_axis.title = None; ld.y_axis.title = "kN/m · kN"
-ld.x_axis.delete = False; ld.y_axis.delete = False
-ld.x_axis.scaling.min = 0; ld.x_axis.majorGridlines = None
-ld.x_axis.tickLblPos = "low"; ld.y_axis.tickLblPos = "low"
-_g = ChartLines(); _g.spPr = GraphicalProperties(ln=LineProperties(solidFill="E3E3E3", w=6350)); ld.y_axis.majorGridlines = _g
-ws.add_chart(ld, f"B{LD_ROW+1}")
+# fixed chart blocks: plain cells that copy the spilled data (or #N/A), so the charts always see
+# a stable numeric range even while the add-in is loading or a spill is being resized
+CB = 46  # column AT
+label(f"{gcl(CB)}12", "Chart data (fixed copies of the spills above)", 7, GREY, i=True)
+def mirror(anchor, src_cols, dest_col):
+    for i in range(NPTS + 1):
+        for j, sc in enumerate(src_cols):
+            cell = f"{gcl(dest_col + j)}{13 + i}"
+            dyn(cell, f"=IFERROR(INDEX(_xlfn.ANCHORARRAY({anchor}),{i + 2},{sc}),NA())", "0.000")
+            ws[cell].font = font(7, color=GREY)
+DEF_BLOCK = CB            # AT..AX: x, Δg, Δg+ψl·q, Δg+ψs·q, Δq
+ENV_BLOCK = CB + 6        # AZ..BB: x, M* max, M* min
+mirror(DEF_ANCHOR, [1, 2, 3, 4, 5], DEF_BLOCK)
+mirror(ENV_ANCHOR, [1, 2, 3], ENV_BLOCK)
+for i in range(9):
+    ws.column_dimensions[gcl(CB + i)].width = 7
+
+
 r = rlast + 2
 ws.row_breaks.append(Break(id=r - 1))
 
@@ -712,14 +719,15 @@ dyn(SLS_ANCHOR, f"=OAR.SLS(SectionSize,Span,E_mod,IncludeSW,{LOADS},{CRIT_RANGE}
 spill_format(r + 2, r + 6, "BCDEFG", [None, "0.00", "#,##0", "0.00", '"L/"0', "0%"], util_col="G")
 label(f"H{r+2}", "Δ1kN: 1 kN at midspan,", 7, GREY); label(f"H{r+3}", "beam alone", 7, GREY)
 label(f"B{r+8}", "Deflected shapes (mm, plotted downward;  x in m)", 8, GREEN, b=True)
-ws.add_chart(chart("", HX + 6, [HX + 7, HX + 8, HX + 9, HX + 10], def_r, "δ (mm)", True,
-                   [GREEN, "8FA89C", TAUPE, "595959"], h=5.4), f"B{r+9}")
+ws.add_chart(chart("", DEF_BLOCK, [DEF_BLOCK + 1, DEF_BLOCK + 2, DEF_BLOCK + 3, DEF_BLOCK + 4], 13, "δ (mm)", True,
+                   [GREEN, "8FA89C", TAUPE, "595959"], h=5.4, names=["Δg", "Δg+ψl·q", "Δg+ψs·q", "Δq"]), f"B{r+9}")
 r = r + 21
 
 # ULS bending
 heading(r, "ULS Strength Checks – Bending (AS 4100 Cl. 5.6)")
 label(f"B{r+1}", "Bending moment envelope, all active combinations (kN·m, sagging plotted down;  x in m)", 8, GREEN, b=True)
-ws.add_chart(chart("", HX, [HX + 1, HX + 2], env_r, "M* (kN·m)", True, [GREEN, TAUPE], h=5.4), f"B{r+2}")
+ws.add_chart(chart("", ENV_BLOCK, [ENV_BLOCK + 1, ENV_BLOCK + 2], 13, "M* (kN·m)", True, [GREEN, TAUPE], h=5.4,
+                   names=["M* max", "M* min"]), f"B{r+2}")
 r = r + 14
 out_header(r, "BCDEFGHIJ", ["Combo", "Segment (m)", "Ends", "Le (m)", "αm", "αs", "φMb (kN·m)", "M* (kN·m)", "Utilisation"])
 ws.row_dimensions[r].height = 16
@@ -781,6 +789,9 @@ spill_format(r + 2, r + 15, "BCD", [None, "0.00", "0.00"])
 name("Out_Reactions", f"$B${r+2}")
 r = r + 7
 lastrow = r + 9
+
+# add-in version on every printed calc
+dyn("B7", '=IFERROR("Calculated with "&OAR.VERSION(),"OAR Steel add-in not loaded")', None, font(7, i=True, color=GREY), L)
 
 # ---------------- Summary cells wired to add-in results ----------------
 sls_map = {"Res_Dg": 1, "Res_Dl": 2, "Res_Ds": 3, "Res_Dq": 4, "Res_D1": 5}

@@ -5,9 +5,9 @@ open OAR.Steel
 open Helpers
 
 let private pt x top bottom am : RestraintPoint =
-    { X = x; Ref = ""; Top = top; Bottom = bottom; AlphaMOverride = am }
+    { X = x; Ref = ""; Top = top; Bottom = bottom; AlphaMTop = am; AlphaMBottom = am }
 
-let private k1 = { KlTop = 1.0; KlBottom = 1.0; KrTop = 1.0; KrBottom = 1.0 }
+let private k1 = { KlTop = 1.0; KlBottom = 1.0; KrTop = 1.0; KrBottom = 1.0; ContinuousTop = false; ContinuousBottom = false }
 
 let private gravity = Combination.ofFactors "G" [ G, 1.0 ]
 
@@ -94,7 +94,7 @@ let tests =
                     pt 2767.0 (Some RL) None None // purlin: top flange only
                     pt 5533.0 (Some RL) None None
                     pt 8300.0 (Some RF) (Some RF) None ]
-              let k = { KlTop = 1.4; KlBottom = 1.0; KrTop = 1.0; KrBottom = 1.0 }
+              let k = { k1 with KlTop = 1.4 }
               let upBase = Combination.ofFactors "0.9G+Wu" [ G, 0.9; Wu, 1.0 ]
               let up = { upBase with CriticalFlange = Bottom }
               let r = Uls.checkCombination s 300 200000.0 beam loads pts k up |> List.exactlyOne
@@ -136,4 +136,44 @@ let tests =
               let _, mmax, mmin, _, _ = env.[1]
               within 1e-9 (3.9 * 8300.0 ** 2.0 / 8.0) mmax "envelope max at midspan"
               within 1e-9 (2.7 * 8300.0 ** 2.0 / 8.0) mmin "envelope min at midspan"
+          } 
+          test "αm overrides are per flange and must start a segment" {
+              let s = Sections.find "310UB40.4"
+              let beam = { Span = 8300.0; EI = 200000.0 * s.Ix }
+              let loads = [ { Case = G; Shape = FullSpan; Magnitude = 3.0; Description = "" } ]
+              let p0Base = pt 0.0 (Some RF) (Some RF) None
+              let p0 = { p0Base with AlphaMTop = Some 1.13 }
+              let pts = [ p0; pt 8300.0 (Some RF) (Some RF) None ]
+              let top = Uls.checkCombination s 300 200000.0 beam loads pts k1 gravity |> List.exactlyOne
+              within 1e-12 1.13 top.MemberCap.AlphaM "top override used"
+              let botCombo = { gravity with CriticalFlange = Bottom }
+              let bot = Uls.checkCombination s 300 200000.0 beam loads pts k1 botCombo |> List.exactlyOne
+              Expect.isFalse bot.MemberCap.AlphaMOverridden "bottom flange ignores the top override"
+              // override at the right support, or where the flange is unrestrained, is an error rather than silently ignored
+              let endBase = pt 8300.0 (Some RF) (Some RF) None
+              let atEnd = [ pt 0.0 (Some RF) (Some RF) None; { endBase with AlphaMTop = Some 1.0 } ]
+              Expect.throws (fun () -> Uls.checkCombination s 300 200000.0 beam loads atEnd k1 gravity |> ignore) "override at right support"
+              let midBase = pt 4000.0 None (Some RF) None
+              let unrestrained =
+                  [ pt 0.0 (Some RF) (Some RF) None
+                    { midBase with AlphaMTop = Some 1.0 }
+                    pt 8300.0 (Some RF) (Some RF) None ]
+              Expect.throws (fun () -> Uls.checkCombination s 300 200000.0 beam loads unrestrained k1 gravity |> ignore) "top override where top is unrestrained"
+          } 
+          test "continuously restrained flange: φMb = φMsx over the whole span" {
+              let s = Sections.find "310UB40.4"
+              let beam = { Span = 8300.0; EI = 200000.0 * s.Ix }
+              let loads =
+                  [ { Case = G; Shape = FullSpan; Magnitude = 1.0; Description = "" }
+                    { Case = Wu; Shape = FullSpan; Magnitude = 5.0; Description = "" } ]
+              let pts = [ pt 0.0 (Some RF) (Some RF) None; pt 8300.0 (Some RF) (Some RF) None ]
+              let k = { k1 with KlTop = 1.4; ContinuousTop = true }
+              let r = Uls.checkCombination s 300 200000.0 beam loads pts k gravity |> List.exactlyOne
+              Expect.equal r.Ends "cont." "continuous"
+              within 1e-12 (Capacity.sectionMomentX s 300).PhiMs r.MemberCap.PhiMb "φMb = φMsx"
+              within 1e-7 (8300.0 ** 2.0 / 8.0) r.Mm "M* = wL²/8"
+              // the bottom flange is not continuous, so an uplift combination still checks segments
+              let upBase = Combination.ofFactors "0.9G+Wu" [ G, 0.9; Wu, 1.0 ]
+              let up = Uls.checkCombination s 300 200000.0 beam loads pts k { upBase with CriticalFlange = Bottom } |> List.exactlyOne
+              within 1e-9 8300.0 up.MemberCap.Le "uplift: full-length bottom flange segment"
           } ]
