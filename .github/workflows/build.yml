@@ -50,6 +50,19 @@ jobs:
           $notes | Out-File -Encoding utf8 dist/RELEASE_NOTES.md
           Get-ChildItem dist
 
+      - name: Build the one-file release package
+        shell: pwsh
+        run: |
+          # Folder layout matches X:\Programs\Spreadsheets so it can be extracted straight over it
+          $root = "package"
+          $addin = "$root/Add-Ins/OAR Steel"
+          $hist  = "$addin/Releases/v$env:VERSION"
+          New-Item -ItemType Directory -Force $hist, "$root/Calc Templates" | Out-Null
+          Copy-Item dist/OAR.Steel-AddIn64.xll, dist/OAR.Steel-AddIn32.xll, dist/Install-OARSteel.cmd, dist/Install-OARSteel.ps1, dist/CHANGELOG.md, dist/RELEASE_NOTES.md $addin
+          Copy-Item dist/OAR.Steel-AddIn64.xll, dist/OAR.Steel-AddIn32.xll $hist
+          Copy-Item "dist/Steel Beam Design - Base.xlsx" "$root/Calc Templates/"
+          Compress-Archive -Path "$root/*" -DestinationPath "dist/OAR-Steel-v$env:VERSION.zip" -Force
+
       - uses: actions/upload-artifact@v4
         with:
           name: OAR-Steel-v${{ env.VERSION }}-build-${{ github.run_number }}
@@ -64,4 +77,4 @@ jobs:
           $tag = "v$env:VERSION"
           gh release view $tag 2>$null
           if ($LASTEXITCODE -eq 0) { Write-Host "$tag already released - nothing to do"; exit 0 }
-          gh release create $tag dist/* --title "OAR Steel $tag" --notes-file dist/RELEASE_NOTES.md --target $env:GITHUB_SHA
+          gh release create $tag "dist/OAR-Steel-v$env:VERSION.zip" --title "OAR Steel $tag" --notes-file dist/RELEASE_NOTES.md --target $env:GITHUB_SHA

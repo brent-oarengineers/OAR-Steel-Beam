@@ -1,4 +1,4 @@
-# OAR Steel – Excel add-in (v0.2.6)
+# OAR Steel – Excel add-in (v0.2.7)
 
 F# / Excel-DNA add-in for the OAR steel beam calc sheet. Engineering lives in `OAR.Steel.Core`
 (no Excel references, fully testable); `OAR.Steel.Excel` only converts worksheet values.
@@ -37,8 +37,7 @@ The add-in is at
 (the `-packed` file is the single-file version with Core and FSharp.Core inside).
 
 Load it: Excel > File > Options > Add-ins > Manage: Excel Add-ins > Go > Browse > select the .xll.
-Type `=OAR.VERSION()` in a cell to confirm. For office use later, copy the packed .xll to
-`Z:\Programs\...` and load it from there.
+Type `=OAR.VERSION()` in a cell to confirm. For office use later, see DEPLOYMENT.md.
 
 If the build complains about a package version, update `ExcelDna.AddIn` / `Expecto` in the
 .fsproj files to the latest stable version.
@@ -78,6 +77,15 @@ The sheet's Support Reactions table already calls `OAR.REACTIONS` and names each
 so other beam sheets can pick them up, e.g. Direct = `='B1'!RxnR_G` on a Point row with case G.
 
 Example (summary Δg actual): `=INDEX(OAR.SLS(SectionSize,Span,E_mod,IncludeSW,Loads_B1[[Case]:[End (mm)]],<criteria range>,PsiL,PsiS),1,2)`
+
+## 3a. Print tidy-up
+
+Variable-length blocks are marked on the template with sheet-scoped names starting `OAR_Flex`, each
+referring to one key column (e.g. `OAR_Flex_Combos` = the ID column of the combinations spill,
+`OAR_Flex_Loads` = `Loads_B1[Case]`). When a workbook is printed or saved as PDF the add-in hides every
+row whose key cell shows nothing; the next edit on that sheet unhides them. The **OAR** ribbon tab has
+*Tidy for print* (to preview) and *Show all rows*. To make another block collapse, add a name
+`OAR_Flex_<anything>` (scope: the sheet) over its key column.
 
 ## 4. What is checked, and against what
 

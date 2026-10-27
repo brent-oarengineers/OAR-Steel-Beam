@@ -3,6 +3,11 @@
 Each version that reaches `main` is built, tested and published automatically as a GitHub Release.
 The calc sheet shows the version it was calculated with (title block, under the green bar).
 
+## v0.2.7
+- Release is a single zip laid out like `X:\Programs\Spreadsheets` (Add-Ins\OAR Steel, Releases archive, Calc Templates); template keeps its proper name.
+- Print tidy-up: printing or saving as PDF hides the unused rows in the combinations, loads, restraints, ULS, shear and reactions blocks, so the printout has no gaps. The rows come back on your next edit to the sheet. New **OAR** ribbon tab: *Tidy for print* (preview) and *Show all rows*. Template marks the blocks with `OAR_Flex_…` names.
+- No calculation changes.
+
 ## v0.2.6
 - Install script reads the release folder `X:\Programs\Spreadsheets\Add-Ins\OAR Steel` (or `\\LOA-TrueNAS\Data\...`, whichever is reachable). No calculation changes.
 

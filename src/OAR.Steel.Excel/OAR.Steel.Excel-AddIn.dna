@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <DnaLibrary Name="OAR Steel" RuntimeVersion="v4.0" xmlns="http://schemas.excel-dna.net/addin/2020/07/dnalibrary">
   <ExternalLibrary Path="OAR.Steel.Excel.dll" ExplicitExports="false" LoadFromBytes="true" Pack="true" IncludePdb="false" />
-  <!-- Packed into the single .xll so only one file needs copying to Z: -->
+  <!-- Packed into the single .xll so only one file needs copying to the server -->
   <Reference Path="OAR.Steel.Core.dll" Pack="true" />
   <Reference Path="FSharp.Core.dll" Pack="true" />
+  <Reference Path="Microsoft.Office.Interop.Excel.dll" Pack="true" />
+  <Reference Path="Office.dll" Pack="true" />
 </DnaLibrary>

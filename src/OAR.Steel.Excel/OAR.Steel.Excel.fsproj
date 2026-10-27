@@ -3,13 +3,14 @@
   <PropertyGroup>
     <!-- .NET Framework 4.8 is built into Windows 10/11, so users need nothing but the .xll -->
     <TargetFramework>net48</TargetFramework>
-    <Version>0.2.6</Version>
+    <Version>0.2.7</Version>
     <!-- copy FSharp.Core.dll next to the add-in so the .dna can pack it -->
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
   <ItemGroup>
     <Compile Include="Functions.fs" />
+    <Compile Include="Layout.fs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -18,6 +19,8 @@
 
   <ItemGroup>
     <PackageReference Include="ExcelDna.AddIn" Version="1.8.0" />
+    <!-- Excel object model (print event, hiding rows); packed into the .xll -->
+    <PackageReference Include="ExcelDna.Interop" Version="15.0.1" />
     <!-- lets the .NET Framework 4.8 build run on any machine (including the GitHub build server) without the targeting pack -->
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
   </ItemGroup>
