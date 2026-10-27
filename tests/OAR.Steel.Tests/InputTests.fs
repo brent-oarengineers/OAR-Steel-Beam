@@ -89,6 +89,10 @@ let tests =
               let k = Inputs.kFactors (grid [ [ "1.4"; "1.0" ]; [ "0.85"; "1.0" ] ])
               near 1e-12 1.4 k.KlTop "kl top"
               near 1e-12 0.85 k.KrTop "kr top"
+              Expect.isFalse k.ContinuousTop "2 x 2: not continuous"
+              let k3 = Inputs.kFactors (grid [ [ "1.4"; "1.0" ]; [ "1.0"; "1.0" ]; [ "Yes"; "No" ] ])
+              Expect.isTrue k3.ContinuousTop "top continuous"
+              Expect.isFalse k3.ContinuousBottom "bottom not continuous"
           }
 
           test "deflection criteria: blank max means ratio only" {

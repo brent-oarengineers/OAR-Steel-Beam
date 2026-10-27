@@ -48,7 +48,10 @@ type KFactors =
     { KlTop: float
       KlBottom: float
       KrTop: float
-      KrBottom: float }
+      KrBottom: float
+      /// flange continuously restrained along the span (e.g. sheeting / closely spaced purlins): φMb = φMsx
+      ContinuousTop: bool
+      ContinuousBottom: bool}
 
 /// Member bending check of one segment for one combination, with all working kept.
 type SegmentCheck =
@@ -176,25 +179,26 @@ module Uls =
             | Bottom -> k.KlBottom, k.KrBottom
         let bps = Analysis.breakpoints acts
         let m x = Analysis.moment beam acts x
+        let continuous =
+            match flange with
+            | Top -> k.ContinuousTop
+            | Bottom -> k.ContinuousBottom
 
-        segments beam.Span flange pts
-        |> List.map (fun ((p1, t1), (p2, t2)) ->
-            let len = p2.X - p1.X
-            let q (f: float) = p1.X + len * f / 4.0
-            let m2 = m (q 1.0)
-            let m3 = m (q 2.0)
-            let m4 = m (q 3.0)
-            let xm, mm = Analysis.maxAbsOn p1.X p2.X bps m
-            let amFormula = Capacity.alphaMFormula mm m2 m3 m4
-            let am, overridden =
-                match alphaMFor flange p1 with
-                | Some v -> (v, true)
-                | None -> (amFormula, false)
-            let ktv = kt s len t1 t2
-            let le = Capacity.effectiveLength ktv kl kr len
-            let cap = Capacity.memberMoment s grade e le am overridden
+        if continuous then
+            // critical flange continuously restrained: no member buckling, φMb = φMsx over the whole span
+            let span = beam.Span
+            let xm, mm = Analysis.maxAbsOn 0.0 span bps m
+            let sm = Capacity.sectionMomentX s grade
+            let cap: MemberMoment =
+                { Le = 0.0
+                  Mo = infinity
+                  AlphaS = 1.0
+                  AlphaM = 1.0
+                  AlphaMOverridden = false
+                  Ms = sm.Ms
+                  PhiMb = sm.PhiMs
+                  PhiMs = sm.PhiMs }
             let mabs = abs mm
-            let util = if mabs = 0.0 then 0.0 else mabs / cap.PhiMb
             let note =
                 if mabs = 0.0 then ""
                 elif flange = Top && mm < 0.0 then "hogging moment: top flange is in tension, check the critical flange"
@@ -203,24 +207,69 @@ module Uls =
             let r: SegmentCheck =
                 { Combo = combo.Id
                   Flange = flange
-                  X1 = p1.X
-                  X2 = p2.X
-                  Ends = RestraintType.code t1 + RestraintType.code t2
-                  Length = len
-                  Kt = ktv
-                  Kl = kl
-                  Kr = kr
-                  M2 = m2
-                  M3 = m3
-                  M4 = m4
+                  X1 = 0.0
+                  X2 = span
+                  Ends = "cont."
+                  Length = span
+                  Kt = 1.0
+                  Kl = 1.0
+                  Kr = 1.0
+                  M2 = m (span / 4.0)
+                  M3 = m (span / 2.0)
+                  M4 = m (3.0 * span / 4.0)
                   Mm = mabs
                   XAtMm = xm
                   MmSigned = mm
-                  AlphaMFormula = amFormula
+                  AlphaMFormula = 1.0
                   MemberCap = cap
-                  Utilisation = util
+                  Utilisation = (if mabs = 0.0 then 0.0 else mabs / cap.PhiMb)
                   Note = note }
-            r)
+            [ r ]
+        else
+            segments beam.Span flange pts
+            |> List.map (fun ((p1, t1), (p2, t2)) ->
+                let len = p2.X - p1.X
+                let q (f: float) = p1.X + len * f / 4.0
+                let m2 = m (q 1.0)
+                let m3 = m (q 2.0)
+                let m4 = m (q 3.0)
+                let xm, mm = Analysis.maxAbsOn p1.X p2.X bps m
+                let amFormula = Capacity.alphaMFormula mm m2 m3 m4
+                let am, overridden =
+                    match alphaMFor flange p1 with
+                    | Some v -> (v, true)
+                    | None -> (amFormula, false)
+                let ktv = kt s len t1 t2
+                let le = Capacity.effectiveLength ktv kl kr len
+                let cap = Capacity.memberMoment s grade e le am overridden
+                let mabs = abs mm
+                let util = if mabs = 0.0 then 0.0 else mabs / cap.PhiMb
+                let note =
+                    if mabs = 0.0 then ""
+                    elif flange = Top && mm < 0.0 then "hogging moment: top flange is in tension, check the critical flange"
+                    elif flange = Bottom && mm > 0.0 then "sagging moment: bottom flange is in tension, check the critical flange"
+                    else ""
+                let r: SegmentCheck =
+                    { Combo = combo.Id
+                      Flange = flange
+                      X1 = p1.X
+                      X2 = p2.X
+                      Ends = RestraintType.code t1 + RestraintType.code t2
+                      Length = len
+                      Kt = ktv
+                      Kl = kl
+                      Kr = kr
+                      M2 = m2
+                      M3 = m3
+                      M4 = m4
+                      Mm = mabs
+                      XAtMm = xm
+                      MmSigned = mm
+                      AlphaMFormula = amFormula
+                      MemberCap = cap
+                      Utilisation = util
+                      Note = note }
+                r)
 
     /// All segment checks for all combinations, in combination order
     let checkAll s grade e beam loads pts k (combos: Combination list) =

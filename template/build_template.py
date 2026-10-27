@@ -536,13 +536,9 @@ rh = r + 2
 rcols = ["x (mm)", "Ref", "Restraint provided by", "Top flange", "Bottom fl.", "αm top →", "αm bot. →"]
 for col, txt in zip("BCDEFGH", rcols):
     put(f"{col}{rh}", txt, font(8, b=True), F_HDR, None, C)
-restr = [
-    ("=0", "A", "Left support – cleat", "F", "F", None, None),
-    (2767, "", "Purlin + fly brace", "L", "F", None, None),
-    (5533, "", "Purlin + fly brace", "L", "F", None, None),
-    ("=Span", "B", "Right support – cleat", "F", "F", None, None),
-    (None, None, None, None, None, None, None),
-]
+restr = [("=0", "A", "Left support – cleat", "F", "F", None, None)] + \
+        [(None, None, None, None, None, None, None)] * 5 + \
+        [("=Span", "B", "Right support – cleat", "F", "F", None, None)]
 for i, rv in enumerate(restr):
     rr = rh + 1 + i
     for col, v, nf in zip("BCDEFGH", rv, ["#,##0", None, None, None, None, "0.00", "0.00"]):
@@ -561,16 +557,19 @@ label(f"B{rlast+1}", "αm top / αm bot. → override αm for that flange's segm
 kb = rlast + 3
 for col, txt in zip("EFG", ["Factor", "Top", "Bottom"]):
     put(f"{col}{kb}", txt, font(8, b=True), F_HDR, None, C)
-kf = [("kl", 1.4, 1.0, "kl"), ("kr", 1.0, 1.0, "kr")]
-for i, (lab, top, bot, nm) in enumerate(kf):
+kf = [("kl", 1.4, 1.0, "kl", "0.00"), ("kr", 1.0, 1.0, "kr", "0.00"), ("Continuous", "No", "No", "Cont", None)]
+for i, (lab, top, bot, nm, nf) in enumerate(kf):
     rr = kb + 1 + i
     label(f"E{rr}", lab, 9, al=C)
-    inp(f"F{rr}", top, "0.00"); inp(f"G{rr}", bot, "0.00")
+    inp(f"F{rr}", top, nf); inp(f"G{rr}", bot, nf)
     name(f"{nm}_Top", f"$F${rr}"); name(f"{nm}_Bot", f"$G${rr}")
-KF_RANGE = f"$F${kb+1}:$G${kb+2}"
+dv_cont = DataValidation(type="list", formula1='"Yes,No"')
+ws.add_data_validation(dv_cont); dv_cont.add(f"F{kb+3}:G{kb+3}")
+KF_RANGE = f"$F${kb+1}:$G${kb+3}"
 label(f"H{kb+1}", "kl: load height, Table 5.6.3(2)", 7, GREY, i=True)
 label(f"H{kb+2}", "kr: rotation, Table 5.6.3(3); kt from restraints", 7, GREY, i=True)
-rlast = kb + 2
+label(f"H{kb+3}", "Yes = flange continuously restrained: φMb = φMsx", 7, GREY, i=True)
+rlast = kb + 3
 
 # uplift summary row: say so and grey it out when no uplift combinations are active
 for srow in range(sum_hdr + 1, sum_last + 1):
