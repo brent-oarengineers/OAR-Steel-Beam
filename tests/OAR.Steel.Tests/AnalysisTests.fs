@@ -62,8 +62,8 @@ let tests =
 
           test "uplift case gives negative (upward) actions" {
               let loads =
-                  [ { Case = G; Shape = FullSpan; Magnitude = 1.0; Description = "" }
-                    { Case = Wu; Shape = FullSpan; Magnitude = 3.0; Description = "" } ]
+                  [ { Case = G; Shape = FullSpan; Magnitude = 1.0; Description = ""; Dir = "" }
+                    { Case = Wu; Shape = FullSpan; Magnitude = 3.0; Description = ""; Dir = "" } ]
               let combo = Combination.ofFactors "0.9G+Wu" [ G, 0.9; Wu, 1.0 ]
               let acts = Analysis.actions span combo loads
               let m = Analysis.moment beam acts (span / 2.0)
@@ -71,10 +71,10 @@ let tests =
           } 
           test "line-load profile for the load diagram" {
               let loads =
-                  [ { Case = G; Shape = FullSpan; Magnitude = 1.0; Description = "" }
-                    { Case = Q; Shape = Partial(1000.0, 3000.0); Magnitude = 2.0; Description = "" }
-                    { Case = Wu; Shape = FullSpan; Magnitude = 3.0; Description = "" }
-                    { Case = G; Shape = Point 4150.0; Magnitude = 2750.0; Description = "" } ]
+                  [ { Case = G; Shape = FullSpan; Magnitude = 1.0; Description = ""; Dir = "" }
+                    { Case = Q; Shape = Partial(1000.0, 3000.0); Magnitude = 2.0; Description = ""; Dir = "" }
+                    { Case = Wu; Shape = FullSpan; Magnitude = 3.0; Description = ""; Dir = "" }
+                    { Case = G; Shape = Point 4150.0; Magnitude = 2750.0; Description = ""; Dir = "" } ]
               let rows = Analysis.lineLoadProfile span loads |> List.toArray
               Expect.equal rows.Length 8 "start + 2 rows x 3 intervals + end"
               let x, ws = rows.[3] // second interval (1000 to 3000), left end

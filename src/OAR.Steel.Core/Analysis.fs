@@ -17,10 +17,25 @@ type Beam = { Span: float; EI: float }
 module Analysis =
 
     /// Turn input loads into signed actions for a combination (self-weight must already be in the list).
+    /// Wind loads tagged with a direction only act in combinations with the same Dir; untagged wind
+    /// loads act in every direction. A combination with wind factors but no Dir is an error once any
+    /// wind load it would pick up is tagged, since it would add the directions together.
     let actions (span: float) (combo: Combination) (loads: Load list) : BeamLoad list =
+        let tagged =
+            loads
+            |> List.filter (fun l -> LoadCase.isWind l.Case && WindDir.normalise l.Dir <> "" && Combination.factor combo l.Case <> 0.0)
+        if WindDir.normalise combo.Dir = "" && not tagged.IsEmpty then
+            failwithf
+                "combination %s has wind factors but no Dir, and the wind loads are split by direction (%s): set Dir on the combination, or clear Dir on the loads"
+                combo.Id
+                (String.Join(", ", WindDir.distinct (tagged |> List.map (fun l -> l.Dir))))
         loads
         |> List.choose (fun ld ->
-            let f = Combination.factor combo ld.Case
+            let applies =
+                not (LoadCase.isWind ld.Case)
+                || WindDir.normalise ld.Dir = ""
+                || WindDir.same ld.Dir combo.Dir
+            let f = if applies then Combination.factor combo ld.Case else 0.0
             if f = 0.0 || ld.Magnitude = 0.0 then None
             else
                 let v = f * LoadCase.direction ld.Case * ld.Magnitude
@@ -161,7 +176,8 @@ module Analysis =
         { Case = G
           Shape = FullSpan
           Magnitude = Units.selfWeight s.Mass
-          Description = sprintf "Self-weight %s" s.Designation }
+          Description = sprintf "Self-weight %s" s.Designation
+          Dir = "" }
 
     /// Line-load step profile per case for plotting, rows of (x, [w for G; Q; Wd; Wu; Wid; Wiu]).
     /// w in N/mm (= kN/m), positive = downward (gravity direction). Includes zero-height start and end rows.
