@@ -34,8 +34,9 @@ module Inputs =
     let private isBlankRow (cells: Cell[]) =
         cells |> Array.forall (fun c -> text c = "")
 
-    /// Loads table, 9 columns:
-    /// Case | Type | Description | Trib (m or m2) | Pressure (kPa) | Direct (kN/m or kN) | Start (mm) | End (mm) | Load (ignored)
+    /// Loads table, 8 to 10 columns:
+    /// Case | Type | Description | Trib (m or m2) | Pressure (kPa) | Direct (kN/m or kN) | Start (mm) | End (mm) | [Load (ignored)] | [Dir]
+    /// Dir = wind direction tag (wind cases only; blank = every direction).
     /// Magnitude = trib x pressure + direct. Line loads end up in N/mm (= kN/m), point loads in N.
     /// Rows with a blank Case are skipped. Row numbers in errors count from 1 = first data row.
     let loads (span: float) (grid: Cell[,]) : Load list =
@@ -79,15 +80,24 @@ module Inputs =
                            | Some x -> failwithf "row %d: point load position %g is outside the span (0 to %g)" row x span
                            | None -> failwithf "row %d: point load needs a position in Start" row)
                       | k -> failwithf "row %d: unknown type '%s' (use UDL, PUDL or Point)" row k
+                  let dir =
+                      if Array2D.length2 grid >= 10 then
+                          (match c 9 with
+                           | Str s -> s.Trim()
+                           | _ -> "")
+                      else ""
+                  if dir <> "" && not (LoadCase.isWind lc) then
+                      failwithf "row %d: Dir '%s' only applies to wind cases (Wd, Wu, Wid, Wiu); clear it for %s" row dir (LoadCase.name lc)
                   let load: Load =
                       { Case = lc
                         Shape = shape
                         Magnitude = magnitude
-                        Description = text (c 2) }
+                        Description = text (c 2)
+                        Dir = dir }
                   yield load ]
 
-    /// Combinations table, 9 columns:
-    /// ID | Crit. flange | Combination | G | Q | Wd | Wu | Wid | Wiu
+    /// Combinations table, 9 or 10 columns:
+    /// ID | Crit. flange | Combination | G | Q | Wd | Wu | Wid | Wiu | [Dir]
     let combinations (grid: Cell[,]) : Combination list =
         // a single cell (e.g. FILTER's "No combinations selected") means no combinations
         if Array2D.length1 grid = 1 && Array2D.length2 grid = 1 then
@@ -114,7 +124,8 @@ module Inputs =
                           { Id = id
                             Description = text (c 2)
                             CriticalFlange = flange
-                            Factors = Map.ofList factors }
+                            Factors = Map.ofList factors
+                            Dir = (if Array2D.length2 grid >= 10 then text (c 9) else "") }
                       yield combo ]
 
     /// Find one combination by ID

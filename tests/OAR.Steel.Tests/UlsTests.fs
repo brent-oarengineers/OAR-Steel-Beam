@@ -13,8 +13,8 @@ let private gravity = Combination.ofFactors "G" [ G, 1.0 ]
 
 /// DCT Example 1/2 loading: two 20 kN design loads at 2 m and 6 m on an 8 m span (self-weight included in the 20 kN)
 let private dctLoads =
-    [ { Case = G; Shape = Point 2000.0; Magnitude = 20000.0; Description = "P1" }
-      { Case = G; Shape = Point 6000.0; Magnitude = 20000.0; Description = "P2" } ]
+    [ { Case = G; Shape = Point 2000.0; Magnitude = 20000.0; Description = "P1"; Dir = "" }
+      { Case = G; Shape = Point 6000.0; Magnitude = 20000.0; Description = "P2"; Dir = "" } ]
 
 let private dctBeam (s: Section) = { Span = 8000.0; EI = 200000.0 * s.Ix }
 
@@ -75,7 +75,7 @@ let tests =
           test "UDL on a single segment: αm = 1.166 and Le = 11.62 m" {
               let s = Sections.find "310UB40.4"
               let beam = { Span = 8300.0; EI = 200000.0 * s.Ix }
-              let loads = [ { Case = G; Shape = FullSpan; Magnitude = 3.272; Description = "" } ]
+              let loads = [ { Case = G; Shape = FullSpan; Magnitude = 3.272; Description = ""; Dir = "" } ]
               let pts = [ pt 0.0 (Some RF) (Some RF) None; pt 8300.0 (Some RF) (Some RF) None ]
               let r = Uls.checkCombination s 300 200000.0 beam loads pts { k1 with KlTop = 1.4 } gravity |> List.exactlyOne
               within 1e-6 1.16619037896906 r.AlphaMFormula "αm"
@@ -87,8 +87,8 @@ let tests =
               let s = Sections.find "310UB40.4"
               let beam = { Span = 8300.0; EI = 200000.0 * s.Ix }
               let loads =
-                  [ { Case = G; Shape = FullSpan; Magnitude = 1.0; Description = "" }
-                    { Case = Wu; Shape = FullSpan; Magnitude = 5.0; Description = "" } ]
+                  [ { Case = G; Shape = FullSpan; Magnitude = 1.0; Description = ""; Dir = "" }
+                    { Case = Wu; Shape = FullSpan; Magnitude = 5.0; Description = ""; Dir = "" } ]
               let pts =
                   [ pt 0.0 (Some RF) (Some RF) None
                     pt 2767.0 (Some RL) None None // purlin: top flange only
@@ -107,7 +107,7 @@ let tests =
           test "warning when the critical flange does not match the moment sign" {
               let s = Sections.find "310UB40.4"
               let beam = { Span = 8300.0; EI = 200000.0 * s.Ix }
-              let loads = [ { Case = Wu; Shape = FullSpan; Magnitude = 5.0; Description = "" } ]
+              let loads = [ { Case = Wu; Shape = FullSpan; Magnitude = 5.0; Description = ""; Dir = "" } ]
               let pts = [ pt 0.0 (Some RF) (Some RF) None; pt 8300.0 (Some RF) (Some RF) None ]
               let r = Uls.checkCombination s 300 200000.0 beam loads pts k1 (Combination.single Wu) |> List.exactlyOne
               Expect.stringContains r.Note "hogging" "note"
@@ -116,7 +116,7 @@ let tests =
           test "restraint table must include both supports, restrained F or P" {
               let s = Sections.find "310UB40.4"
               let beam = { Span = 8300.0; EI = 200000.0 * s.Ix }
-              let loads = [ { Case = G; Shape = FullSpan; Magnitude = 1.0; Description = "" } ]
+              let loads = [ { Case = G; Shape = FullSpan; Magnitude = 1.0; Description = ""; Dir = "" } ]
               let run pts = Uls.checkCombination s 300 200000.0 beam loads pts k1 gravity |> ignore
               Expect.throws (fun () -> run [ pt 0.0 (Some RF) (Some RF) None ]) "missing right support"
               Expect.throws (fun () -> run [ pt 0.0 (Some RL) (Some RF) None; pt 8300.0 (Some RF) (Some RF) None ]) "L at support"
@@ -126,8 +126,8 @@ let tests =
               let s = Sections.find "310UB40.4"
               let beam = { Span = 8300.0; EI = 200000.0 * s.Ix }
               let loads =
-                  [ { Case = G; Shape = FullSpan; Magnitude = 2.0; Description = "" }
-                    { Case = Q; Shape = FullSpan; Magnitude = 1.0; Description = "" } ]
+                  [ { Case = G; Shape = FullSpan; Magnitude = 2.0; Description = ""; Dir = "" }
+                    { Case = Q; Shape = FullSpan; Magnitude = 1.0; Description = ""; Dir = "" } ]
               let c1 = Combination.ofFactors "1.35G" [ G, 1.35 ]
               let c2 = Combination.ofFactors "1.2G+1.5Q" [ G, 1.2; Q, 1.5 ]
               let sh = Uls.shearChecks s 300 beam loads [ c1; c2 ] |> List.toArray
@@ -140,7 +140,7 @@ let tests =
           test "αm overrides are per flange and must start a segment" {
               let s = Sections.find "310UB40.4"
               let beam = { Span = 8300.0; EI = 200000.0 * s.Ix }
-              let loads = [ { Case = G; Shape = FullSpan; Magnitude = 3.0; Description = "" } ]
+              let loads = [ { Case = G; Shape = FullSpan; Magnitude = 3.0; Description = ""; Dir = "" } ]
               let p0Base = pt 0.0 (Some RF) (Some RF) None
               let p0 = { p0Base with AlphaMTop = Some 1.13 }
               let pts = [ p0; pt 8300.0 (Some RF) (Some RF) None ]
@@ -164,8 +164,8 @@ let tests =
               let s = Sections.find "310UB40.4"
               let beam = { Span = 8300.0; EI = 200000.0 * s.Ix }
               let loads =
-                  [ { Case = G; Shape = FullSpan; Magnitude = 1.0; Description = "" }
-                    { Case = Wu; Shape = FullSpan; Magnitude = 5.0; Description = "" } ]
+                  [ { Case = G; Shape = FullSpan; Magnitude = 1.0; Description = ""; Dir = "" }
+                    { Case = Wu; Shape = FullSpan; Magnitude = 5.0; Description = ""; Dir = "" } ]
               let pts = [ pt 0.0 (Some RF) (Some RF) None; pt 8300.0 (Some RF) (Some RF) None ]
               let k = { k1 with KlTop = 1.4; ContinuousTop = true }
               let r = Uls.checkCombination s 300 200000.0 beam loads pts k gravity |> List.exactlyOne

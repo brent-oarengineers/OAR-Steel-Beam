@@ -9,7 +9,7 @@ open OAR.Steel
 [<Literal>]
 let Category = "OAR Steel"
 
-let private version = "0.2.7"
+let private version = "0.2.8"
 
 // ---------- conversion helpers ----------
 
@@ -174,7 +174,7 @@ let oarSLS
     ([<ExcelArgument(Name = "span", Description = "mm")>] span: obj)
     ([<ExcelArgument(Name = "E", Description = "MPa (default 200000)")>] e: obj)
     ([<ExcelArgument(Name = "includeSW", Description = "Yes/No (default Yes)")>] includeSW: obj)
-    ([<ExcelArgument(Name = "loads", Description = "Loads table data range (Case..End or Case..Load)")>] loads: obj)
+    ([<ExcelArgument(Name = "loads", Description = "Loads table data range (Case..Dir; Case..End also accepted)")>] loads: obj)
     ([<ExcelArgument(Name = "criteria", Description = "5x2 range: span ratio | max mm")>] criteria: obj)
     ([<ExcelArgument(Name = "psiL")>] psiL: obj)
     ([<ExcelArgument(Name = "psiS")>] psiS: obj)
@@ -204,7 +204,7 @@ let oarDiagram
     ([<ExcelArgument(Name = "E", Description = "MPa (default 200000)")>] e: obj)
     ([<ExcelArgument(Name = "includeSW")>] includeSW: obj)
     ([<ExcelArgument(Name = "loads")>] loads: obj)
-    ([<ExcelArgument(Name = "combos", Description = "Combinations table data range (ID..Wiu)")>] combos: obj)
+    ([<ExcelArgument(Name = "combos", Description = "Combinations table data range (ID..Dir)")>] combos: obj)
     ([<ExcelArgument(Name = "comboId", Description = "e.g. ULS2, or a single case G, Q, Wu...")>] comboId: obj)
     ([<ExcelArgument(Name = "[points]", Description = "number of intervals (default 20)")>] points: obj)
     : obj =
@@ -214,9 +214,11 @@ let oarDiagram
         let beam = { Span = l; EI = numOr "E" Units.E_MPa e * s.Ix }
         let ls = loadsWithSW s l includeSW loads
         let id = str comboId
+        // a single case, optionally with a wind direction ("Wu", "Wu Cross"), or a combination ID
+        let parts = id.Split([| ' ' |], 2, StringSplitOptions.RemoveEmptyEntries)
         let combo =
-            match LoadCase.tryParse id with
-            | Some lc -> Combination.single lc
+            match (if parts.Length > 0 then LoadCase.tryParse parts.[0] else None) with
+            | Some lc -> Combination.singleDir lc (if parts.Length > 1 then parts.[1] else "")
             | None -> Inputs.combination id (grid combos)
         let acts = Analysis.actions l combo ls
         let n = max 2 (int (numOr "points" 20.0 points))
@@ -232,7 +234,7 @@ let oarDiagram
         table (header :: rows))
 
 [<ExcelFunction(Name = "OAR.REACTIONS",
-                Description = "Spills support reactions (kN, + up) for each case and each combination: ID | left | right",
+                Description = "Spills support reactions (kN, + up) for each case (wind cases per direction, e.g. Wu Cross) and each combination: ID | left | right",
                 Category = Category)>]
 let oarReactions
     ([<ExcelArgument(Name = "designation")>] designation: obj)
@@ -246,7 +248,22 @@ let oarReactions
         let l = num "span" span
         let beam = { Span = l; EI = 1.0 }
         let ls = loadsWithSW s l includeSW loads
-        let cs = (LoadCase.all |> List.map Combination.single) @ Inputs.combinations (grid combos)
+        let combosIn = arg "combos" (fun () -> Inputs.combinations (grid combos))
+        // unfactored cases: G, Q, then each wind case per direction (or undivided if no directions are used)
+        let wind = [ Wd; Wu; Wid; Wiu ]
+        let dirs =
+            WindDir.distinct (
+                (ls |> List.filter (fun ld -> LoadCase.isWind ld.Case) |> List.map (fun ld -> ld.Dir))
+                @ (combosIn |> List.map (fun c -> c.Dir))
+            )
+        let caseRows =
+            [ Combination.single G; Combination.single Q ]
+            @ (if dirs.IsEmpty then
+                   wind |> List.map Combination.single
+               else
+                   [ for d in dirs do
+                         for lc in wind -> Combination.singleDir lc d ])
+        let cs = caseRows @ combosIn
         table
             [ for c in cs do
                   let ra, rb = Analysis.reactions beam (Analysis.actions l c ls)
@@ -315,7 +332,7 @@ let oarMbDetail
                 box (Units.toKNm r.PhiMs) ] ])
 
 [<ExcelFunction(Name = "OAR.LOADS",
-                Description = "Echo of how the loads table was read: case | shape | magnitude (kN/m or kN) | a mm | b mm | direction",
+                Description = "Echo of how the loads table was read: case | shape | magnitude (kN/m or kN) | a mm | b mm | up/down | wind Dir",
                 Category = Category)>]
 let oarLoads
     ([<ExcelArgument(Name = "loads")>] loads: obj)
@@ -329,10 +346,11 @@ let oarLoads
             table
                 [ for ld in ls do
                       let dir = if LoadCase.direction ld.Case > 0.0 then "down" else "up"
+                      let wd = box (if ld.Dir = "" then "–" else ld.Dir)
                       match ld.Shape with
-                      | FullSpan -> yield [ box (LoadCase.name ld.Case); box "UDL"; box ld.Magnitude; box 0.0; box l; box dir ]
-                      | Partial(a, b) -> yield [ box (LoadCase.name ld.Case); box "PUDL"; box ld.Magnitude; box a; box b; box dir ]
-                      | Point x -> yield [ box (LoadCase.name ld.Case); box "Point"; box (Units.toKN ld.Magnitude); box x; box x; box dir ] ])
+                      | FullSpan -> yield [ box (LoadCase.name ld.Case); box "UDL"; box ld.Magnitude; box 0.0; box l; box dir; wd ]
+                      | Partial(a, b) -> yield [ box (LoadCase.name ld.Case); box "PUDL"; box ld.Magnitude; box a; box b; box dir; wd ]
+                      | Point x -> yield [ box (LoadCase.name ld.Case); box "Point"; box (Units.toKN ld.Magnitude); box x; box x; box dir; wd ] ])
 
 // ---------- ULS (v0.2) ----------
 
@@ -374,7 +392,7 @@ let oarUls
     ([<ExcelArgument(Name = "E", Description = "MPa")>] e: obj)
     ([<ExcelArgument(Name = "includeSW")>] includeSW: obj)
     ([<ExcelArgument(Name = "loads")>] loads: obj)
-    ([<ExcelArgument(Name = "combos", Description = "active combinations (ID..Wiu)")>] combos: obj)
+    ([<ExcelArgument(Name = "combos", Description = "active combinations (ID..Dir)")>] combos: obj)
     ([<ExcelArgument(Name = "restraints", Description = "Restraints table: x | Ref | Description | Top | Bottom | αm top | αm bottom")>] restraints: obj)
     ([<ExcelArgument(Name = "kfactors", Description = "kl top, kl bottom / kr top, kr bottom / [continuous Yes/No top, bottom]")>] kfactors: obj)
     : obj =

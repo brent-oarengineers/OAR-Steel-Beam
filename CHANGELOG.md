@@ -3,6 +3,14 @@
 Each version that reaches `main` is built, tested and published automatically as a GitHub Release.
 The calc sheet shows the version it was calculated with (title block, under the green bar).
 
+## v0.2.8
+- Wind directions: new **Dir** column (Cross / Long) on the loads table and the combination library. A wind load with a Dir acts only in combinations with the same Dir; a wind load without one acts in every direction. Crosswind zones are entered as PUDL rows tagged Cross.
+- Library has ULS4C / ULS5C (Cross) and ULS4L / ULS5L (Long) alongside ULS4 / ULS5; the Dir rows switch on automatically once any wind load has a Dir, and the undivided ones switch off.
+- A wind combination without a Dir is refused (#OAR!) when the wind loads it would pick up are split by direction, so directions can never be added together.
+- Support reactions: wind cases per direction (No Dir / Cross / Long) with transfer names such as `RxnR_Wu_Cross`. `OAR.REACTIONS` lists e.g. "Wu Cross"; `OAR.DIAGRAM` accepts it as an ID.
+- Sheet layout gains a narrow column K (Dir); Description column slightly narrower. Older calc sheets without Dir columns still calculate as before.
+- No change to gravity checks.
+
 ## v0.2.7
 - Release is a single zip laid out like `X:\Programs\Spreadsheets` (Add-Ins\OAR Steel, Releases archive, Calc Templates); template keeps its proper name.
 - Print tidy-up: printing or saving as PDF hides the unused rows in the combinations, loads, restraints, ULS, shear and reactions blocks, so the printout has no gaps. The rows come back on your next edit to the sheet. New **OAR** ribbon tab: *Tidy for print* (preview) and *Show all rows*. Template marks the blocks with `OAR_Flex_…` names.

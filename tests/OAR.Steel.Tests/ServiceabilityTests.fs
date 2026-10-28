@@ -17,8 +17,8 @@ let tests =
               let beam = { Span = span; EI = 200000.0 * s.Ix }
               let loads =
                   [ Analysis.selfWeightLoad s
-                    { Case = G; Shape = FullSpan; Magnitude = 5.65 * 0.10; Description = "roof" }
-                    { Case = Q; Shape = FullSpan; Magnitude = 5.65 * 0.25; Description = "roof live" } ]
+                    { Case = G; Shape = FullSpan; Magnitude = 5.65 * 0.10; Description = "roof"; Dir = "" }
+                    { Case = Q; Shape = FullSpan; Magnitude = 5.65 * 0.25; Description = "roof live"; Dir = "" } ]
               let crit =
                   [ { Ratio = 500.0; MaxMm = Some 20.0 }
                     { Ratio = 360.0; MaxMm = Some 25.0 }
