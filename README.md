@@ -1,4 +1,4 @@
-# OAR Steel – Excel add-in (v0.2.7)
+# OAR Steel – Excel add-in (v0.2.8)
 
 F# / Excel-DNA add-in for the OAR steel beam calc sheet. Engineering lives in `OAR.Steel.Core`
 (no Excel references, fully testable); `OAR.Steel.Excel` only converts worksheet values.
@@ -52,11 +52,11 @@ All lengths mm. Section properties use catalogue units (×10⁶ mm⁴ etc.). Err
 | `OAR.SECTION(size, prop, [grade])` | one property: Mass, d, bf, tf, tw, Ag, Ix, Zx, Sx, Iy, J, Iw, fyf, fyw, Ze, phiMsx, phiVv, Class |
 | `OAR.SECTIONLIST([family])` | spills the designations with complete data for UB, UC, WB or PFC (feeds the Section size dropdown) |
 | `OAR.SECTIONPROPS(size, [grade])` | spills name / value / unit / note, incl. λe flange & web, Ze and class |
-| `OAR.LOADS(loads, span)` | spills how the loads table was read (case, shape, magnitude, a, b, direction) |
+| `OAR.LOADS(loads, span)` | spills how the loads table was read (case, shape, magnitude, a, b, up/down, wind Dir) |
 | `OAR.SLS(size, span, E, includeSW, loads, criteria, psiL, psiS)` | spills 5 rows: case, Δmax, x at max, limit, L/Δ, utilisation |
-| `OAR.DIAGRAM(size, span, E, includeSW, loads, combos, id, [n])` | spills x, V*, M*, δ along the span for a combination ID or single case (G, Q, Wu…) |
+| `OAR.DIAGRAM(size, span, E, includeSW, loads, combos, id, [n])` | spills x, V*, M*, δ along the span for a combination ID or single case (G, Q, Wu, Wu Cross…) |
 | `OAR.MAXACTIONS(size, span, includeSW, loads, combos)` | spills per combination: M* max, x, V* max |
-| `OAR.REACTIONS(size, span, includeSW, loads, combos)` | spills reactions for each case and combination |
+| `OAR.REACTIONS(size, span, includeSW, loads, combos)` | spills reactions for each case (wind per direction, e.g. Wu Cross) and combination |
 | `OAR.PHIMB(size, grade, Le, [αm], [E])` | φMb, kN·m |
 | `OAR.MBDETAIL(size, grade, Le, [αm], [E])` | spills Le, Ms, Mo, αs, αm, φMb, φMs |
 | `OAR.ULS(size, grade, span, E, SW, loads, combos, restraints, k)` | spills every segment of every combination: combo, segment, ends, Le, αm, αs, φMb, M*, utilisation (* = αm override) |
@@ -71,10 +71,15 @@ All lengths mm. Section properties use catalogue units (×10⁶ mm⁴ etc.). Err
 (kl top, kl bottom / kr top, kr bottom). Segments are built per combination from its critical flange column;
 both supports must be F or P. kt from Table 5.6.3(1) (nw = 1); kl, kr as entered.
 
-Ranges on the base sheet: `loads` = `Loads_B1[[Case]:[End (mm)]]`, `combos` = the active-combinations
-spill (e.g. `B75#`, the FILTER of the combination library), `criteria` = the 5 × 2 block of Span / and Max (mm).
+Ranges on the base sheet: `loads` = `Loads_B1[[Case]:[Dir]]` (`[[Case]:[End (mm)]]` also accepted, no directions), `combos` = the active-combinations
+spill (ID..Dir, the FILTER of the combination library), `criteria` = the 5 × 2 block of Span / and Max (mm).
 The sheet's Support Reactions table already calls `OAR.REACTIONS` and names each cell (`RxnL_G`, `RxnR_Wu`…)
 so other beam sheets can pick them up, e.g. Direct = `='B1'!RxnR_G` on a Point row with case G.
+
+**Wind directions.** `Dir` (last column of the loads table and the combinations) tags wind loads
+and combinations, e.g. Cross / Long. A tagged wind load acts only in combinations with the same Dir
+(case-insensitive); untagged wind loads act in all. A combination with wind factors and no Dir is an
+error once any wind load it picks up is tagged. Dir on a G or Q row is an error.
 
 Example (summary Δg actual): `=INDEX(OAR.SLS(SectionSize,Span,E_mod,IncludeSW,Loads_B1[[Case]:[End (mm)]],<criteria range>,PsiL,PsiS),1,2)`
 
@@ -102,6 +107,7 @@ row whose key cell shows nothing; the next edit on that sheet unhides them. The 
 | Partial UDL | existing VBA `PUDL_Deflection` at 4 points | 1e-9 |
 | Statics | wL²/8, 5wL⁴/384EI, PL/4, PL³/48EI, equilibrium, uplift sign | 1e-12 |
 | Inputs | trib × pressure + direct, m vs m², bad-row errors, combos, criteria | exact |
+| Wind Dir | two-zone crosswind vs uniform longitudinal: hand statics, filtering, undivided-combo error, Dir columns | 1e-9 |
 
 | kt | Table 5.6.3(1) FF/FL/LL/FP/PL/PP, 310UB40.4 | 1e-9 |
 | Segments | DCT Ex 1 through the builder (segment 2 φMb 47.6 with αm 1.0; end segment αm 1.817) | 0.5% |

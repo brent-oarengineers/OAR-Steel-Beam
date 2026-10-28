@@ -42,7 +42,7 @@ ws.title = "B1"
 ws.sheet_view.showGridLines = False
 ws.sheet_properties.tabColor = GREEN
 
-widths = {"A": 1.5, "B": 8, "C": 9, "D": 30, "E": 10, "F": 10, "G": 11, "H": 10, "I": 10, "J": 11, "K": 1.5}
+widths = {"A": 1.5, "B": 8, "C": 9, "D": 26, "E": 10, "F": 10, "G": 11, "H": 10, "I": 10, "J": 11, "K": 7}
 for k, v in widths.items():
     ws.column_dimensions[k].width = v
 for r in range(1, 140):
@@ -84,7 +84,7 @@ def label(cell, text, sz=9, color=DARK, al=L, b=False, i=False):
 def heading(row, text):
     ws.row_dimensions[row].height = 20
     put(f"B{row}", text, font(10, b=True, color=GREEN), al=Alignment(vertical="bottom"))
-    for col in "BCDEFGHIJ":
+    for col in "BCDEFGHIJK":
         ws[f"{col}{row}"].border = Border(bottom=Side(style="thin", color=TAUPE))
 
 names = {}
@@ -105,17 +105,17 @@ ws.add_image(logo, "B1")
 
 small = font(7, color=GREY)
 label("F1", "JOB No.", 7, GREY, R); inp("G1", "26-000")
-label("H1", "DATE", 7, GREY, R); ws.merge_cells("I1:J1"); import datetime; inp("I1", datetime.date.today(), "dd-mmm-yy")
-ws["J1"].fill = F_IN; ws["J1"].border = B_IN
-label("F2", "PROJECT", 7, GREY, R); merge_inp("G2:J2", "Project name / address")
+label("H1", "DATE", 7, GREY, R); ws.merge_cells("I1:K1"); import datetime; inp("I1", datetime.date.today(), "dd-mmm-yy")
+for col in "JK": ws[f"{col}1"].fill = F_IN; ws[f"{col}1"].border = B_IN
+label("F2", "PROJECT", 7, GREY, R); merge_inp("G2:K2", "Project name / address")
 label("F3", "BEAM", 7, GREY, R); inp("G3", "B1", al=C)
-label("H3", "LOCATION", 7, GREY, R); merge_inp("I3:J3", "Roof – grid A/1-3")
+label("H3", "LOCATION", 7, GREY, R); merge_inp("I3:K3", "Roof – grid A/1-3")
 label("F4", "BY", 7, GREY, R); inp("G4", "BO")
-label("H4", "CHECKED", 7, GREY, R); ws.merge_cells("I4:J4"); inp("I4", "")
-ws["J4"].fill = F_IN; ws["J4"].border = B_IN
+label("H4", "CHECKED", 7, GREY, R); ws.merge_cells("I4:K4"); inp("I4", "")
+for col in "JK": ws[f"{col}4"].fill = F_IN; ws[f"{col}4"].border = B_IN
 ws.row_dimensions[4].height = 17
 label("B4", "OAR Consulting Engineers Pty Ltd  ·  22 Martin Street, Nerang QLD 4211  ·  (07) 5527 2288", 7, GREY)
-for col in "BCDEFGHIJ":
+for col in "BCDEFGHIJK":
     ws[f"{col}5"].border = Border(top=gline)
 ws.row_dimensions[5].height = 6
 name("BeamRef", "$G$3"); name("BeamLocation", "$I$3")
@@ -123,16 +123,16 @@ name("JobNo", "$G$1"); name("CalcDate", "$I$1")
 
 # Title bar
 ws.row_dimensions[6].height = 22
-ws.merge_cells("B6:J6")
+ws.merge_cells("B6:K6")
 put("B6", '="STEEL BEAM DESIGN  –  "&IF(BeamRef="","(beam ref)",BeamRef)&IF(BeamLocation="","","  ·  "&BeamLocation)',
     font(11, b=True, color="FFFFFF"), F_BAR, al=Alignment(horizontal="left", vertical="center", indent=1))
-for col in "CDEFGHIJ":
+for col in "CDEFGHIJK":
     ws[f"{col}6"].fill = F_BAR
 
 # Legend
-label("G7", "Legend:", 7, GREY, R)
-inp("H7", "Input").font = font(7, color="000000")
-out("I7", "Calculated").font = font(7)
+label("H7", "Legend:", 7, GREY, R)
+inp("I7", "Input").font = font(7, color="000000")
+out("J7", "Calculated").font = font(7)
 
 # ---------------- Design summary ----------------
 from openpyxl.formatting.rule import DataBarRule, FormulaRule, CellIsRule
@@ -148,13 +148,14 @@ put(f"B{s0+3}", '="Span "&TEXT(Span,"#,##0")&" mm  ·  "&Support&IF(IncludeSW="Y
     font(7, color=GREY), al=L)
 label(f"F{s0+1}", "Max utilisation", 7, GREY, al=L)
 ws.merge_cells(f"F{s0+2}:G{s0+2}")
-label(f"I{s0+1}", "Status", 7, GREY, al=C); ws.merge_cells(f"I{s0+1}:J{s0+1}")
-ws.merge_cells(f"I{s0+2}:J{s0+2}")
+label(f"I{s0+1}", "Status", 7, GREY, al=C); ws.merge_cells(f"I{s0+1}:K{s0+1}")
+ws.merge_cells(f"I{s0+2}:K{s0+2}")
 sum_hdr = s0 + 5
 ws.row_dimensions[sum_hdr].height = 16
 for col, txt in zip("BCDEFGHIJ", ["Check", "", "Basis", "Actual", "Limit", "Unit", "L / x", "Utilisation", "Status"]):
     put(f"{col}{sum_hdr}", txt, font(8, b=True), F_HDR, None, C)
 ws.merge_cells(f"B{sum_hdr}:C{sum_hdr}")
+ws[f"K{sum_hdr}"].fill = F_HDR; ws.merge_cells(f"J{sum_hdr}:K{sum_hdr}")
 sum_rows = [
     ("grp", "Serviceability"),
     ("dfl", "Δg", "Dead load", "Res_Dg", 0),
@@ -163,8 +164,8 @@ sum_rows = [
     ("dfl", "Δq", "Live load only", "Res_Dq", 3),
     ("dfl", "Δ1kN", "1 kN at midspan", "Res_D1", 4),
     ("grp", "Strength"),
-    ("str", "M* / φMbx", "Bending – gravity (top flange critical)", "Res_Mdn", "Res_phiMdn", "kN·m"),
-    ("str", "M* / φMbx", "Bending – uplift (bottom flange critical)", "Res_Mup", "Res_phiMup", "kN·m"),
+    ("str", "M* / φMbx", "Bending – gravity (top flange)", "Res_Mdn", "Res_phiMdn", "kN·m"),
+    ("str", "M* / φMbx", "Bending – uplift (bottom flange)", "Res_Mup", "Res_phiMup", "kN·m"),
     ("str", "V* / φVv", "Shear", "Res_V", "Res_phiV", "kN"),
 ]
 util_cells = []; defl_rows = []
@@ -173,7 +174,7 @@ for row in sum_rows:
     rr += 1
     if row[0] == "grp":
         put(f"B{rr}", row[1], font(8, b=True, color=GREEN), al=Alignment(vertical="center"))
-        for col in "BCDEFGHIJ":
+        for col in "BCDEFGHIJK":
             ws[f"{col}{rr}"].border = Border(bottom=Side(style="hair", color=TAUPE))
         continue
     ws.merge_cells(f"B{rr}:C{rr}")
@@ -192,6 +193,7 @@ for row in sum_rows:
         put(f"H{rr}", "", font(9))
     out(f"I{rr}", f'=IF(OR(E{rr}="",N(F{rr})=0),"",ABS(E{rr})/F{rr})', "0%")
     put(f"J{rr}", f'=IF(I{rr}="","–",IF(I{rr}<=1,"OK","NG"))', font(9, b=True), al=C)
+    ws.merge_cells(f"J{rr}:K{rr}")
     util_cells.append(f"I{rr}")
 sum_last = rr
 urng = f"I{sum_hdr+1}:I{sum_last}"
@@ -200,7 +202,8 @@ put(f"F{s0+2}", f'=IF(COUNT({urng})=0,"–",MAX({urng}))', font(12, b=True, colo
 thin_t = Side(style="thin", color=TAUPE)
 put(f"I{s0+2}", f'=IF(COUNT({urng})=0,"PENDING",IF(MAX({urng})<=1,"PASS","FAIL"))', font(10, b=True, color="8C8C8C"),
     al=C, border=Border(left=thin_t, top=thin_t, bottom=thin_t))
-ws[f"J{s0+2}"].border = Border(right=thin_t, top=thin_t, bottom=thin_t)
+ws[f"J{s0+2}"].border = Border(top=thin_t, bottom=thin_t)
+ws[f"K{s0+2}"].border = Border(right=thin_t, top=thin_t, bottom=thin_t)
 put(f"F{s0+3}", f'=IF(COUNT({urng})=0,"","Governs: "&INDEX(D{sum_hdr+1}:D{sum_last},MATCH(MAX({urng}),{urng},0)))',
     font(7, color=GREY), al=L)
 name("Sum_MaxUtil", f"$F${s0+2}"); name("Sum_Status", f"$I${s0+2}")
@@ -213,9 +216,9 @@ ws.conditional_formatting.add(f"J{sum_hdr+1}:J{sum_last}", Rule(type="cellIs", o
     dxf=DifferentialStyle(font=Font(color="FFFFFF", bold=True), fill=PatternFill("solid", bgColor="C00000"))))
 ws.conditional_formatting.add(f"J{sum_hdr+1}:J{sum_last}", Rule(type="cellIs", operator="equal", formula=['"OK"'],
     dxf=DifferentialStyle(font=Font(color=GREEN, bold=True))))
-ws.conditional_formatting.add(f"I{s0+2}:J{s0+2}", Rule(type="expression", formula=[f'$I${s0+2}="PASS"'],
+ws.conditional_formatting.add(f"I{s0+2}:K{s0+2}", Rule(type="expression", formula=[f'$I${s0+2}="PASS"'],
     dxf=DifferentialStyle(font=Font(color=GREEN, bold=True), fill=PatternFill("solid", bgColor="E6ECE9"))))
-ws.conditional_formatting.add(f"I{s0+2}:J{s0+2}", Rule(type="expression", formula=[f'$I${s0+2}="FAIL"'],
+ws.conditional_formatting.add(f"I{s0+2}:K{s0+2}", Rule(type="expression", formula=[f'$I${s0+2}="FAIL"'],
     dxf=DifferentialStyle(font=Font(color="C00000", bold=True), fill=PatternFill("solid", bgColor="F6E1E1"))))
 ws.conditional_formatting.add(f"F{s0+2}", Rule(type="expression", formula=[f'AND(ISNUMBER(F{s0+2}),F{s0+2}>1)'],
     dxf=DifferentialStyle(font=Font(color="C00000", bold=True))))
@@ -325,9 +328,10 @@ label(f"B{r+1}", "Load = trib × pressure + direct.  UDL/PUDL: trib in m → kN/
       "UDL: start/end blank = full span.", 7, GREY, i=True)
 label(f"B{r+2}", "Magnitudes positive; direction set by case: Wd, Wid act down; Wu, Wiu act up.  "
       "Wi = internal pressure, combined with the external wind case.", 7, GREY, i=True)
-th = r + 3
-cols = ["Case", "Type", "Description", "Trib (m | m²)", "Press. (kPa)", "+ Direct (kN/m | kN)", "Start (mm)", "End (mm)", "Load"]
-for col, txt in zip("BCDEFGHIJ", cols):
+label(f"B{r+3}", "Dir (wind rows only): Cross / Long = acts only in that direction's combinations;  blank = every direction.", 7, GREY, i=True)
+th = r + 4
+cols = ["Case", "Type", "Description", "Trib (m | m²)", "Press. (kPa)", "+ Direct (kN/m | kN)", "Start (mm)", "End (mm)", "Load", "Dir"]
+for col, txt in zip("BCDEFGHIJK", cols):
     put(f"{col}{th}", txt, font(8, b=True), al=Alignment(horizontal="center", vertical="center", wrap_text=True))
 ws.row_dimensions[th].height = 26
 loads = [
@@ -351,6 +355,7 @@ for i, rowv in enumerate(loads):
             v = f'=IFERROR(INDEX(LoadLib_B1[kPa],MATCH(D{rr},LoadLib_B1[Description],0)),"")'
         inp(f"{col}{rr}", v, nf, L if col == "D" else C)
     out(f"J{rr}", f'=IF(B{rr}="","",N(E{rr})*N(F{rr})+N(G{rr}))', '0.000 "kN/m"')
+    inp(f"K{rr}", None)
 last = first + len(loads) - 1
 # unit-aware number formats: Point rows show m² / kN
 from openpyxl.formatting.rule import Rule
@@ -364,10 +369,10 @@ ws.conditional_formatting.add(f"E{first}:E{last}", nf_rule('0.00 "m²"', 191))
 for rr in range(first, last + 1):
     ws[f"E{rr}"].number_format = '0.00 "m"'
     ws[f"G{rr}"].number_format = '0.00'
-tbl = Table(displayName="Loads_B1", ref=f"B{th}:J{last}")
+tbl = Table(displayName="Loads_B1", ref=f"B{th}:K{last}")
 tbl.tableStyleInfo = TableStyleInfo(name="TableStyleLight15", showRowStripes=False)
 from openpyxl.worksheet.table import TableColumn
-tbl.tableColumns = [TableColumn(id=i + 1, name=str(ws[f"{col}{th}"].value)) for i, col in enumerate("BCDEFGHIJ")]
+tbl.tableColumns = [TableColumn(id=i + 1, name=str(ws[f"{col}{th}"].value)) for i, col in enumerate("BCDEFGHIJK")]
 # Load column as a table calculated column, so Excel fills it on new or cleared rows
 from openpyxl.worksheet.table import TableFormula
 TR = "Loads_B1[[#This Row],[{}]]"
@@ -386,17 +391,20 @@ for rr in range(first, last + 1):
 for rr in range(first, last + 1):
     ws[f"J{rr}"].value = "=" + load_f
 ws.add_table(tbl)
-for col in "BCDEFGHIJ":
+for col in "BCDEFGHIJK":
     ws[f"{col}{th}"].fill = F_HDR
 dv_case = DataValidation(type="list", formula1='"G,Q,Wd,Wu,Wid,Wiu"', allow_blank=True)
 dv_lt = DataValidation(type="list", formula1='"UDL,PUDL,Point"', allow_blank=True)
 ws.add_data_validation(dv_case); ws.add_data_validation(dv_lt)
 dv_case.add(f"B{first}:B{last}"); dv_lt.add(f"C{first}:C{last}")
+dv_dir = DataValidation(type="list", formula1='"Cross,Long"', allow_blank=True, showErrorMessage=True,
+                        errorTitle="Wind direction", error="Cross or Long (wind cases only), or leave blank for every direction.")
+ws.add_data_validation(dv_dir); dv_dir.add(f"K{first}:K{last}")
 # print tidy-up (add-in): rows of these key columns that show nothing are hidden when printing
 name("OAR_Flex_Loads", "Loads_B1[Case]")
 
 sr = last + 2
-label(f"B{sr+1}", "Full-span UDL totals (excl. self-weight):", 8, GREY, i=True)
+label(f"B{sr+1}", "Full-span UDL totals (excl. self-weight; wind over all Dir):", 7, GREY, i=True)
 for col, case in zip("EFGHIJ", ["G", "Q", "Wd", "Wu", "Wid", "Wiu"]):
     put(f"{col}{sr}", case, font(8, b=True), F_HDR, B_IN, C)
     out(f"{col}{sr+1}", f'=SUMIFS(Loads_B1[Load],Loads_B1[Case],"{case}",Loads_B1[Type],"UDL")', '0.000 "kN/m"')
@@ -457,8 +465,8 @@ ws.add_data_validation(dv_desc)
 dv_desc.add(f"D{first}:D{last}")
 
 # ---------------- Load combination library (right-hand side, not printed) ----------------
-LIB_COLS = "MNOPQRSTUVWX"
-for col, w in zip(LIB_COLS, [8, 7, 9, 7, 9, 26, 6.5, 6.5, 6.5, 6.5, 6.5, 6.5]):
+LIB_COLS = "MNOPQRSTUVWXY"
+for col, w in zip(LIB_COLS, [8, 7, 9, 8, 9, 26, 6.5, 6.5, 6.5, 6.5, 6.5, 6.5, 7]):
     ws.column_dimensions[col].width = w
 lr = 43
 ws.row_dimensions[lr].height = 20
@@ -467,31 +475,40 @@ for col in LIB_COLS:
     ws[f"{col}{lr}"].border = Border(bottom=Side(style="thin", color=TAUPE))
 label(f"M{lr+1}", "Include: blank = follow the Combination set;  Yes / No = force on or off.  Active rows appear in the calc.", 7, GREY, i=True)
 label(f"M{lr+2}", "Groups: Gravity (Floor, Roof, All), Wind (Roof, All), Storage (All only), Custom (always, unless Include = No).  Add rows at the bottom for custom combinations.", 7, GREY, i=True)
-lh = lr + 3
-lcols = ["Include", "Active", "Group", "ID", "Crit. flange", "Combination", "G", "Q", "Wd", "Wu", "Wid", "Wiu"]
+label(f"M{lr+3}", "Wind rows with a Dir are used when any wind load has a Dir; wind rows without one are used otherwise.", 7, GREY, i=True)
+lh = lr + 4
+lcols = ["Include", "Active", "Group", "ID", "Crit. flange", "Combination", "G", "Q", "Wd", "Wu", "Wid", "Wiu", "Dir"]
 for col, txt in zip(LIB_COLS, lcols):
     put(f"{col}{lh}", txt, font(8, b=True), F_HDR, None, C)
+W4 = [1.2, "=PsiC", 1.0, 0, 1.0, 0]
+W5 = [0.9, 0, 0, 1.0, 0, 1.0]
 lib = [
-    ("Gravity", "ULS1", "Top", "1.35G", [1.35, 0, 0, 0, 0, 0]),
-    ("Gravity", "ULS2", "Top", "1.2G + 1.5Q", [1.2, 1.5, 0, 0, 0, 0]),
-    ("Storage", "ULS3", "Top", "1.2G + 1.5ψlQ", [1.2, "=1.5*PsiL", 0, 0, 0, 0]),
-    ("Wind", "ULS4", "Top", "1.2G + ψcQ + Wd + Wi(−cpi)", [1.2, "=PsiC", 1.0, 0, 1.0, 0]),
-    ("Wind", "ULS5", "Bottom", "0.9G + Wu + Wi(+cpi)", [0.9, 0, 0, 1.0, 0, 1.0]),
-    ("Custom", None, None, None, [None] * 6),
-    ("Custom", None, None, None, [None] * 6),
-    ("Custom", None, None, None, [None] * 6),
+    ("Gravity", "ULS1", "Top", "1.35G", [1.35, 0, 0, 0, 0, 0], None),
+    ("Gravity", "ULS2", "Top", "1.2G + 1.5Q", [1.2, 1.5, 0, 0, 0, 0], None),
+    ("Storage", "ULS3", "Top", "1.2G + 1.5ψlQ", [1.2, "=1.5*PsiL", 0, 0, 0, 0], None),
+    ("Wind", "ULS4", "Top", "1.2G + ψcQ + Wd + Wi(−cpi)", W4, None),
+    ("Wind", "ULS5", "Bottom", "0.9G + Wu + Wi(+cpi)", W5, None),
+    ("Wind", "ULS4C", "Top", "1.2G + ψcQ + Wd + Wi(−cpi)", W4, "Cross"),
+    ("Wind", "ULS5C", "Bottom", "0.9G + Wu + Wi(+cpi)", W5, "Cross"),
+    ("Wind", "ULS4L", "Top", "1.2G + ψcQ + Wd + Wi(−cpi)", W4, "Long"),
+    ("Wind", "ULS5L", "Bottom", "0.9G + Wu + Wi(+cpi)", W5, "Long"),
+    ("Custom", None, None, None, [None] * 6, None),
+    ("Custom", None, None, None, [None] * 6, None),
+    ("Custom", None, None, None, [None] * 6, None),
 ]
 lfirst = lh + 1
-for i, (grp, cid, fl, desc, fac) in enumerate(lib):
+for i, (grp, cid, fl, desc, fac, wdir) in enumerate(lib):
     rr = lfirst + i
     inp(f"M{rr}", None)
-    out(f"N{rr}", f'=IF(M{rr}="No",0,IF(P{rr}="",0,IF(M{rr}="Yes",1,IF(OR(CombSet="All",O{rr}="Custom",'
-                  f'AND(O{rr}="Gravity",CombSet<>"Custom"),AND(O{rr}="Wind",CombSet="Roof")),1,0))))', '"✓";;')
+    # wind rows follow the loads: Dir rows when any wind load has a Dir, undivided rows otherwise
+    out(f"N{rr}", f'=IF(M{rr}="No",0,IF(P{rr}="",0,IF(M{rr}="Yes",1,IF(AND(O{rr}="Wind",IF(Y{rr}="",NumDirWind>0,NumDirWind=0)),0,'
+                  f'IF(OR(CombSet="All",O{rr}="Custom",AND(O{rr}="Gravity",CombSet<>"Custom"),AND(O{rr}="Wind",CombSet="Roof")),1,0)))))', '"✓";;')
     inp(f"O{rr}", grp); inp(f"P{rr}", cid); inp(f"Q{rr}", fl); inp(f"R{rr}", desc, al=L)
     for col, v in zip("STUVWX", fac):
         inp(f"{col}{rr}", v, "0.00")
+    inp(f"Y{rr}", wdir)
 llast = lfirst + len(lib) - 1
-tl = Table(displayName="CombLib_B1", ref=f"M{lh}:X{llast}")
+tl = Table(displayName="CombLib_B1", ref=f"M{lh}:Y{llast}")
 tl.tableStyleInfo = TableStyleInfo(name="TableStyleLight15", showRowStripes=False)
 ws.add_table(tl)
 dv_inc = DataValidation(type="list", formula1='"Yes,No"', allow_blank=True)
@@ -499,10 +516,14 @@ dv_grp = DataValidation(type="list", formula1='"Gravity,Wind,Storage,Custom"')
 dv_fl = DataValidation(type="list", formula1='"Top,Bottom"')
 for dv in (dv_inc, dv_grp, dv_fl): ws.add_data_validation(dv)
 dv_inc.add(f"M{lfirst}:M{llast+30}"); dv_grp.add(f"O{lfirst}:O{llast+30}"); dv_fl.add(f"Q{lfirst}:Q{llast+30}")
+dv_dir.add(f"Y{lfirst}:Y{llast+30}")
 # count of active uplift (bottom flange) combinations, used to grey out the uplift summary row
 label(f"R{llast+2}", "Active uplift (bottom flange) combinations:", 7, GREY, al=R)
 out(f"S{llast+2}", '=COUNTIFS(CombLib_B1[Active],1,CombLib_B1[Crit. flange],"Bottom")', "0")
 name("NumUpliftCombos", f"$S${llast+2}")
+label(f"R{llast+3}", "Wind loads with a Dir:", 7, GREY, al=R)
+out(f"S{llast+3}", '=COUNTIF(Loads_B1[Dir],"?*")', "0")
+name("NumDirWind", f"$S${llast+3}")
 
 # ---------------- Load combinations (printed: active rows only) ----------------
 r = sr + 3
@@ -515,18 +536,18 @@ label(f"H{r+1}", "Table 4.1 (roofs 0.0)", 7, GREY)
 label(f"B{r+2}", "Floor = gravity only.  Roof = gravity + wind.  All = every library row.  Custom = only rows set to Yes / Custom.  Edit in the library to the right →",
       7, GREY, i=True)
 ch = r + 3
-for col, txt in zip("BCDEFGHIJ", ["ID", "Crit. flange", "Combination", "G", "Q", "Wd", "Wu", "Wid", "Wiu"]):
+for col, txt in zip("BCDEFGHIJK", ["ID", "Crit. flange", "Combination", "G", "Q", "Wd", "Wu", "Wid", "Wiu", "Dir"]):
     put(f"{col}{ch}", txt, font(8, b=True), F_HDR, None, C)
 COMBO_ANCHOR = f"B{ch+1}"
-ws[COMBO_ANCHOR] = ArrayFormula(COMBO_ANCHOR, '=_xlfn._xlws.FILTER(CombLib_B1[[ID]:[Wiu]],CombLib_B1[Active]=1,"No combinations selected")')
+ws[COMBO_ANCHOR] = ArrayFormula(COMBO_ANCHOR, '=_xlfn._xlws.FILTER(CombLib_B1[[ID]:[Dir]],CombLib_B1[Active]=1,"No combinations selected")')
 spill_rows = len(lib)
 for rr in range(ch + 1, ch + 1 + spill_rows):
-    for col in "BCDEFGHIJ":
+    for col in "BCDEFGHIJK":
         c = ws[f"{col}{rr}"]
         c.font = font(9)
         c.alignment = L if col == "D" else C
         if col in "EFGHIJ": c.number_format = "0.00"
-ws.conditional_formatting.add(f"B{ch+1}:J{ch+spill_rows}", Rule(type="expression", formula=[f'$B{ch+1}<>""'],
+ws.conditional_formatting.add(f"B{ch+1}:K{ch+spill_rows}", Rule(type="expression", formula=[f'$B{ch+1}<>""'],
     dxf=DifferentialStyle(fill=PatternFill("solid", bgColor="E6ECE9"), border=Border(left=hair, right=hair, top=hair, bottom=hair))))
 clast = ch + spill_rows
 name("OAR_Flex_Combos", f"$B${ch+1}:$B${clast}")
@@ -577,8 +598,8 @@ rlast = kb + 3
 
 # uplift summary row: say so and grey it out when no uplift combinations are active
 for srow in range(sum_hdr + 1, sum_last + 1):
-    if ws[f"D{srow}"].value == "Bending – uplift (bottom flange critical)":
-        ws[f"D{srow}"] = '=IF(NumUpliftCombos=0,"Bending – uplift (no uplift combinations)","Bending – uplift (bottom flange critical)")'
+    if ws[f"D{srow}"].value == "Bending – uplift (bottom flange)":
+        ws[f"D{srow}"] = '=IF(NumUpliftCombos=0,"Bending – uplift (none active)","Bending – uplift (bottom flange)")'
         ws.conditional_formatting.add(f"B{srow}:J{srow}", Rule(type="expression", formula=["NumUpliftCombos=0"],
             dxf=DifferentialStyle(font=Font(color="BFBFBF"))))
 
@@ -589,7 +610,7 @@ from openpyxl.chart.shapes import GraphicalProperties
 from openpyxl.drawing.line import LineProperties
 from openpyxl.chart.layout import Layout, ManualLayout
 CRIT_RANGE = f"$E${hdr+1}:$F${hdr+5}"
-LOADS = "Loads_B1[[Case]:[End (mm)]]"
+LOADS = "Loads_B1[[Case]:[Dir]]"
 COMBOS = f"_xlfn.ANCHORARRAY({COMBO_ANCHOR})"
 ARGS_ULS = f"SectionSize,Grade,Span,E_mod,IncludeSW,{LOADS},{COMBOS},Restraints_B1[#Data],{KF_RANGE}"
 
@@ -770,32 +791,46 @@ r = r + 11
 # ---------------- Support reactions (named for transfer to other beams) ----------------
 heading(r, "Support Reactions")
 label(f"B{r+1}", "Unfactored, per case, positive in the case direction (Wu/Wiu = uplift). Self-weight is in G.  "
-      "To load another beam: add a Point row with the same case and set Direct to e.g. ='B1'!RxnR_G", 7, GREY, i=True)
+      "To load another beam: add a Point row with the same case (and Dir) and set Direct to e.g. ='B1'!RxnR_G", 7, GREY, i=True)
 rx = r + 2
-for col, txt in zip("BCDE", ["Case", "", "Left (kN)", "Right (kN)"]):
-    put(f"{col}{rx}", txt, font(8, b=True), F_HDR, None, C)
-ws.merge_cells(f"B{rx}:C{rx}")
-put(f"F{rx}", "Transfer names", font(8, b=True), F_HDR, None, C); ws.merge_cells(f"F{rx}:G{rx}")
-reac_args = 'SectionSize,Span,IncludeSW,Loads_B1[[Case]:[End (mm)]],' + f'_xlfn.ANCHORARRAY({COMBO_ANCHOR})'
+RX_ROW = rx + 11                    # full reactions spill (below), read by the table by ID
+RX_ANCHOR = f"B{RX_ROW}"
+RXA = f"_xlfn.ANCHORARRAY({RX_ANCHOR})"
+put(f"B{rx}", "Case", font(8, b=True), F_HDR, None, C); ws.merge_cells(f"B{rx}:D{rx+1}")
+for c1, c2, txt in [("E", "F", "No Dir"), ("G", "H", "Cross"), ("I", "J", "Long")]:
+    put(f"{c1}{rx}", txt, font(8, b=True), F_HDR, None, C); ws[f"{c2}{rx}"].fill = F_HDR; ws.merge_cells(f"{c1}{rx}:{c2}{rx}")
+    put(f"{c1}{rx+1}", "Left (kN)", font(8, b=True), F_HDR, None, C)
+    put(f"{c2}{rx+1}", "Right (kN)", font(8, b=True), F_HDR, None, C)
+for cc in "CD":
+    ws[f"{cc}{rx}"].fill = F_HDR
 for k, case in enumerate(["G", "Q", "Wd", "Wu", "Wid", "Wiu"]):
-    rr = rx + 1 + k
-    ws.merge_cells(f"B{rr}:C{rr}")
-    put(f"B{rr}", case, font(9), border=B_IN, al=C); ws[f"C{rr}"].border = B_IN
+    rr = rx + 2 + k
+    ws.merge_cells(f"B{rr}:D{rr}")
+    put(f"B{rr}", case, font(9), border=B_IN, al=C); ws[f"C{rr}"].border = B_IN; ws[f"D{rr}"].border = B_IN
     sgn = "-" if case in ("Wu", "Wiu") else ""
-    out(f"D{rr}", ArrayFormula(f"D{rr}", f"={sgn}INDEX(OAR.REACTIONS({reac_args}),{k+1},2)"), "0.00")
-    out(f"E{rr}", ArrayFormula(f"E{rr}", f"={sgn}INDEX(OAR.REACTIONS({reac_args}),{k+1},3)"), "0.00")
-    put(f"F{rr}", f"RxnL_{case}  ·  RxnR_{case}", font(7, color=GREY), al=C); ws.merge_cells(f"F{rr}:G{rr}")
-    name(f"RxnL_{case}", f"$D${rr}"); name(f"RxnR_{case}", f"$E${rr}")
-r = rx + 8
+    wind = case not in ("G", "Q")
+    for c1, c2, d in [("E", "F", ""), ("G", "H", "Cross"), ("I", "J", "Long")]:
+        if d and not wind:
+            for cc in (c1, c2):
+                put(f"{cc}{rr}", "–", font(9, color="A6A6A6"), border=B_IN, al=C)
+            continue
+        rid = case + (" " + d if d else "")
+        for cc, j in ((c1, 2), (c2, 3)):
+            f_ = f'=IFERROR({sgn}INDEX({RXA},MATCH("{rid}",INDEX({RXA},0,1),0),{j}),"–")'
+            out(f"{cc}{rr}", ArrayFormula(f"{cc}{rr}", f_), "0.00")
+        suffix = "_" + d if d else ""
+        name(f"RxnL_{case}{suffix}", f"${c1}${rr}"); name(f"RxnR_{case}{suffix}", f"${c2}${rr}")
+label(f"B{rx+8}", "Names: RxnL_<case> / RxnR_<case>, plus _Cross or _Long for a wind direction, e.g. RxnR_Wu_Cross.  "
+      "No Dir shows – once wind loads have a Dir.", 7, GREY, i=True)
+r = rx + 9
 label(f"B{r}", "All cases and active combinations (kN, + = upward reaction; uplift cases show negative)", 7, GREY, i=True)
 out_header(r + 1, "BCD", ["ID", "Left (kN)", "Right (kN)"])
-RX_ANCHOR = f"B{r+2}"
+assert r + 2 == RX_ROW
 dyn(RX_ANCHOR, f"=OAR.REACTIONS(SectionSize,Span,IncludeSW,{LOADS},{COMBOS})")
-spill_format(r + 2, r + 15, "BCD", [None, "0.00", "0.00"])
-name("OAR_Flex_Reactions", f"$B${r+2}:$B${r+15}")
+spill_format(r + 2, r + 31, "BCD", [None, "0.00", "0.00"])
+name("OAR_Flex_Reactions", f"$B${r+2}:$B${r+31}")
 name("Out_Reactions", f"$B${r+2}")
-r = r + 7
-lastrow = r + 9
+lastrow = r + 32
 
 # add-in version on every printed calc
 dyn("B7", '=IFERROR("Calculated with "&OAR.VERSION(),"OAR Steel add-in not loaded")', None, font(7, i=True, color=GREY), L)
@@ -809,7 +844,7 @@ gov_map = {"Res_Mdn": (1, 2), "Res_phiMdn": (1, 3), "Res_Mup": (2, 2), "Res_phiM
 for nm, (i, j) in gov_map.items():
     cell = names[nm].replace("$", "")
     dyn(cell, f"=INDEX(_xlfn.ANCHORARRAY({GOV_ANCHOR}),{i},{j})", "0.0").fill = F_OUT
-for cell in ws[f"B{sum_hdr}:J{sum_last}"]:
+for cell in ws[f"B{sum_hdr}:K{sum_last}"]:
     for c in cell:
         if c.value is not None and not isinstance(c.value, str) and hasattr(c.value, "text"):
             c.border = B_IN
