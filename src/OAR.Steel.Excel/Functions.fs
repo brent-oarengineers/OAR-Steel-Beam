@@ -9,7 +9,7 @@ open OAR.Steel
 [<Literal>]
 let Category = "OAR Steel"
 
-let private version = "0.2.8"
+let private version = "0.3.0"
 
 // ---------- conversion helpers ----------
 
@@ -174,7 +174,7 @@ let oarSLS
     ([<ExcelArgument(Name = "span", Description = "mm")>] span: obj)
     ([<ExcelArgument(Name = "E", Description = "MPa (default 200000)")>] e: obj)
     ([<ExcelArgument(Name = "includeSW", Description = "Yes/No (default Yes)")>] includeSW: obj)
-    ([<ExcelArgument(Name = "loads", Description = "Loads table data range (Case..Dir; Case..End also accepted)")>] loads: obj)
+    ([<ExcelArgument(Name = "loads", Description = "Loads table data range (Type..Dir; older Case..Dir / Case..End layouts also accepted)")>] loads: obj)
     ([<ExcelArgument(Name = "criteria", Description = "5x2 range: span ratio | max mm")>] criteria: obj)
     ([<ExcelArgument(Name = "psiL")>] psiL: obj)
     ([<ExcelArgument(Name = "psiS")>] psiS: obj)
@@ -204,7 +204,7 @@ let oarDiagram
     ([<ExcelArgument(Name = "E", Description = "MPa (default 200000)")>] e: obj)
     ([<ExcelArgument(Name = "includeSW")>] includeSW: obj)
     ([<ExcelArgument(Name = "loads")>] loads: obj)
-    ([<ExcelArgument(Name = "combos", Description = "Combinations table data range (ID..Dir)")>] combos: obj)
+    ([<ExcelArgument(Name = "combos", Description = "Combinations table data range (ID..Dir: G Q Wd Wu, or older G..Wiu)")>] combos: obj)
     ([<ExcelArgument(Name = "comboId", Description = "e.g. ULS2, or a single case G, Q, Wu...")>] comboId: obj)
     ([<ExcelArgument(Name = "[points]", Description = "number of intervals (default 20)")>] points: obj)
     : obj =
@@ -250,7 +250,11 @@ let oarReactions
         let ls = loadsWithSW s l includeSW loads
         let combosIn = arg "combos" (fun () -> Inputs.combinations (grid combos))
         // unfactored cases: G, Q, then each wind case per direction (or undivided if no directions are used)
-        let wind = [ Wd; Wu; Wid; Wiu ]
+        // Wid / Wiu only when used (v0.3 sheets put internal pressure in Wd / Wu)
+        let used lc =
+            ls |> List.exists (fun ld -> ld.Case = lc)
+            || combosIn |> List.exists (fun c -> Combination.factor c lc <> 0.0)
+        let wind = [ Wd; Wu ] @ ([ Wid; Wiu ] |> List.filter used)
         let dirs =
             WindDir.distinct (
                 (ls |> List.filter (fun ld -> LoadCase.isWind ld.Case) |> List.map (fun ld -> ld.Dir))
@@ -392,7 +396,7 @@ let oarUls
     ([<ExcelArgument(Name = "E", Description = "MPa")>] e: obj)
     ([<ExcelArgument(Name = "includeSW")>] includeSW: obj)
     ([<ExcelArgument(Name = "loads")>] loads: obj)
-    ([<ExcelArgument(Name = "combos", Description = "active combinations (ID..Dir)")>] combos: obj)
+    ([<ExcelArgument(Name = "combos", Description = "active combinations (ID..Dir: G Q Wd Wu, or older G..Wiu)")>] combos: obj)
     ([<ExcelArgument(Name = "restraints", Description = "Restraints table: x | Ref | Description | Top | Bottom | αm top | αm bottom")>] restraints: obj)
     ([<ExcelArgument(Name = "kfactors", Description = "kl top, kl bottom / kr top, kr bottom / [continuous Yes/No top, bottom]")>] kfactors: obj)
     : obj =

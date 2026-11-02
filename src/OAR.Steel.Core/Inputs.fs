@@ -39,7 +39,7 @@ module Inputs =
     /// Dir = wind direction tag (wind cases only; blank = every direction).
     /// Magnitude = trib x pressure + direct. Line loads end up in N/mm (= kN/m), point loads in N.
     /// Rows with a blank Case are skipped. Row numbers in errors count from 1 = first data row.
-    let loads (span: float) (grid: Cell[,]) : Load list =
+    let private loadsByCase (span: float) (grid: Cell[,]) : Load list =
         if Array2D.length2 grid < 8 then failwith "loads: expected at least 8 columns (Case..End)"
         [ for i in 0 .. Array2D.length1 grid - 1 do
               let row = i + 1
@@ -96,14 +96,75 @@ module Inputs =
                         Dir = dir }
                   yield load ]
 
-    /// Combinations table, 9 or 10 columns:
+    /// Position and shape of a load row (shared by both table layouts)
+    let private shapeOf (span: float) (row: int) (kind: string) (start: float option) (finish: float option) =
+        match kind.ToUpperInvariant() with
+        | "UDL"
+        | "" -> FullSpan
+        | "PUDL" ->
+            (match start, finish with
+             | Some a, Some b when a >= 0.0 && b > a && b <= span + 1e-6 -> Partial(a, min b span)
+             | Some a, Some b -> failwithf "row %d: PUDL needs 0 <= start < end <= span (got %g to %g, span %g)" row a b span
+             | _ -> failwithf "row %d: PUDL needs start and end positions" row)
+        | "POINT" ->
+            (match start with
+             | Some x when x >= 0.0 && x <= span + 1e-6 -> Point(min x span)
+             | Some x -> failwithf "row %d: point load position %g is outside the span (0 to %g)" row x span
+             | None -> failwithf "row %d: point load needs a position in Start" row)
+        | k -> failwithf "row %d: unknown type '%s' (use UDL, PUDL or Point)" row k
+
+    /// Loads table, one row per load position with a column per case (v0.3 layout), 10 columns:
+    /// Type | Trib (m or m2) | Description | G | Q | Wd | Wu | Start (mm) | End (mm) | Dir
+    /// With a Trib, case values are pressures (kPa) and the load is trib x value; without one they are
+    /// direct (kN/m, or kN for Point). Internal wind pressure goes in Wd (-cpi) or Wu (+cpi).
+    /// Dir tags the row's wind values only. Each non-zero case value becomes one Load.
+    let loadRows (span: float) (grid: Cell[,]) : Load list =
+        if Array2D.length2 grid < 10 then failwith "loads: expected 10 columns (Type..Dir)"
+        let cases = [ G; Q; Wd; Wu ]
+        [ for i in 0 .. Array2D.length1 grid - 1 do
+              let row = i + 1
+              let c j = grid.[i, j]
+              let values =
+                  cases |> List.mapi (fun k lc -> lc, optNum row (LoadCase.name lc) (c (3 + k)))
+              let given = values |> List.choose (fun (lc, v) -> v |> Option.map (fun x -> lc, x))
+              if given |> List.exists (fun (_, x) -> x <> 0.0) then
+                  let trib = optNum row "Trib" (c 1)
+                  let kind = text (c 0)
+                  let shape = shapeOf span row kind (optNum row "Start" (c 7)) (optNum row "End" (c 8))
+                  let dir = text (c 9)
+                  for lc, v in given do
+                      if v < 0.0 then
+                          failwithf "row %d: %s is negative; enter magnitudes positive (Wd acts down, Wu acts up)" row (LoadCase.name lc)
+                      let mag = (match trib with Some t -> t * v | None -> v)
+                      if mag <> 0.0 then
+                          let load: Load =
+                              { Case = lc
+                                Shape = shape
+                                Magnitude = (match shape with Point _ -> Units.kN mag | _ -> mag)
+                                Description = text (c 2)
+                                Dir = (if LoadCase.isWind lc then dir else "") }
+                          yield load ]
+
+    /// Loads table in either layout: a column of cases (G, Q, Wd...) in the first column means the
+    /// v0.2 layout (one case per row); load types (UDL, PUDL, Point) mean the v0.3 layout.
+    let loads (span: float) (grid: Cell[,]) : Load list =
+        let firstCol = [ for i in 0 .. Array2D.length1 grid - 1 -> text grid.[i, 0] ] |> List.filter (fun t -> t <> "")
+        if firstCol |> List.exists (fun t -> (LoadCase.tryParse t).IsSome) then loadsByCase span grid
+        elif Array2D.length2 grid >= 10 then loadRows span grid
+        else loadsByCase span grid
+
+    /// Combinations table, 8 columns (v0.3: ID | Crit. flange | Combination | G | Q | Wd | Wu | Dir)
+    /// or 9 / 10 columns (v0.2):
     /// ID | Crit. flange | Combination | G | Q | Wd | Wu | Wid | Wiu | [Dir]
     let combinations (grid: Cell[,]) : Combination list =
         // a single cell (e.g. FILTER's "No combinations selected") means no combinations
         if Array2D.length1 grid = 1 && Array2D.length2 grid = 1 then
             []
         else
-            if Array2D.length2 grid < 9 then failwith "combinations: expected 9 columns (ID..Wiu)"
+            let ncol = Array2D.length2 grid
+            if ncol < 8 then failwith "combinations: expected 8 columns (ID, flange, description, G, Q, Wd, Wu, Dir)"
+            let caseCols = if ncol = 8 then [ G; Q; Wd; Wu ] else [ G; Q; Wd; Wu; Wid; Wiu ]
+            let dirCol = if ncol = 8 then Some 7 elif ncol >= 10 then Some 9 else None
             [ for i in 0 .. Array2D.length1 grid - 1 do
                   let row = i + 1
                   let c j = grid.[i, j]
@@ -115,7 +176,7 @@ module Inputs =
                           | "BOTTOM" -> Bottom
                           | f -> failwithf "combination row %d: critical flange '%s' must be Top or Bottom" row f
                       let factors =
-                          [ G; Q; Wd; Wu; Wid; Wiu ]
+                          caseCols
                           |> List.mapi (fun k lc -> lc, (optNum row (LoadCase.name lc) (c (3 + k)) |> Option.defaultValue 0.0))
                           |> List.filter (fun (_, f) -> f <> 0.0)
                       if factors |> List.exists (fun (_, f) -> f < 0.0) then
@@ -125,7 +186,7 @@ module Inputs =
                             Description = text (c 2)
                             CriticalFlange = flange
                             Factors = Map.ofList factors
-                            Dir = (if Array2D.length2 grid >= 10 then text (c 9) else "") }
+                            Dir = (match dirCol with Some j -> text (c j) | None -> "") }
                       yield combo ]
 
     /// Find one combination by ID

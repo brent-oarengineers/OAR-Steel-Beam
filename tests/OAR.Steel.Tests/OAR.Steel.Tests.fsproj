@@ -15,6 +15,7 @@
     <Compile Include="InputTests.fs" />
     <Compile Include="UlsTests.fs" />
     <Compile Include="WindDirTests.fs" />
+    <Compile Include="LoadRowTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
