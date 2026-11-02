@@ -130,6 +130,7 @@ module Inputs =
               if given |> List.exists (fun (_, x) -> x <> 0.0) then
                   let trib = optNum row "Trib" (c 1)
                   let kind = text (c 0)
+                  if kind = "" then failwithf "row %d: Type is blank (use UDL, PUDL or Point)" row
                   let shape = shapeOf span row kind (optNum row "Start" (c 7)) (optNum row "End" (c 8))
                   let dir = text (c 9)
                   for lc, v in given do

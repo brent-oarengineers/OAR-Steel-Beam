@@ -324,149 +324,148 @@ label(f"H{hdr+2}", "Blank max = ratio only", 7, GREY)
 r = r + 8
 ws.row_breaks.append(Break(id=r - 1))
 heading(r, "Applied Loads")
-label(f"B{r+1}", "Load = trib × pressure + direct.  UDL/PUDL: trib in m → kN/m.  Point: trib in m² → kN, start = position.  "
-      "UDL: start/end blank = full span.", 7, GREY, i=True)
-label(f"B{r+2}", "Magnitudes positive; direction set by case: Wd, Wid act down; Wu, Wiu act up.  "
-      "Wi = internal pressure, combined with the external wind case.", 7, GREY, i=True)
-label(f"B{r+3}", "Dir (wind rows only): Cross / Long = acts only in that direction's combinations;  blank = every direction.", 7, GREY, i=True)
+label(f"B{r+1}", "One row per load position.  With a Trib, case values are pressures (kPa) and Load = trib × value;  "
+      "blank Trib = direct kN/m (Point: kN).", 7, GREY, i=True)
+label(f"B{r+2}", "UDL: start/end blank = full span.  Point: trib in m², start = position.  Values positive: Wd acts down, Wu up.  "
+      "Internal pressure: −cpi in Wd, +cpi in Wu (own row).", 7, GREY, i=True)
+label(f"B{r+3}", "Dir (wind values only): Cross / Long = acts only in that direction's combinations;  blank = every direction.", 7, GREY, i=True)
 th = r + 4
-cols = ["Case", "Type", "Description", "Trib (m | m²)", "Press. (kPa)", "+ Direct (kN/m | kN)", "Start (mm)", "End (mm)", "Load", "Dir"]
-for col, txt in zip("BCDEFGHIJK", cols):
+LCOLS = "BCDEFGHIJK"
+cols = ["Type", "Trib (m | m²)", "Description", "G", "Q", "Wd", "Wu", "Start (mm)", "End (mm)", "Dir"]
+for col, txt in zip(LCOLS, cols):
     put(f"{col}{th}", txt, font(8, b=True), al=Alignment(horizontal="center", vertical="center", wrap_text=True))
 ws.row_dimensions[th].height = 26
+# (type, trib, description, G, Q, Wd, Wu, start, end, dir);  "LIB" = value from the load library
 loads = [
-    ("G", "UDL", "Roof sheeting + purlins", 5.65, "LIB", None, None, None),
-    ("G", "UDL", "Ceiling + services", 5.65, "LIB", None, None, None),
-    ("G", "UDL", "Beam bracket / misc.", None, None, 0.05, None, None),
-    ("Q", "UDL", "Roof – non-trafficable", 5.65, "LIB", None, None, None),
-    ("Wu", "UDL", "External wind – net uplift", 5.65, 1.72, None, None, None),
-    ("Wd", "UDL", "External wind – downward", 5.65, 0.0, None, None, None),
-    ("Wiu", "UDL", "Internal pressure (+cpi)", 5.65, 0.0, None, None, None),
-    ("Wid", "UDL", "Internal suction (−cpi)", 5.65, 0.0, None, None, None),
-    ("G", "Point", "Mech. unit on platform (example)", 1.5, 0.5, 2.0, 4150, None),
-    (None, None, None, None, None, None, None, None),
-    (None, None, None, None, None, None, None, None),
+    ("UDL", 5.65, "Roof sheeting + purlins", "LIB", "LIB", "LIB", "LIB", None, None, None),
+    ("UDL", 5.65, "Ceiling + services", "LIB", "LIB", "LIB", "LIB", None, None, None),
+    ("UDL", None, "Beam bracket / misc.", 0.05, None, None, None, None, None, None),
+    ("UDL", 5.65, "Roof – non-trafficable", "LIB", "LIB", "LIB", "LIB", None, None, None),
+    ("UDL", 5.65, "External wind", None, None, 0.0, 1.72, None, None, None),
+    ("UDL", 5.65, "Internal pressure (+cpi)", "LIB", "LIB", "LIB", 0.0, None, None, None),
+    ("UDL", 5.65, "Internal suction (−cpi)", "LIB", "LIB", 0.0, "LIB", None, None, None),
+    ("Point", None, "Mech. unit on platform (example)", 2.75, None, None, None, 4150, None, None),
+    (None,) * 10,
+    (None,) * 10,
 ]
+CASE_COLS = {"G": "E", "Q": "F", "Wd": "G", "Wu": "H"}
 first = th + 1
+TR = "Loads_B1[[#This Row],[{}]]"
+lib_f = lambda case: (f'IFERROR(IF(INDEX(LoadLib_B1[{case}],MATCH({TR.format("Description")},LoadLib_B1[Description],0))="","",'
+                      f'INDEX(LoadLib_B1[{case}],MATCH({TR.format("Description")},LoadLib_B1[Description],0))),"")')
 for i, rowv in enumerate(loads):
     rr = first + i
-    for col, v, nf in zip("BCDEFGHI", rowv, [None, None, None, "0.00", "0.00", "0.00", "#,##0", "#,##0"]):
+    for col, v, nf in zip(LCOLS, rowv, [None, "0.00", None, "0.00", "0.00", "0.00", "0.00", "#,##0", "#,##0", None]):
         if v == "LIB":
-            v = f'=IFERROR(INDEX(LoadLib_B1[kPa],MATCH(D{rr},LoadLib_B1[Description],0)),"")'
+            case = [k for k, c in CASE_COLS.items() if c == col][0]
+            v = "=" + lib_f(case)
         inp(f"{col}{rr}", v, nf, L if col == "D" else C)
-    out(f"J{rr}", f'=IF(B{rr}="","",N(E{rr})*N(F{rr})+N(G{rr}))', '0.000 "kN/m"')
-    inp(f"K{rr}", None)
 last = first + len(loads) - 1
-# unit-aware number formats: Point rows show m² / kN
+# unit-aware number formats: Trib m / m²; case values kPa (with trib), kN/m or kN (direct)
 from openpyxl.formatting.rule import Rule
 from openpyxl.styles.differential import DifferentialStyle
 from openpyxl.styles.numbers import NumberFormat
-def nf_rule(fmt, fid):
+def nf_rule(fmt, fid, formula):
     return Rule(type="expression", dxf=DifferentialStyle(numFmt=NumberFormat(numFmtId=fid, formatCode=fmt)),
-                formula=[f'$C{first}="Point"'])
-ws.conditional_formatting.add(f"J{first}:J{last}", nf_rule('0.000 "kN"', 190))
-ws.conditional_formatting.add(f"E{first}:E{last}", nf_rule('0.00 "m²"', 191))
+                formula=[formula], stopIfTrue=True)
+ws.conditional_formatting.add(f"C{first}:C{last}", nf_rule('0.00 "m²"', 191, f'$B{first}="Point"'))
+case_rng = f"E{first}:H{last}"
+ws.conditional_formatting.add(case_rng, nf_rule('0.00 "kPa"', 192, f'ISNUMBER($C{first})'))
+ws.conditional_formatting.add(case_rng, nf_rule('0.00 "kN"', 193, f'$B{first}="Point"'))
+ws.conditional_formatting.add(case_rng, nf_rule('0.00 "kN/m"', 194, f'$B{first}<>""'))
 for rr in range(first, last + 1):
-    ws[f"E{rr}"].number_format = '0.00 "m"'
-    ws[f"G{rr}"].number_format = '0.00'
+    ws[f"C{rr}"].number_format = '0.00 "m"'
 tbl = Table(displayName="Loads_B1", ref=f"B{th}:K{last}")
 tbl.tableStyleInfo = TableStyleInfo(name="TableStyleLight15", showRowStripes=False)
-from openpyxl.worksheet.table import TableColumn
-tbl.tableColumns = [TableColumn(id=i + 1, name=str(ws[f"{col}{th}"].value)) for i, col in enumerate("BCDEFGHIJK")]
-# Load column as a table calculated column, so Excel fills it on new or cleared rows
-from openpyxl.worksheet.table import TableFormula
-TR = "Loads_B1[[#This Row],[{}]]"
-load_f = (f'IF({TR.format("Case")}="","",N({TR.format("Trib (m | m²)")})*N({TR.format("Press. (kPa)")})'
-          f'+N({TR.format("+ Direct (kN/m | kN)")}))')
-press_f = f'IFERROR(INDEX(LoadLib_B1[kPa],MATCH({TR.format("Description")},LoadLib_B1[Description],0)),"")'
+from openpyxl.worksheet.table import TableColumn, TableFormula
+tbl.tableColumns = [TableColumn(id=i + 1, name=str(ws[f"{col}{th}"].value)) for i, col in enumerate(LCOLS)]
+# case columns are table calculated columns that read the load library; typing a value overrides that row
 for tc in tbl.tableColumns:
-    if tc.name == "Load":
-        tc.calculatedColumnFormula = TableFormula(attr_text=load_f)
-    if tc.name == "Press. (kPa)":
-        tc.calculatedColumnFormula = TableFormula(attr_text=press_f)
+    if tc.name in CASE_COLS:
+        tc.calculatedColumnFormula = TableFormula(attr_text=lib_f(tc.name))
 for rr in range(first, last + 1):
-    v = ws[f"F{rr}"].value
-    if v is None or (isinstance(v, str) and v.startswith("=IFERROR(INDEX(LoadLib_B1")):
-        ws[f"F{rr}"].value = "=" + press_f
-for rr in range(first, last + 1):
-    ws[f"J{rr}"].value = "=" + load_f
+    for case, col in CASE_COLS.items():
+        if ws[f"{col}{rr}"].value is None and ws[f"B{rr}"].value is None:
+            ws[f"{col}{rr}"].value = "=" + lib_f(case)
 ws.add_table(tbl)
-for col in "BCDEFGHIJK":
+for col in LCOLS:
     ws[f"{col}{th}"].fill = F_HDR
-dv_case = DataValidation(type="list", formula1='"G,Q,Wd,Wu,Wid,Wiu"', allow_blank=True)
 dv_lt = DataValidation(type="list", formula1='"UDL,PUDL,Point"', allow_blank=True)
-ws.add_data_validation(dv_case); ws.add_data_validation(dv_lt)
-dv_case.add(f"B{first}:B{last}"); dv_lt.add(f"C{first}:C{last}")
+ws.add_data_validation(dv_lt); dv_lt.add(f"B{first}:B{last}")
 dv_dir = DataValidation(type="list", formula1='"Cross,Long"', allow_blank=True, showErrorMessage=True,
-                        errorTitle="Wind direction", error="Cross or Long (wind cases only), or leave blank for every direction.")
+                        errorTitle="Wind direction", error="Cross or Long (applies to the wind values), or leave blank for every direction.")
 ws.add_data_validation(dv_dir); dv_dir.add(f"K{first}:K{last}")
 # print tidy-up (add-in): rows of these key columns that show nothing are hidden when printing
-name("OAR_Flex_Loads", "Loads_B1[Case]")
+name("OAR_Flex_Loads", "Loads_B1[Type]")
 
 sr = last + 2
 label(f"B{sr+1}", "Full-span UDL totals (excl. self-weight; wind over all Dir):", 7, GREY, i=True)
-for col, case in zip("EFGHIJ", ["G", "Q", "Wd", "Wu", "Wid", "Wiu"]):
+for case, col in CASE_COLS.items():
     put(f"{col}{sr}", case, font(8, b=True), F_HDR, B_IN, C)
-    out(f"{col}{sr+1}", f'=SUMIFS(Loads_B1[Load],Loads_B1[Case],"{case}",Loads_B1[Type],"UDL")', '0.000 "kN/m"')
+    tot = (f'=SUMPRODUCT(IFERROR((Loads_B1[Type]="UDL")*Loads_B1[{case}]'
+           f'*IF(ISNUMBER(Loads_B1[Trib (m | m²)]),Loads_B1[Trib (m | m²)],1),0))')
+    out(f"{col}{sr+1}", ArrayFormula(f"{col}{sr+1}", tot), '0.000 "kN/m"')
     name(f"w_{case}", f"${col}${sr+1}")
 
 HX = 26  # column Z: start of the add-in helper area
 from openpyxl.utils import get_column_letter as gcl
 hc = lambda i: gcl(HX + i)
 # ---------------- Load library (right-hand side, not printed) ----------------
-LL = [hc(16), hc(17), hc(18), hc(19)]  # AP..AS
-for col, w in zip(LL, [7, 38, 8, 46]):
+LL = [hc(16 + i) for i in range(6)]  # AP..AU
+for col, w in zip(LL, [38, 7, 7, 7, 7, 46]):
     ws.column_dimensions[col].width = w
 put(f"{LL[0]}6", "Load Library  (not printed)", font(10, b=True, color=GREEN), al=Alignment(vertical="bottom"))
-label(f"{LL[0]}7", "Typical starting values only – verify for each job. Picking a Description in the loads table fills Press. (kPa); type over it to change. "
-      "Keep rows grouped by case (insert new rows inside the case's block).", 7, GREY, i=True)
+label(f"{LL[0]}7", "Typical starting values (kPa) only – verify for each job. Picking a Description in the loads table fills its case columns; "
+      "type over a value to change it. Add rows anywhere in the table.", 7, GREY, i=True)
 kg = lambda m: round(m * 9.81 / 1000, 3)
+# (description, G, Q, Wd, Wu, note)
 load_lib = [
-    ("G", "Roof sheeting + purlins", 0.10, "allowance – check sheeting and purlin weights"),
-    ("G", "Light sheet roof (20 kg/m²)", kg(20), "20 kg/m² x 9.81"),
-    ("G", "Sheet roof (40 kg/m²)", kg(40), "40 kg/m² x 9.81"),
-    ("G", "Tiled roof (90 kg/m²)", kg(90), "90 kg/m² x 9.81"),
-    ("G", "Ceiling + services", 0.15, "allowance"),
-    ("G", "Services allowance", 0.25, "allowance"),
-    ("G", "Typical floor (60 kg/m²)", kg(60), "60 kg/m² x 9.81"),
-    ("G", "RC slab – per 100 mm (25 kN/m³)", 2.50, "scale by thickness / 100"),
-    ("G", "Partitions allowance", 1.00, "allowance – check AS/NZS 1170.1"),
-    ("Q", "Roof – non-trafficable", 0.25, "AS/NZS 1170.1 Cl. 3.5.1: 0.12 + 1.2/A ≥ 0.25 kPa"),
-    ("Q", "Residential – habitable areas", 1.50, "AS/NZS 1170.1 Table 3.1 – verify category"),
-    ("Q", "Residential – balconies", 2.00, "AS/NZS 1170.1 Table 3.1 – verify category"),
-    ("Q", "Offices – general use", 3.00, "AS/NZS 1170.1 Table 3.1 – verify category"),
-    ("Q", "Retail", 4.00, "AS/NZS 1170.1 Table 3.1 – verify category"),
-    ("Q", "Assembly / crowds", 5.00, "AS/NZS 1170.1 Table 3.1 – verify category"),
-    ("Q", "Car park – light vehicles", 2.50, "AS/NZS 1170.1 Table 3.1 – verify category"),
-    ("Q", "Plant room – light", 5.00, "AS/NZS 1170.1 Table 3.1 – verify category"),
-    ("Q", "Storage – per metre of height", 2.40, "multiply by storage height"),
-    ("Wd", "External wind – downward", None, "AS/NZS 1170.2 – enter pressure"),
-    ("Wu", "External wind – net uplift", None, "AS/NZS 1170.2 – enter pressure"),
-    ("Wid", "Internal suction (−cpi)", None, "AS/NZS 1170.2 – enter pressure"),
-    ("Wiu", "Internal pressure (+cpi)", None, "AS/NZS 1170.2 – enter pressure"),
+    ("Roof sheeting + purlins", 0.10, None, None, None, "allowance – check sheeting and purlin weights"),
+    ("Light sheet roof (20 kg/m²)", kg(20), None, None, None, "20 kg/m² x 9.81"),
+    ("Sheet roof (40 kg/m²)", kg(40), None, None, None, "40 kg/m² x 9.81"),
+    ("Tiled roof (90 kg/m²)", kg(90), None, None, None, "90 kg/m² x 9.81"),
+    ("Ceiling + services", 0.15, None, None, None, "allowance"),
+    ("Services allowance", 0.25, None, None, None, "allowance"),
+    ("Typical floor (60 kg/m²)", kg(60), None, None, None, "60 kg/m² x 9.81"),
+    ("RC slab – per 100 mm (25 kN/m³)", 2.50, None, None, None, "scale by thickness / 100"),
+    ("Partitions allowance", 1.00, None, None, None, "allowance – check AS/NZS 1170.1"),
+    ("Roof – non-trafficable", None, 0.25, None, None, "AS/NZS 1170.1 Cl. 3.5.1: 0.12 + 1.2/A ≥ 0.25 kPa"),
+    ("Residential – habitable areas", None, 1.50, None, None, "AS/NZS 1170.1 Table 3.1 – verify category"),
+    ("Residential – balconies", None, 2.00, None, None, "AS/NZS 1170.1 Table 3.1 – verify category"),
+    ("Offices – general use", None, 3.00, None, None, "AS/NZS 1170.1 Table 3.1 – verify category"),
+    ("Retail", None, 4.00, None, None, "AS/NZS 1170.1 Table 3.1 – verify category"),
+    ("Assembly / crowds", None, 5.00, None, None, "AS/NZS 1170.1 Table 3.1 – verify category"),
+    ("Car park – light vehicles", None, 2.50, None, None, "AS/NZS 1170.1 Table 3.1 – verify category"),
+    ("Plant room – light", None, 5.00, None, None, "AS/NZS 1170.1 Table 3.1 – verify category"),
+    ("Storage – per metre of height", None, 2.40, None, None, "multiply by storage height"),
+    ("External wind", None, None, None, None, "AS/NZS 1170.2 – enter net pressures in Wd / Wu"),
+    ("Internal pressure (+cpi)", None, None, None, None, "AS/NZS 1170.2 – enter in Wu (adds to uplift)"),
+    ("Internal suction (−cpi)", None, None, None, None, "AS/NZS 1170.2 – enter in Wd (adds to downward)"),
 ]
 llh = 9
-for col, txt in zip(LL, ["Case", "Description", "kPa", "Source / note"]):
+for col, txt in zip(LL, ["Description", "G", "Q", "Wd", "Wu", "Source / note"]):
     put(f"{col}{llh}", txt, font(8, b=True), F_HDR, None, C)
-for i, (cs, d, kpa, note) in enumerate(load_lib):
+for i, row in enumerate(load_lib):
     rr = llh + 1 + i
-    inp(f"{LL[0]}{rr}", cs); inp(f"{LL[1]}{rr}", d, al=L); inp(f"{LL[2]}{rr}", kpa, "0.00"); inp(f"{LL[3]}{rr}", note, al=L)
-    ws[f"{LL[3]}{rr}"].font = font(8, color=GREY)
+    inp(f"{LL[0]}{rr}", row[0], al=L)
+    for col, v in zip(LL[1:5], row[1:5]):
+        inp(f"{col}{rr}", v, "0.00")
+    inp(f"{LL[5]}{rr}", row[5], al=L)
+    ws[f"{LL[5]}{rr}"].font = font(8, color=GREY)
 ll_last = llh + len(load_lib)
-tll = Table(displayName="LoadLib_B1", ref=f"{LL[0]}{llh}:{LL[3]}{ll_last}")
+tll = Table(displayName="LoadLib_B1", ref=f"{LL[0]}{llh}:{LL[5]}{ll_last}")
 tll.tableStyleInfo = TableStyleInfo(name="TableStyleLight15", showRowStripes=False)
 ws.add_table(tll)
-# Description dropdown in the loads table, filtered by the row's case (free text still allowed)
-ll_case = f"${LL[0]}${llh+1}:${LL[0]}${ll_last+40}"
+# Description dropdown in the loads table (free text still allowed)
 dv_desc = DataValidation(type="list",
-    formula1=f"OFFSET(${LL[1]}${llh+1},MATCH($B{first},{ll_case},0)-1,0,COUNTIF({ll_case},$B{first}),1)",
+    formula1=f"OFFSET(${LL[0]}${llh+1},0,0,MAX(1,COUNTA(${LL[0]}${llh+1}:${LL[0]}${ll_last+60})),1)",
     showErrorMessage=False, allow_blank=True)
 ws.add_data_validation(dv_desc)
 dv_desc.add(f"D{first}:D{last}")
 
 # ---------------- Load combination library (right-hand side, not printed) ----------------
-LIB_COLS = "MNOPQRSTUVWXY"
-for col, w in zip(LIB_COLS, [8, 7, 9, 8, 9, 26, 6.5, 6.5, 6.5, 6.5, 6.5, 6.5, 7]):
+LIB_COLS = "MNOPQRSTUVW"
+for col, w in zip(LIB_COLS, [8, 7, 9, 8, 9, 26, 6.5, 6.5, 6.5, 6.5, 7]):
     ws.column_dimensions[col].width = w
 lr = 43
 ws.row_dimensions[lr].height = 20
@@ -477,38 +476,38 @@ label(f"M{lr+1}", "Include: blank = follow the Combination set;  Yes / No = forc
 label(f"M{lr+2}", "Groups: Gravity (Floor, Roof, All), Wind (Roof, All), Storage (All only), Custom (always, unless Include = No).  Add rows at the bottom for custom combinations.", 7, GREY, i=True)
 label(f"M{lr+3}", "Wind rows with a Dir are used when any wind load has a Dir; wind rows without one are used otherwise.", 7, GREY, i=True)
 lh = lr + 4
-lcols = ["Include", "Active", "Group", "ID", "Crit. flange", "Combination", "G", "Q", "Wd", "Wu", "Wid", "Wiu", "Dir"]
+lcols = ["Include", "Active", "Group", "ID", "Crit. flange", "Combination", "G", "Q", "Wd", "Wu", "Dir"]
 for col, txt in zip(LIB_COLS, lcols):
     put(f"{col}{lh}", txt, font(8, b=True), F_HDR, None, C)
-W4 = [1.2, "=PsiC", 1.0, 0, 1.0, 0]
-W5 = [0.9, 0, 0, 1.0, 0, 1.0]
+W4 = [1.2, "=PsiC", 1.0, 0]
+W5 = [0.9, 0, 0, 1.0]
 lib = [
-    ("Gravity", "ULS1", "Top", "1.35G", [1.35, 0, 0, 0, 0, 0], None),
-    ("Gravity", "ULS2", "Top", "1.2G + 1.5Q", [1.2, 1.5, 0, 0, 0, 0], None),
-    ("Storage", "ULS3", "Top", "1.2G + 1.5ψlQ", [1.2, "=1.5*PsiL", 0, 0, 0, 0], None),
-    ("Wind", "ULS4", "Top", "1.2G + ψcQ + Wd + Wi(−cpi)", W4, None),
-    ("Wind", "ULS5", "Bottom", "0.9G + Wu + Wi(+cpi)", W5, None),
-    ("Wind", "ULS4C", "Top", "1.2G + ψcQ + Wd + Wi(−cpi)", W4, "Cross"),
-    ("Wind", "ULS5C", "Bottom", "0.9G + Wu + Wi(+cpi)", W5, "Cross"),
-    ("Wind", "ULS4L", "Top", "1.2G + ψcQ + Wd + Wi(−cpi)", W4, "Long"),
-    ("Wind", "ULS5L", "Bottom", "0.9G + Wu + Wi(+cpi)", W5, "Long"),
-    ("Custom", None, None, None, [None] * 6, None),
-    ("Custom", None, None, None, [None] * 6, None),
-    ("Custom", None, None, None, [None] * 6, None),
+    ("Gravity", "ULS1", "Top", "1.35G", [1.35, 0, 0, 0], None),
+    ("Gravity", "ULS2", "Top", "1.2G + 1.5Q", [1.2, 1.5, 0, 0], None),
+    ("Storage", "ULS3", "Top", "1.2G + 1.5ψlQ", [1.2, "=1.5*PsiL", 0, 0], None),
+    ("Wind", "ULS4", "Top", "1.2G + ψcQ + Wd", W4, None),
+    ("Wind", "ULS5", "Bottom", "0.9G + Wu", W5, None),
+    ("Wind", "ULS4C", "Top", "1.2G + ψcQ + Wd", W4, "Cross"),
+    ("Wind", "ULS5C", "Bottom", "0.9G + Wu", W5, "Cross"),
+    ("Wind", "ULS4L", "Top", "1.2G + ψcQ + Wd", W4, "Long"),
+    ("Wind", "ULS5L", "Bottom", "0.9G + Wu", W5, "Long"),
+    ("Custom", None, None, None, [None] * 4, None),
+    ("Custom", None, None, None, [None] * 4, None),
+    ("Custom", None, None, None, [None] * 4, None),
 ]
 lfirst = lh + 1
 for i, (grp, cid, fl, desc, fac, wdir) in enumerate(lib):
     rr = lfirst + i
     inp(f"M{rr}", None)
     # wind rows follow the loads: Dir rows when any wind load has a Dir, undivided rows otherwise
-    out(f"N{rr}", f'=IF(M{rr}="No",0,IF(P{rr}="",0,IF(M{rr}="Yes",1,IF(AND(O{rr}="Wind",IF(Y{rr}="",NumDirWind>0,NumDirWind=0)),0,'
+    out(f"N{rr}", f'=IF(M{rr}="No",0,IF(P{rr}="",0,IF(M{rr}="Yes",1,IF(AND(O{rr}="Wind",IF(W{rr}="",NumDirWind>0,NumDirWind=0)),0,'
                   f'IF(OR(CombSet="All",O{rr}="Custom",AND(O{rr}="Gravity",CombSet<>"Custom"),AND(O{rr}="Wind",CombSet="Roof")),1,0)))))', '"✓";;')
     inp(f"O{rr}", grp); inp(f"P{rr}", cid); inp(f"Q{rr}", fl); inp(f"R{rr}", desc, al=L)
-    for col, v in zip("STUVWX", fac):
+    for col, v in zip("STUV", fac):
         inp(f"{col}{rr}", v, "0.00")
-    inp(f"Y{rr}", wdir)
+    inp(f"W{rr}", wdir)
 llast = lfirst + len(lib) - 1
-tl = Table(displayName="CombLib_B1", ref=f"M{lh}:Y{llast}")
+tl = Table(displayName="CombLib_B1", ref=f"M{lh}:W{llast}")
 tl.tableStyleInfo = TableStyleInfo(name="TableStyleLight15", showRowStripes=False)
 ws.add_table(tl)
 dv_inc = DataValidation(type="list", formula1='"Yes,No"', allow_blank=True)
@@ -516,7 +515,7 @@ dv_grp = DataValidation(type="list", formula1='"Gravity,Wind,Storage,Custom"')
 dv_fl = DataValidation(type="list", formula1='"Top,Bottom"')
 for dv in (dv_inc, dv_grp, dv_fl): ws.add_data_validation(dv)
 dv_inc.add(f"M{lfirst}:M{llast+30}"); dv_grp.add(f"O{lfirst}:O{llast+30}"); dv_fl.add(f"Q{lfirst}:Q{llast+30}")
-dv_dir.add(f"Y{lfirst}:Y{llast+30}")
+dv_dir.add(f"W{lfirst}:W{llast+30}")
 # count of active uplift (bottom flange) combinations, used to grey out the uplift summary row
 label(f"R{llast+2}", "Active uplift (bottom flange) combinations:", 7, GREY, al=R)
 out(f"S{llast+2}", '=COUNTIFS(CombLib_B1[Active],1,CombLib_B1[Crit. flange],"Bottom")', "0")
@@ -536,18 +535,18 @@ label(f"H{r+1}", "Table 4.1 (roofs 0.0)", 7, GREY)
 label(f"B{r+2}", "Floor = gravity only.  Roof = gravity + wind.  All = every library row.  Custom = only rows set to Yes / Custom.  Edit in the library to the right →",
       7, GREY, i=True)
 ch = r + 3
-for col, txt in zip("BCDEFGHIJK", ["ID", "Crit. flange", "Combination", "G", "Q", "Wd", "Wu", "Wid", "Wiu", "Dir"]):
+for col, txt in zip("BCDEFGHI", ["ID", "Crit. flange", "Combination", "G", "Q", "Wd", "Wu", "Dir"]):
     put(f"{col}{ch}", txt, font(8, b=True), F_HDR, None, C)
 COMBO_ANCHOR = f"B{ch+1}"
 ws[COMBO_ANCHOR] = ArrayFormula(COMBO_ANCHOR, '=_xlfn._xlws.FILTER(CombLib_B1[[ID]:[Dir]],CombLib_B1[Active]=1,"No combinations selected")')
 spill_rows = len(lib)
 for rr in range(ch + 1, ch + 1 + spill_rows):
-    for col in "BCDEFGHIJK":
+    for col in "BCDEFGHI":
         c = ws[f"{col}{rr}"]
         c.font = font(9)
         c.alignment = L if col == "D" else C
-        if col in "EFGHIJ": c.number_format = "0.00"
-ws.conditional_formatting.add(f"B{ch+1}:K{ch+spill_rows}", Rule(type="expression", formula=[f'$B{ch+1}<>""'],
+        if col in "EFGH": c.number_format = "0.00"
+ws.conditional_formatting.add(f"B{ch+1}:I{ch+spill_rows}", Rule(type="expression", formula=[f'$B{ch+1}<>""'],
     dxf=DifferentialStyle(fill=PatternFill("solid", bgColor="E6ECE9"), border=Border(left=hair, right=hair, top=hair, bottom=hair))))
 clast = ch + spill_rows
 name("OAR_Flex_Combos", f"$B${ch+1}:$B${clast}")
@@ -610,7 +609,7 @@ from openpyxl.chart.shapes import GraphicalProperties
 from openpyxl.drawing.line import LineProperties
 from openpyxl.chart.layout import Layout, ManualLayout
 CRIT_RANGE = f"$E${hdr+1}:$F${hdr+5}"
-LOADS = "Loads_B1[[Case]:[Dir]]"
+LOADS = "Loads_B1[[Type]:[Dir]]"
 COMBOS = f"_xlfn.ANCHORARRAY({COMBO_ANCHOR})"
 ARGS_ULS = f"SectionSize,Grade,Span,E_mod,IncludeSW,{LOADS},{COMBOS},Restraints_B1[#Data],{KF_RANGE}"
 
@@ -717,7 +716,7 @@ env_r = int(ENV_ANCHOR[len(hc(0)):]); def_r = int(DEF_ANCHOR[len(hc(6)):])
 
 # fixed chart blocks: plain cells that copy the spilled data (or #N/A), so the charts always see
 # a stable numeric range even while the add-in is loading or a spill is being resized
-CB = 46  # column AT
+CB = 62  # column BJ (clear of the load library)
 label(f"{gcl(CB)}12", "Chart data (fixed copies of the spills above)", 7, GREY, i=True)
 def mirror(anchor, src_cols, dest_col):
     for i in range(NPTS + 1):
@@ -790,10 +789,10 @@ r = r + 11
 
 # ---------------- Support reactions (named for transfer to other beams) ----------------
 heading(r, "Support Reactions")
-label(f"B{r+1}", "Unfactored, per case, positive in the case direction (Wu/Wiu = uplift). Self-weight is in G.  "
-      "To load another beam: add a Point row with the same case (and Dir) and set Direct to e.g. ='B1'!RxnR_G", 7, GREY, i=True)
+label(f"B{r+1}", "Unfactored, per case, positive in the case direction (Wu = uplift). Self-weight is in G.  "
+      "To load another beam: a Point row, blank Trib, with G = 'B1'!RxnR_G, Q = 'B1'!RxnR_Q … (and the same Dir).", 7, GREY, i=True)
 rx = r + 2
-RX_ROW = rx + 11                    # full reactions spill (below), read by the table by ID
+RX_ROW = rx + 9                    # full reactions spill (below), read by the table by ID
 RX_ANCHOR = f"B{RX_ROW}"
 RXA = f"_xlfn.ANCHORARRAY({RX_ANCHOR})"
 put(f"B{rx}", "Case", font(8, b=True), F_HDR, None, C); ws.merge_cells(f"B{rx}:D{rx+1}")
@@ -803,11 +802,11 @@ for c1, c2, txt in [("E", "F", "No Dir"), ("G", "H", "Cross"), ("I", "J", "Long"
     put(f"{c2}{rx+1}", "Right (kN)", font(8, b=True), F_HDR, None, C)
 for cc in "CD":
     ws[f"{cc}{rx}"].fill = F_HDR
-for k, case in enumerate(["G", "Q", "Wd", "Wu", "Wid", "Wiu"]):
+for k, case in enumerate(["G", "Q", "Wd", "Wu"]):
     rr = rx + 2 + k
     ws.merge_cells(f"B{rr}:D{rr}")
     put(f"B{rr}", case, font(9), border=B_IN, al=C); ws[f"C{rr}"].border = B_IN; ws[f"D{rr}"].border = B_IN
-    sgn = "-" if case in ("Wu", "Wiu") else ""
+    sgn = "-" if case == "Wu" else ""
     wind = case not in ("G", "Q")
     for c1, c2, d in [("E", "F", ""), ("G", "H", "Cross"), ("I", "J", "Long")]:
         if d and not wind:
@@ -820,9 +819,9 @@ for k, case in enumerate(["G", "Q", "Wd", "Wu", "Wid", "Wiu"]):
             out(f"{cc}{rr}", ArrayFormula(f"{cc}{rr}", f_), "0.00")
         suffix = "_" + d if d else ""
         name(f"RxnL_{case}{suffix}", f"${c1}${rr}"); name(f"RxnR_{case}{suffix}", f"${c2}${rr}")
-label(f"B{rx+8}", "Names: RxnL_<case> / RxnR_<case>, plus _Cross or _Long for a wind direction, e.g. RxnR_Wu_Cross.  "
+label(f"B{rx+6}", "Names: RxnL_<case> / RxnR_<case>, plus _Cross or _Long for a wind direction, e.g. RxnR_Wu_Cross.  "
       "No Dir shows – once wind loads have a Dir.", 7, GREY, i=True)
-r = rx + 9
+r = rx + 7
 label(f"B{r}", "All cases and active combinations (kN, + = upward reaction; uplift cases show negative)", 7, GREY, i=True)
 out_header(r + 1, "BCD", ["ID", "Left (kN)", "Right (kN)"])
 assert r + 2 == RX_ROW

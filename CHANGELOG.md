@@ -3,6 +3,14 @@
 Each version that reaches `main` is built, tested and published automatically as a GitHub Release.
 The calc sheet shows the version it was calculated with (title block, under the green bar).
 
+## v0.3.0
+- **New loads table layout:** one row per load position with a column per case – `Type | Trib | Description | G | Q | Wd | Wu | Start | End | Dir`. With a Trib the case values are pressures (kPa, load = trib × value); with a blank Trib they are direct kN/m (Point: kN). Cells show their unit (kPa / kN/m / kN).
+- Internal wind pressure is entered as its own row: −cpi in Wd, +cpi in Wu. The Wid / Wiu cases are gone from new sheets; combinations are G | Q | Wd | Wu | Dir (ULS4 = 1.2G + ψcQ + Wd, ULS5 = 0.9G + Wu, plus the Cross / Long versions).
+- Load library lists assemblies with a value per case column; picking a Description fills the row (type over to change).
+- Support reactions table: G, Q, Wd, Wu (no Dir / Cross / Long). A Point row with blank Trib and `='B1'!RxnR_G` etc. in each case column transfers all cases in one row.
+- A row with values but no Type is an error (it would otherwise be hidden by the print tidy-up).
+- Older calc sheets (v0.2 one-case-per-row layout, Wid / Wiu combinations) still calculate unchanged – the add-in reads either layout.
+
 ## v0.2.8
 - Wind directions: new **Dir** column (Cross / Long) on the loads table and the combination library. A wind load with a Dir acts only in combinations with the same Dir; a wind load without one acts in every direction. Crosswind zones are entered as PUDL rows tagged Cross.
 - Library has ULS4C / ULS5C (Cross) and ULS4L / ULS5L (Long) alongside ULS4 / ULS5; the Dir rows switch on automatically once any wind load has a Dir, and the undivided ones switch off.
