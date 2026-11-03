@@ -542,6 +542,7 @@ for rr in range(ch + 1, ch + 1 + spill_rows):
         c.font = font(9)
         c.alignment = L if col == "D" else C
         if col in "EFGH": c.number_format = "0.00"
+        if col == "I": c.number_format = '0;-0;;@'   # blank Dir spills as 0: hide it
 ws.conditional_formatting.add(f"B{ch+1}:I{ch+spill_rows}", Rule(type="expression", formula=[f'$B{ch+1}<>""'],
     dxf=DifferentialStyle(fill=PatternFill("solid", bgColor="E6ECE9"), border=Border(left=hair, right=hair, top=hair, bottom=hair))))
 clast = ch + spill_rows
@@ -860,6 +861,9 @@ for srow, k in SLS_DEFL_ROWS:
     dyn(f"F{srow}", f"=INDEX({SG},{k + 1},4)", "0.00").fill = F_OUT
     dyn(f"H{srow}", f'=IFERROR(INDEX({SG},{k + 1},5),"")', '"L/"0').fill = F_OUT
     dyn(f"B{srow}", f'=IFERROR(INDEX({SG},{k + 1},1),"")', None, font(9), C)
+    desc = ws[f"D{srow}"].value
+    tipdesc = "1 kN at the tip" if desc == "1 kN at midspan" else desc + " – tip"
+    ws[f"D{srow}"] = f'=IF(RIGHT(B{srow},3)="tip","{tipdesc}","{desc}")'
 gov_map = {"Res_Mdn": (1, 2), "Res_phiMdn": (1, 3), "Res_Mup": (2, 2), "Res_phiMup": (2, 3), "Res_V": (3, 2), "Res_phiV": (3, 3)}
 for nm, (i, j) in gov_map.items():
     cell = names[nm].replace("$", "")

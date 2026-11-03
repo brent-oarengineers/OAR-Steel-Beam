@@ -197,7 +197,10 @@ module Inputs =
                             Description = text (c (if hasFlange then 2 else 1))
                             CriticalFlange = flange
                             Factors = Map.ofList factors
-                            Dir = (match dirCol with Some j -> text (c j) | None -> "")
+                            // text only: a blank Dir spilled by FILTER arrives as 0
+                            Dir = (match dirCol with
+                                   | Some j -> (match c j with Str t -> t.Trim() | _ -> "")
+                                   | None -> "")
                             Outside = None
                             Strength = true }
                       yield combo ]

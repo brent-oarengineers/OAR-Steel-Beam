@@ -97,6 +97,9 @@ let tests =
               let cs = Inputs.combinations g
               Expect.equal cs.[0].Dir "Cross" "dir"
               Expect.equal cs.[1].Dir "" "blank"
+              // FILTER spills a blank Dir cell as 0: read as no direction
+              let z = Inputs.combinations (grid [ [ "ULS5"; "Wind"; "0.9G + Wu"; "0.9"; "0"; "0"; "1"; "0" ] ])
+              Expect.equal z.Head.Dir "" "0 = no Dir"
           }
 
           test "directions are checked separately, never added" {
