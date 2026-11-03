@@ -58,26 +58,40 @@ module Analysis =
     let actions (span: float) (combo: Combination) (loads: Load list) : BeamLoad list =
         let tagged =
             loads
-            |> List.filter (fun l -> LoadCase.isWind l.Case && WindDir.normalise l.Dir <> "" && Combination.factor combo l.Case <> 0.0)
+            |> List.filter (fun l -> LoadCase.isWind l.Case && WindDir.normalise l.Dir <> "" && Combination.factorAny combo l.Case <> 0.0)
         if WindDir.normalise combo.Dir = "" && not tagged.IsEmpty then
             failwithf
                 "combination %s has wind factors but no Dir, and the wind loads are split by direction (%s): set Dir on the combination, or clear Dir on the loads"
                 combo.Id
                 (String.Join(", ", WindDir.distinct (tagged |> List.map (fun l -> l.Dir))))
+        // distributed loads are split at the supports when the combination factors loads beyond them differently
+        let cuts =
+            match combo.Outside with
+            | Some o -> [ o.A; o.B ]
+            | None -> []
+        let pieces (a: float) (b: float) =
+            let inner = cuts |> List.filter (fun c -> c > a + 1e-6 && c < b - 1e-6)
+            (a :: inner) @ [ b ] |> List.pairwise
         loads
-        |> List.choose (fun ld ->
+        |> List.collect (fun ld ->
             let applies =
                 not (LoadCase.isWind ld.Case)
                 || WindDir.normalise ld.Dir = ""
                 || WindDir.same ld.Dir combo.Dir
-            let f = if applies then Combination.factor combo ld.Case else 0.0
-            if f = 0.0 || ld.Magnitude = 0.0 then None
+            if not applies || ld.Magnitude = 0.0 then []
             else
-                let v = f * LoadCase.direction ld.Case * ld.Magnitude
+                let v x = Combination.factorAt combo ld.Case x * LoadCase.direction ld.Case * ld.Magnitude
+                let dist a b =
+                    pieces a b
+                    |> List.choose (fun (p, q) ->
+                        let w = v ((p + q) / 2.0)
+                        if w = 0.0 then None else Some(Dist(w, p, q)))
                 match ld.Shape with
-                | FullSpan -> Some(Dist(v, 0.0, span))
-                | Partial(a, b) -> Some(Dist(v, a, b))
-                | Point x -> Some(Conc(v, x)))
+                | FullSpan -> dist 0.0 span
+                | Partial(a, b) -> dist a b
+                | Point x ->
+                    let p = v x
+                    if p = 0.0 then [] else [ Conc(p, x) ])
 
     /// Support reactions (A, B), positive upward, N, by moments about each support
     let reactions (beam: Beam) (acts: BeamLoad list) =
@@ -261,3 +275,53 @@ module Analysis =
             match l.Shape with
             | Point x -> Some(x, l.Magnitude * LoadCase.direction l.Case, l.Case)
             | _ -> None)
+
+/// Pattern loading for beams with an overhang (AS/NZS 1170.0 Cl. 4.2): imposed action is applied to
+/// the parts of the beam where it is unfavourable, and an equilibrium combination (Cl. 4.2.1) is added
+/// for the back-support reaction (hold-down).
+module Patterns =
+
+    let hasOverhang (beam: Beam) = beam.SupportA > 1e-6 || beam.SupportB < beam.Span - 1e-6
+
+    let private outside (beam: Beam) (factors: Map<LoadCase, float>) : Outside =
+        { A = beam.SupportA
+          B = beam.SupportB
+          Factors = factors }
+
+    /// Every strength combination that includes Q, plus the same with Q on the backspan only ("-span")
+    /// and on the overhang only ("-cant"). Unchanged when there is no overhang.
+    let expand (beam: Beam) (combos: Combination list) : Combination list =
+        if not (hasOverhang beam) then
+            combos
+        else
+            combos
+            |> List.collect (fun c ->
+                let q = Combination.factor c Q
+                if q = 0.0 || c.Outside.IsSome then
+                    [ c ]
+                else
+                    let noQ = c.Factors.Remove Q
+                    [ c
+                      { c with
+                          Id = c.Id + "-span"
+                          Description = c.Description + " (Q backspan only)"
+                          Outside = Some(outside beam noQ) }
+                      { c with
+                          Id = c.Id + "-cant"
+                          Description = c.Description + " (Q overhang only)"
+                          Factors = noQ
+                          Outside = Some(outside beam c.Factors) } ])
+
+    /// Equilibrium combination for the back-support reaction (Cl. 4.2.1): stabilising G on the backspan
+    /// at 0.9, destabilising G at 1.2 and Q at 1.5 on the overhang. Reactions only (Strength = false).
+    let equilibrium (beam: Beam) : Combination list =
+        if not (hasOverhang beam) then
+            []
+        else
+            [ { Id = "EQ"
+                Description = "Equilibrium (Cl. 4.2.1): 0.9G backspan, 1.2G + 1.5Q overhang"
+                CriticalFlange = Top
+                Factors = Map.ofList [ G, 0.9 ]
+                Dir = ""
+                Outside = Some(outside beam (Map.ofList [ G, 1.2; Q, 1.5 ]))
+                Strength = false } ]

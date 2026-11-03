@@ -3,6 +3,15 @@
 Each version that reaches `main` is built, tested and published automatically as a GitHub Release.
 The calc sheet shows the version it was calculated with (title block, under the green bar).
 
+## v0.4.0 – stage 3: backspan + overhang on the sheet
+- **Support condition "Backspan + overhang"** with an "Overhang beyond support B" input. Supports at A (x = 0) and B (x = Span); the beam runs on to the tip. Load positions and the restraints table run to the tip; a Tip row (default U, U) appears in the restraints table when there is an overhang. Summary subtitle shows the overhang.
+- The add-in functions take `span` as one cell, or two cells {backspan, overhang} (the sheet passes the `Geom` range).
+- **Pattern loading:** every combination containing Q is also checked with Q on the backspan only (`-span`) and on the overhang only (`-cant`), in ULS, shear, envelope and reactions.
+- **Equilibrium combination EQ** (Cl. 4.2.1): 0.9G on the backspan, 1.2G + 1.5Q on the overhang – used for reactions only. The reactions section states the EQ reaction at A and flags **HOLD-DOWN REQUIRED** when it is negative.
+- **Serviceability with an overhang:** each case is checked between the supports (L = backspan) and at the tip (L = 2 × overhang, same ratios and caps), with Q on the whole beam, backspan only and overhang only; Δ1kN tip = 1 kN at the tip. The SLS table shows span rows then tip rows; the summary shows the worse of the two per case (`OAR.SLS(..., "governing")`).
+- **C restraint code:** C on a row = that flange continuously restrained from the row to the next restraint on it (φMb = φMsx there); at a support C counts as F, elsewhere it ends the previous segment as L. Not allowed at the right end.
+- Reactions are labelled A and B.
+
 ## v0.3.6
 - **kl by load direction** (replaces the per-flange kl and the moment-reversal rule from v0.3.3): each segment takes kl from the direction of the load acting on it, as Space Gass does. A downward load on the top flange acts towards the shear centre and is destabilising (kl 1.4, free tip 2.0); an upward load (wind uplift) acts away from it (kl 1.0); a segment with no load within it takes kl 1.0. Factor box: "kl" and "kl free tip" rows are now load ↓ | load ↑ (defaults 1.4 | 1.0 and 2.0 | 1.0); kr and Continuous stay per flange. ULSDETAIL states the basis. The † mark is gone.
 - **Free-tip αm (Table 5.6.2):** 1.25 only for a point load at the tip (within 5% of the overhang); distributed load or point loads along the overhang give 2.25. With a tip point load plus other load, 1.25 is adopted and the note gives a moment-weighted estimate (e.g. 1.69) to guide an override.

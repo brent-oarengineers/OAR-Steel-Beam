@@ -9,7 +9,7 @@ open OAR.Steel
 [<Literal>]
 let Category = "OAR Steel"
 
-let private version = "0.3.6"
+let private version = "0.4.0"
 
 // ---------- conversion helpers ----------
 
@@ -94,6 +94,30 @@ let private loadsWithSW (sec: Section) (span: float) (includeSW: obj) (loads: ob
     let sw = if isMissing includeSW then true else Inputs.yesNo (toCell includeSW)
     if sw then Analysis.selfWeightLoad sec :: ls else ls
 
+/// The span argument: one cell (simply supported span) or two cells {backspan, overhang}.
+/// With an overhang the supports are at 0 and the backspan, and the beam runs on to the tip.
+let private geometry (o: obj) : float * float =
+    let one (v: obj) = num "span" v
+    let g =
+        match o with
+        | :? (obj[,]) as a ->
+            (match a |> Seq.cast<obj> |> Seq.toList with
+             | [ v ] -> one v, 0.0
+             | [ v1; v2 ] -> one v1, (if isMissing v2 then 0.0 else num "overhang" v2)
+             | _ -> failwith "span: give one cell (span) or two cells (backspan, overhang)")
+        | v -> one v, 0.0
+    let lb, ov = g
+    if lb <= 0.0 then failwith "span must be positive"
+    if ov < 0.0 then failwith "overhang must be zero or positive"
+    g
+
+let private beamOf ((lb, ov): float * float) (ei: float) =
+    if ov > 0.0 then Beam.supported (lb + ov) ei 0.0 lb else Beam.simple lb ei
+
+/// Strength combinations from the combos range, with pattern variants when the beam has an overhang
+let private strengthCombos (beam: Beam) (combos: obj) =
+    arg "combos" (fun () -> Patterns.expand beam (Inputs.combinations (grid combos)))
+
 /// Shear deformation in deflections when the [shearDefl] argument is Yes (G·As, As = clear web)
 let private withShearOpt (sec: Section) (o: obj) (b: Beam) =
     if not (isMissing o) && Inputs.yesNo (toCell o) then Beam.withShear (Units.G_MPa * Beam.shearArea sec) b else b
@@ -171,11 +195,11 @@ let oarSectionProps
               row "φVv" (Units.toKN sv.PhiVv) "kN" (sprintf "Aw %.0f mm², λw %.1f, αv %.3f" sv.Aw sv.Lambda sv.AlphaV) ])
 
 [<ExcelFunction(Name = "OAR.SLS",
-                Description = "Spills deflection checks (5 rows): case | Δ max mm | at x mm | limit mm | L/Δ | utilisation",
+                Description = "Spills deflection checks: case | Δ max mm | at x mm | limit mm | L/Δ | utilisation (5 rows; 10 with an overhang: span then tip)",
                 Category = Category)>]
 let oarSLS
     ([<ExcelArgument(Name = "designation")>] designation: obj)
-    ([<ExcelArgument(Name = "span", Description = "mm")>] span: obj)
+    ([<ExcelArgument(Name = "span", Description = "mm: one cell (span), or two cells (backspan, overhang)")>] span: obj)
     ([<ExcelArgument(Name = "E", Description = "MPa (default 200000)")>] e: obj)
     ([<ExcelArgument(Name = "includeSW", Description = "Yes/No (default Yes)")>] includeSW: obj)
     ([<ExcelArgument(Name = "loads", Description = "Loads table data range (Type..Dir; older Case..Dir / Case..End layouts also accepted)")>] loads: obj)
@@ -183,14 +207,17 @@ let oarSLS
     ([<ExcelArgument(Name = "psiL")>] psiL: obj)
     ([<ExcelArgument(Name = "psiS")>] psiS: obj)
     ([<ExcelArgument(Name = "[shearDefl]", Description = "Yes = include shear deformation (default No)")>] shearDefl: obj)
+    ([<ExcelArgument(Name = "[mode]", Description = "blank = every row (with an overhang: the 5 span rows then the 5 tip rows); governing = 5 rows, the worse of span and tip")>] mode: obj)
     : obj =
     guard (fun () ->
         let s = section designation
-        let l = num "span" span
-        let beam = Beam.simple (l) (numOr "E" Units.E_MPa e * s.Ix) |> withShearOpt s shearDefl
+        let g = geometry span
+        let l = fst g + snd g
+        let beam = beamOf g (numOr "E" Units.E_MPa e * s.Ix) |> withShearOpt s shearDefl
         let ls = loadsWithSW s l includeSW loads
         let crit = Inputs.deflectionCriteria (grid criteria)
-        let res = Serviceability.check beam ls crit (num "psiL" psiL) (num "psiS" psiS)
+        let all = Serviceability.check beam ls crit (num "psiL" psiL) (num "psiS" psiS)
+        let res = if (str mode).ToUpperInvariant().StartsWith "GOV" then Serviceability.governing all else all
         table
             [ for r in res ->
                   [ box r.Name
@@ -205,7 +232,7 @@ let oarSLS
                 Category = Category)>]
 let oarDiagram
     ([<ExcelArgument(Name = "designation")>] designation: obj)
-    ([<ExcelArgument(Name = "span", Description = "mm")>] span: obj)
+    ([<ExcelArgument(Name = "span", Description = "mm: one cell (span), or two cells (backspan, overhang)")>] span: obj)
     ([<ExcelArgument(Name = "E", Description = "MPa (default 200000)")>] e: obj)
     ([<ExcelArgument(Name = "includeSW")>] includeSW: obj)
     ([<ExcelArgument(Name = "loads")>] loads: obj)
@@ -216,8 +243,9 @@ let oarDiagram
     : obj =
     guard (fun () ->
         let s = section designation
-        let l = num "span" span
-        let beam = Beam.simple (l) (numOr "E" Units.E_MPa e * s.Ix) |> withShearOpt s shearDefl
+        let g = geometry span
+        let l = fst g + snd g
+        let beam = beamOf g (numOr "E" Units.E_MPa e * s.Ix) |> withShearOpt s shearDefl
         let ls = loadsWithSW s l includeSW loads
         let id = str comboId
         // a single case, optionally with a wind direction ("Wu", "Wu Cross"), or a combination ID
@@ -225,7 +253,11 @@ let oarDiagram
         let combo =
             match (if parts.Length > 0 then LoadCase.tryParse parts.[0] else None) with
             | Some lc -> Combination.singleDir lc (if parts.Length > 1 then parts.[1] else "")
-            | None -> Inputs.combination id (grid combos)
+            | None ->
+                let all = strengthCombos beam combos @ Patterns.equilibrium beam
+                match all |> List.tryFind (fun c -> String.Equals(c.Id, id, StringComparison.OrdinalIgnoreCase)) with
+                | Some c -> c
+                | None -> failwithf "combination '%s' not found (have: %s)" id (String.Join(", ", all |> List.map (fun c -> c.Id)))
         let acts = Analysis.actions l combo ls
         let n = max 2 (int (numOr "points" 20.0 points))
         let header = [ box "x (mm)"; box "V* (kN)"; box "M* (kN·m)"; box "δ (mm)" ]
@@ -240,21 +272,22 @@ let oarDiagram
         table (header :: rows))
 
 [<ExcelFunction(Name = "OAR.REACTIONS",
-                Description = "Spills support reactions (kN, + up) for each case (wind cases per direction, e.g. Wu Cross) and each combination: ID | left | right",
+                Description = "Spills support reactions at A and B (kN, + up) for each case (wind per direction, e.g. Wu Cross), each combination (with overhang patterns -span / -cant) and EQ (equilibrium): ID | A | B",
                 Category = Category)>]
 let oarReactions
     ([<ExcelArgument(Name = "designation")>] designation: obj)
-    ([<ExcelArgument(Name = "span", Description = "mm")>] span: obj)
+    ([<ExcelArgument(Name = "span", Description = "mm: one cell (span), or two cells (backspan, overhang)")>] span: obj)
     ([<ExcelArgument(Name = "includeSW")>] includeSW: obj)
     ([<ExcelArgument(Name = "loads")>] loads: obj)
     ([<ExcelArgument(Name = "combos")>] combos: obj)
     : obj =
     guard (fun () ->
         let s = section designation
-        let l = num "span" span
-        let beam = Beam.simple (l) (1.0)
+        let g = geometry span
+        let l = fst g + snd g
+        let beam = beamOf g (1.0)
         let ls = loadsWithSW s l includeSW loads
-        let combosIn = arg "combos" (fun () -> Inputs.combinations (grid combos))
+        let combosIn = strengthCombos beam combos @ Patterns.equilibrium beam
         // unfactored cases: G, Q, then each wind case per direction (or undivided if no directions are used)
         // Wid / Wiu only when used (v0.3 sheets put internal pressure in Wd / Wu)
         let used lc =
@@ -284,18 +317,19 @@ let oarReactions
                 Category = Category)>]
 let oarMaxActions
     ([<ExcelArgument(Name = "designation")>] designation: obj)
-    ([<ExcelArgument(Name = "span", Description = "mm")>] span: obj)
+    ([<ExcelArgument(Name = "span", Description = "mm: one cell (span), or two cells (backspan, overhang)")>] span: obj)
     ([<ExcelArgument(Name = "includeSW")>] includeSW: obj)
     ([<ExcelArgument(Name = "loads")>] loads: obj)
     ([<ExcelArgument(Name = "combos")>] combos: obj)
     : obj =
     guard (fun () ->
         let s = section designation
-        let l = num "span" span
-        let beam = Beam.simple (l) (1.0)
+        let g = geometry span
+        let l = fst g + snd g
+        let beam = beamOf g (1.0)
         let ls = loadsWithSW s l includeSW loads
         table
-            [ for c in Inputs.combinations (grid combos) do
+            [ for c in strengthCombos beam combos do
                   let acts = Analysis.actions l c ls
                   let xm, m = Analysis.maxMoment beam acts
                   let _, v = Analysis.maxShear beam acts
@@ -346,10 +380,11 @@ let oarMbDetail
                 Category = Category)>]
 let oarLoads
     ([<ExcelArgument(Name = "loads")>] loads: obj)
-    ([<ExcelArgument(Name = "span", Description = "mm")>] span: obj)
+    ([<ExcelArgument(Name = "span", Description = "mm: one cell (span), or two cells (backspan, overhang)")>] span: obj)
     : obj =
     guard (fun () ->
-        let l = num "span" span
+        let g = geometry span
+        let l = fst g + snd g
         let ls = Inputs.loads l (grid loads)
         if ls.IsEmpty then box "no loads"
         else
@@ -373,16 +408,17 @@ type private BeamCtx =
 
 let private ctx designation gr span e includeSW loads : BeamCtx =
     let s = section designation
-    let l = num "span" span
+    let g = geometry span
+        let l = fst g + snd g
     let ee = numOr "E" Units.E_MPa e
     { Sec = s
       Grade = grade gr
       E = ee
-      Beam = Beam.simple (l) (ee * s.Ix)
+      Beam = beamOf g (ee * s.Ix)
       Loads = arg "loads" (fun () -> loadsWithSW s l includeSW loads) }
 
 let private segmentChecks (c: BeamCtx) combos restraints kfactors =
-    let cs = arg "combos" (fun () -> Inputs.combinations (grid combos))
+    let cs = strengthCombos c.Beam combos
     let pts = arg "restraints" (fun () -> Inputs.restraints (grid restraints))
     let k = arg "kfactors" (fun () -> Inputs.kFactors (grid kfactors))
     Uls.checkAll c.Sec c.Grade c.E c.Beam c.Loads pts k cs
@@ -398,7 +434,7 @@ let private segText (r: SegmentCheck) =
 let oarUls
     ([<ExcelArgument(Name = "designation")>] designation: obj)
     ([<ExcelArgument(Name = "grade")>] gr: obj)
-    ([<ExcelArgument(Name = "span", Description = "mm")>] span: obj)
+    ([<ExcelArgument(Name = "span", Description = "mm: one cell (span), or two cells (backspan, overhang)")>] span: obj)
     ([<ExcelArgument(Name = "E", Description = "MPa")>] e: obj)
     ([<ExcelArgument(Name = "includeSW")>] includeSW: obj)
     ([<ExcelArgument(Name = "loads")>] loads: obj)
@@ -503,7 +539,7 @@ let oarGoverning
                   box (sprintf "%s, %s m%s" r.Combo (segText r) (if r.Note = "" then "" else " – " + r.Note)) ]
             | None -> [ box label; box ""; box ""; box "no combination" ]
         let shear =
-            let sc = Uls.shearChecks c.Sec c.Grade c.Beam c.Loads (Inputs.combinations (grid combos))
+            let sc = Uls.shearChecks c.Sec c.Grade c.Beam c.Loads (strengthCombos c.Beam combos)
             match sc |> List.sortByDescending (fun r -> r.Utilisation) |> List.tryHead with
             | Some r ->
                 [ box "Shear"
@@ -527,7 +563,7 @@ let oarShear
     guard (fun () ->
         let c = ctx designation gr span (box ExcelMissing.Value) includeSW loads
         table
-            [ for r in Uls.shearChecks c.Sec c.Grade c.Beam c.Loads (Inputs.combinations (grid combos)) do
+            [ for r in Uls.shearChecks c.Sec c.Grade c.Beam c.Loads (strengthCombos c.Beam combos) do
                   yield
                       [ box r.Combo
                         box (Units.toKN r.VStar)
@@ -551,7 +587,7 @@ let oarEnvelope
         let c = ctx designation (box 300.0) span (box ExcelMissing.Value) includeSW loads
         let n = max 2 (int (numOr "points" 60.0 points))
         let rows =
-            Uls.envelope c.Beam c.Loads (Inputs.combinations (grid combos)) n
+            Uls.envelope c.Beam c.Loads (strengthCombos c.Beam combos) n
             |> List.map (fun (x, mx, mn, vx, vn) ->
                 [ box (m1 x); box (Units.toKNm mx); box (Units.toKNm mn); box (Units.toKN vx); box (Units.toKN vn) ])
         table ([ box "x (m)"; box "M* max"; box "M* min"; box "V* max"; box "V* min" ] :: rows))
@@ -595,14 +631,15 @@ let oarSectionList ([<ExcelArgument(Name = "[family]", Description = "UB, UC, WB
                 Category = Category)>]
 let oarLoadDiagram
     ([<ExcelArgument(Name = "designation")>] designation: obj)
-    ([<ExcelArgument(Name = "span", Description = "mm")>] span: obj)
+    ([<ExcelArgument(Name = "span", Description = "mm: one cell (span), or two cells (backspan, overhang)")>] span: obj)
     ([<ExcelArgument(Name = "includeSW")>] includeSW: obj)
     ([<ExcelArgument(Name = "loads")>] loads: obj)
     ([<ExcelArgument(Name = "[kind]", Description = "line (default) or point")>] kind: obj)
     : obj =
     guard (fun () ->
         let s = section designation
-        let l = num "span" span
+        let g = geometry span
+        let l = fst g + snd g
         let ls = arg "loads" (fun () -> loadsWithSW s l includeSW loads)
         let na = box ExcelError.ExcelErrorNA
         let pad (n: int) (width: int) (rows: obj list list) =

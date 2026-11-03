@@ -1,4 +1,4 @@
-# OAR Steel – Excel add-in (v0.3.6)
+# OAR Steel – Excel add-in (v0.4.0)
 
 F# / Excel-DNA add-in for the OAR steel beam calc sheet. Engineering lives in `OAR.Steel.Core`
 (no Excel references, fully testable); `OAR.Steel.Excel` only converts worksheet values.
@@ -44,7 +44,9 @@ If the build complains about a package version, update `ExcelDna.AddIn` / `Expec
 
 ## 3. Functions (v0.1)
 
-All lengths mm. Section properties use catalogue units (×10⁶ mm⁴ etc.). Errors appear as `#OAR! message`.
+All lengths mm. `span` is one cell (simply supported) or two cells {backspan, overhang}: supports at 0 and the backspan,
+tip at backspan + overhang. With an overhang, combinations with Q get -span / -cant pattern variants and EQ
+(equilibrium, reactions only) is added. Section properties use catalogue units (×10⁶ mm⁴ etc.). Errors appear as `#OAR! message`.
 
 | Function | Returns |
 |---|---|
@@ -126,6 +128,7 @@ row whose key cell shows nothing; the next edit on that sheet unhides them. The 
 | Segments | DCT Ex 2 through the builder (Le 11.2 m; αm 0.98 vs override 1.088) | 1e-4 |
 | Segments | Blockpad UDL: αm 1.166, Le 11.62 m | 1e-6 |
 | Segments | uplift uses bottom-flange restraints and kl; compression flange from moment sign; support validation | exact |
+| Stage 3 | pattern variants (M at B, RA), EQ = RFEM B2 C5 reactions, SLS tip rows / limits / patterns, C restraint segments | 1e-9 / 0.01 kN |
 | Space Gass B3–B5 | UDL-only overhang (αm 2.25), mid-overhang point load (2.25), uplift (kl 1.0); 250UB31.4 backspan failing at 1.04 | 0.1% |
 | Space Gass B2 | C2 overhang FU (kl 2.0, Le 4.0, αm 1.25, φMb 150.78) and backspan FF (φMb 123.09) | 0.05% |
 | RFEM B2 LTB | C1 4–6 m, C2 2–4 m (Run A) and C2 0–6 m bottom flange (Run B): kl, Le, Mo, αs, Mb | 0.1% |
@@ -150,7 +153,7 @@ a text editor and rebuild; units are as printed in the catalogue.
 
 ## 6. Assumptions in v0.1 (check these)
 
-- Engine: two simple supports anywhere (overhangs); the sheet is still simply supported (cantilever rules not yet in). E default 200 000 MPa, G = 80 000 MPa, g = 9.81 for self-weight.
+- Simply supported, or backspan + one overhang (right). Deflection limit for the tip uses L = 2 × overhang. E default 200 000 MPa, G = 80 000 MPa, g = 9.81 for self-weight.
 - Section capacity: Table 5.2 limits – flange outstand λep/λey 9/16 (HR) or 8/14 (WB, HW);
   web 82/115. Slender: Ze = Z(λsy/λs) for flange, Z(λsy/λs)² for web.
 - Shear: Aw = d·tw (hot-rolled) or (d−2tf)·tw (WB); αv = (82/λw)² when λw > 82; no shear–bending

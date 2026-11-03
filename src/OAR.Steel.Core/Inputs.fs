@@ -197,7 +197,9 @@ module Inputs =
                             Description = text (c (if hasFlange then 2 else 1))
                             CriticalFlange = flange
                             Factors = Map.ofList factors
-                            Dir = (match dirCol with Some j -> text (c j) | None -> "") }
+                            Dir = (match dirCol with Some j -> text (c j) | None -> "")
+                            Outside = None
+                            Strength = true }
                       yield combo ]
 
     /// Find one combination by ID

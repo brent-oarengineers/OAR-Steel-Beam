@@ -2,12 +2,14 @@ namespace OAR.Steel
 
 open System
 
-/// Cross-section restraint types, AS 4100 Cl. 5.4 (F full, P partial, L lateral, U unrestrained)
+/// Cross-section restraint types, AS 4100 Cl. 5.4 (F full, P partial, L lateral, U unrestrained),
+/// plus C: that flange is continuously restrained from this row to the next restraint on it (sheeting, decking).
 type RestraintType =
     | RF
     | RP
     | RL
     | RU
+    | RC
 
 module RestraintType =
     let tryParse (s: string) =
@@ -16,6 +18,7 @@ module RestraintType =
         | "P" -> Some RP
         | "L" -> Some RL
         | "U" -> Some RU
+        | "C" -> Some RC
         | _ -> None
 
     let code =
@@ -24,6 +27,7 @@ module RestraintType =
         | RP -> "P"
         | RL -> "L"
         | RU -> "U"
+        | RC -> "C"
 
     let rank =
         function
@@ -31,6 +35,7 @@ module RestraintType =
         | RP -> 1
         | RL -> 2
         | RU -> 3
+        | RC -> 0
 
 /// One row of the restraints table. None = no restraint to that flange at this point.
 type RestraintPoint =
@@ -167,14 +172,16 @@ module Uls =
             match at x with
             | None ->
                 failwithf "restraints: the %s (x = %g) must be listed with a restraint to the %s flange" (describe x) x (flangeName flange)
-            | Some(_, t) when isSupport x && t <> RF && t <> RP ->
-                failwithf "restraints: the %s must be F or P for the %s flange (got %s)" (describe x) (flangeName flange) (RestraintType.code t)
+            | Some(_, t) when isSupport x && t <> RF && t <> RP && t <> RC ->
+                failwithf "restraints: the %s must be F, P or C for the %s flange (got %s)" (describe x) (flangeName flange) (RestraintType.code t)
             | _ -> ()
 
         // at a free end (cantilever tip) only U, F or P make sense: an L restraint holds one flange laterally but
         // nothing prevents twist there, so it does not form a segment end (Space Gass refuses it too)
         for p, t in restrained do
             let freeEnd = (p.X <= tol || abs (p.X - span) <= tol) && not (isSupport p.X)
+            if t = RC && abs (p.X - span) <= tol then
+                failwithf "restraints: C for the %s flange at the right end (x = %g) has no segment after it – use the code for the end itself (F, P or U)" (flangeName flange) p.X
             if t = RL && freeEnd then
                 failwithf "restraints: L for the %s flange at the free end (x = %g) is not a valid segment end – use U, or F / P if the tip is also restrained against twist" (flangeName flange) p.X
         // U (unrestrained) is only valid at a free end, i.e. the tip of a cantilever beyond a support
@@ -240,10 +247,11 @@ module Uls =
                   | Bottom -> 1.0, k.KrBottom, k.ContinuousBottom
               let mc x = compressive flange (m x)
               let _, mcBeam = Analysis.maxAbsOn 0.0 span bps mc
-              if mcBeam > tolM && mcBeam > 0.0 then
-                  if continuous then
-                      // flange continuously restrained: no member buckling, φMb = φMsx over the whole beam
-                      let xm, mcv = Analysis.maxAbsOn 0.0 span bps mc
+              // a continuously restrained length of the flange (whole beam, or a C segment): φMb = φMsx
+              let contCheck (x1: float) (x2: float) (ends: string) (note: string) : SegmentCheck option =
+                  let xm, mcv = Analysis.maxAbsOn x1 x2 bps mc
+                  if mcv <= tolM then None
+                  else
                       let cap: MemberMoment =
                           { Le = 0.0
                             Mo = infinity
@@ -253,19 +261,20 @@ module Uls =
                             Ms = sm.Ms
                             PhiMb = sm.PhiMs
                             PhiMs = sm.PhiMs }
-                      let r: SegmentCheck =
+                      let len = x2 - x1
+                      Some
                           { Combo = combo.Id
                             Flange = flange
-                            X1 = 0.0
-                            X2 = span
-                            Ends = "cont."
-                            Length = span
+                            X1 = x1
+                            X2 = x2
+                            Ends = ends
+                            Length = len
                             Kt = 1.0
                             Kl = 1.0
                             Kr = 1.0
-                            M2 = m (span / 4.0)
-                            M3 = m (span / 2.0)
-                            M4 = m (3.0 * span / 4.0)
+                            M2 = m (x1 + len / 4.0)
+                            M3 = m (x1 + len / 2.0)
+                            M4 = m (x1 + 3.0 * len / 4.0)
                             Mm = mcv
                             XAtMm = xm
                             MmSigned = m xm
@@ -275,12 +284,25 @@ module Uls =
                             Utilisation = mcv / cap.PhiMb
                             KlBasis = "continuous restraint"
                             KlOverridden = false
-                            Note = "" }
-                      yield r
+                            Note = note }
+              if mcBeam > tolM && mcBeam > 0.0 then
+                  if continuous then
+                      // flange continuously restrained over the whole beam (factor box)
+                      match contCheck 0.0 span "cont." "" with
+                      | Some r -> yield r
+                      | None -> ()
                   else
-                      for (p1, t1), (p2, t2) in segments beam flange pts do
+                      for (p1, t1), (p2, t2raw) in segments beam flange pts do
+                          // a C at the far end starts continuous restraint there: it acts as F at a support, L elsewhere
+                          let isSup x = abs (x - beam.SupportA) <= 1.0 || abs (x - beam.SupportB) <= 1.0
+                          let t2 = if t2raw = RC then (if isSup p2.X then RF else RL) else t2raw
+                          if t1 = RC then
+                              // C on the starting row: this length of the flange is continuously restrained
+                              match contCheck p1.X p2.X ("C" + RestraintType.code t2raw) "continuously restrained (C): φMb = φMsx" with
+                              | Some r -> yield r
+                              | None -> ()
                           let xc, mcs = Analysis.maxAbsOn p1.X p2.X bps mc
-                          if mcs > tolM then
+                          if t1 <> RC && mcs > tolM then
                               let len = p2.X - p1.X
                               let q (f: float) = p1.X + len * f / 4.0
                               let m2 = m (q 1.0)

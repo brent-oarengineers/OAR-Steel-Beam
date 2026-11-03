@@ -144,7 +144,7 @@ label(f"B{s0+1}", "Adopted section", 7, GREY)
 ws.merge_cells(f"B{s0+2}:D{s0+2}")
 put(f"B{s0+2}", '=IF(SectionSize="","–",SectionSize&"  Gr "&Grade)',
     font(12, b=True, color=GREEN), al=L)
-put(f"B{s0+3}", '="Span "&TEXT(Span,"#,##0")&" mm  ·  "&Support&IF(IncludeSW="Yes","  ·  incl. self-weight","")&IF(ShearDefl="Yes","  ·  Δ incl. shear deformation","")',
+put(f"B{s0+3}", '="Span "&TEXT(Span,"#,##0")&" mm"&IF(Overhang>0," + "&TEXT(Overhang,"#,##0")&" mm overhang","")&"  ·  "&Support&IF(IncludeSW="Yes","  ·  incl. self-weight","")&IF(ShearDefl="Yes","  ·  Δ incl. shear deformation","")',
     font(7, color=GREY), al=L)
 label(f"F{s0+1}", "Max utilisation", 7, GREY, al=L)
 ws.merge_cells(f"F{s0+2}:G{s0+2}")
@@ -184,7 +184,7 @@ for row in sum_rows:
         out(f"E{rr}", None, "0.00"); name(row[3], f"$E${rr}")
         out(f"F{rr}", None, "0.00")          # limit filled after criteria table
         label(f"G{rr}", "mm", 8, GREY, al=C)
-        out(f"H{rr}", f'=IF(N(E{rr})=0,"",Span/E{rr})', '"L/"0')
+        out(f"H{rr}", None, '"L/"0')
         defl_rows.append((rr, row[4]))
     else:
         out(f"E{rr}", None, "0.0"); name(row[3], f"$E${rr}")
@@ -252,11 +252,12 @@ rows = [
     ("Section type", "SectionType", "UB", None, None),
     ("Section size", "SectionSize", "310UB40.4", None, None),
     ("Steel grade", "Grade", 300, "0", "MPa"),
-    ("Span (centre to centre of supports)", "Span", 8300, "#,##0", "mm"),
+    ("Span / backspan (c/c of supports A–B)", "Span", 8300, "#,##0", "mm"),
     ("Support condition", "Support", "Simply supported", None, None),
     ("Elastic modulus", "E_mod", 200000, "#,##0", "MPa"),
     ("Include self-weight", "IncludeSW", "Yes", None, None),
     ("Include shear deformation in deflections", "ShearDefl", "No", None, None),
+    ("Overhang beyond support B (tip)", "OverhangIn", 0, "#,##0", "mm"),
 ]
 for i, (lab, nm, val, nf, unit) in enumerate(rows):
     rr = r + 1 + i
@@ -266,12 +267,13 @@ for i, (lab, nm, val, nf, unit) in enumerate(rows):
     name(nm, f"$E${rr}")
 dv_type = DataValidation(type="list", formula1='"UB,UC,WB,PFC"', allow_blank=False)
 dv_yn = DataValidation(type="list", formula1='"Yes,No"')
-dv_sup = DataValidation(type="list", formula1='"Simply supported"')
+dv_sup = DataValidation(type="list", formula1='"Simply supported,Backspan + overhang"')
 dv_grade = DataValidation(type="list", formula1='"250,300,350,400"')
 for dv in (dv_type, dv_yn, dv_sup, dv_grade): ws.add_data_validation(dv)
 dv_type.add(f"E{r+1}"); dv_grade.add(f"E{r+3}"); dv_sup.add(f"E{r+5}"); dv_yn.add(f"E{r+7}"); dv_yn.add(f"E{r+8}")
 ws[f"E{r+5}"].alignment = L
 ws.merge_cells(f"E{r+5}:F{r+5}")
+label(f"G{r+9}", "used when Support = Backspan + overhang", 7, GREY, i=True)
 
 SECTION_PROP_CELLS = []
 props = [
@@ -314,11 +316,9 @@ for i, (case, desc, ratio, lim, psi) in enumerate(sls):
     else:
         put(f"G{rr}", "–", font(9, color=GREY), border=B_IN, al=C)
 name("DeflCriteria", f"$B${hdr+1}:$G${hdr+5}")
-for srow, k in defl_rows:
-    cr = hdr + 1 + k
-    ws[f"F{srow}"] = f'=IF(N(E{cr})=0,"",IF(N(F{cr})=0,Span/E{cr},MIN(Span/E{cr},F{cr})))'
+SLS_DEFL_ROWS = defl_rows
 name("PsiL", f"$G${hdr+2}"); name("PsiS", f"$G${hdr+3}")
-label(f"H{hdr+1}", "Limit = lesser of L/ratio and max", 7, GREY)
+label(f"H{hdr+1}", "Limit = lesser of L/ratio and max (overhang tip: L = 2 × overhang)", 7, GREY)
 label(f"H{hdr+2}", "Blank max = ratio only", 7, GREY)
 
 # ---------------- Loads ----------------
@@ -546,22 +546,28 @@ ws.conditional_formatting.add(f"B{ch+1}:I{ch+spill_rows}", Rule(type="expression
     dxf=DifferentialStyle(fill=PatternFill("solid", bgColor="E6ECE9"), border=Border(left=hair, right=hair, top=hair, bottom=hair))))
 clast = ch + spill_rows
 name("OAR_Flex_Combos", f"$B${ch+1}:$B${clast}")
+put(f"B{clast+1}", '=IF(Overhang>0,"With the overhang, each combination with Q is also checked with Q on the backspan only (-span) and on the overhang only (-cant).  EQ = equilibrium (Cl. 4.2.1), reactions only.","")',
+    font(7, i=True, color=GREY), al=L)
+clast = clast + 1
 
 # ---------------- Lateral restraints ----------------
 r = clast + 1
 heading(r, "Lateral Restraints (AS 4100 Cl. 5.4)")
-label(f"B{r+1}", "Restraint type at each cross-section, per flange: F, P, L or U (– = none). Supports must be F or P; a free (cantilever) tip U, F or P (not L).", 7, GREY, i=True)
+label(f"B{r+1}", "Restraint type at each cross-section, per flange: F, P, L or U (– = none). Supports F, P or C; tip U, F or P.  C = continuously restrained to the next row.", 7, GREY, i=True)
 rh = r + 2
 rcols = ["x (mm)", "Ref", "Restraint provided by", "Top flange", "Bottom fl.", "αm top →", "αm bot. →", "kl top →", "kl bot. →"]
 for col, txt in zip("BCDEFGHIJ", rcols):
     put(f"{col}{rh}", txt, font(8, b=True), F_HDR, None, C)
 restr = [("=0", "A", "Left support – cleat", "F", "F", None, None, None, None)] + \
         [(None,) * 9] * 5 + \
-        [("=Span", "B", "Right support – cleat", "F", "F", None, None, None, None)]
+        [("=Span", "B", "Right support – cleat", "F", "F", None, None, None, None),
+         ('=IF(Overhang>0,Span+Overhang,"")', '=IF(Overhang>0,"Tip","")', '=IF(Overhang>0,"Cantilever tip","")', "TIPU", "TIPU", None, None, None, None)]
 for i, rv in enumerate(restr):
     rr = rh + 1 + i
     for col, v, nf in zip("BCDEFGHIJ", rv, ["#,##0", None, None, None, None, "0.00", "0.00", "0.00", "0.00"]):
-        if isinstance(v, str) and v.startswith("="):
+        if v == "TIPU":
+            inp(f"{col}{rr}", '=IF(Overhang>0,"U","")', nf, C)   # input: type over with F or P if the tip is restrained
+        elif isinstance(v, str) and v.startswith("="):
             out(f"{col}{rr}", v, nf)
         else:
             inp(f"{col}{rr}", v, nf, L if col == "D" else C)
@@ -569,7 +575,7 @@ rlast = rh + len(restr)
 trs = Table(displayName="Restraints_B1", ref=f"B{rh}:J{rlast}")
 trs.tableStyleInfo = TableStyleInfo(name="TableStyleLight15", showRowStripes=False)
 ws.add_table(trs)
-dv_r = DataValidation(type="list", formula1='"F,P,L,U,–"')
+dv_r = DataValidation(type="list", formula1='"F,P,L,U,C,–"')
 ws.add_data_validation(dv_r); dv_r.add(f"E{rh+1}:F{rlast}")
 name("OAR_Flex_Restraints", "Restraints_B1[x (mm)]")
 label(f"B{rlast+1}", "αm / kl → overrides for that flange's segment from this row to the next restraint on that flange "
@@ -609,7 +615,7 @@ from openpyxl.chart.layout import Layout, ManualLayout
 CRIT_RANGE = f"$E${hdr+1}:$F${hdr+5}"
 LOADS = "Loads_B1[[Type]:[Dir]]"
 COMBOS = f"_xlfn.ANCHORARRAY({COMBO_ANCHOR})"
-ARGS_ULS = f"SectionSize,Grade,Span,E_mod,IncludeSW,{LOADS},{COMBOS},Restraints_B1[#Data],{KF_RANGE}"
+ARGS_ULS = f"SectionSize,Grade,Geom,E_mod,IncludeSW,{LOADS},{COMBOS},Restraints_B1[#Data],{KF_RANGE}"
 
 def dyn(cell, formula, nf=None, f=None, al=None):
     c = ws[cell]
@@ -643,6 +649,10 @@ for i in range(11):
     ws.column_dimensions[hc(i)].width = 9
 put(f"{hc(0)}6", "Add-in data for summary and charts  (not printed)", font(10, b=True, color=GREEN), al=Alignment(vertical="bottom"))
 GOV_ANCHOR = f"{hc(0)}8"
+# geometry for the add-in: {span, overhang}; overhang only when the support condition says so
+label(f"{hc(6)}7", "Geometry (span, overhang)", 7, GREY, i=True)
+out(f"{hc(6)}8", "=Span", "#,##0"); out(f"{hc(7)}8", '=IF(Support="Backspan + overhang",N(OverhangIn),0)', "#,##0")
+name("Geom", f"${hc(6)}$8:${hc(7)}$8"); name("Overhang", f"${hc(7)}$8")
 label(f"{hc(0)}7", "Governing (OAR.GOVERNING)", 7, GREY, i=True)
 dyn(GOV_ANCHOR, f"=OAR.GOVERNING({ARGS_ULS})")
 ENV_ANCHOR = f"{hc(0)}13"; DEF_ANCHOR = f"{hc(6)}13"
@@ -674,8 +684,8 @@ for cell, prop in SECTION_PROP_CELLS:
 NPTS = 60
 label(f"{hc(0)}12", "Envelope (OAR.ENVELOPE)", 7, GREY, i=True)
 label(f"{hc(6)}12", "Deflected shapes (OAR.DEFLECTIONS)", 7, GREY, i=True)
-dyn(ENV_ANCHOR, f"=OAR.ENVELOPE(SectionSize,Span,IncludeSW,{LOADS},{COMBOS},{NPTS})")
-dyn(DEF_ANCHOR, f"=OAR.DEFLECTIONS(SectionSize,Span,E_mod,IncludeSW,{LOADS},PsiL,PsiS,{NPTS},ShearDefl)")
+dyn(ENV_ANCHOR, f"=OAR.ENVELOPE(SectionSize,Geom,IncludeSW,{LOADS},{COMBOS},{NPTS})")
+dyn(DEF_ANCHOR, f"=OAR.DEFLECTIONS(SectionSize,Geom,E_mod,IncludeSW,{LOADS},PsiL,PsiS,{NPTS},ShearDefl)")
 
 def chart(title, xcol, ycols, first_row, ytitle, reverse, colors, w=17.6, h=5.6, names=None):
     """Scatter chart over a fixed block: x in xcol, series in ycols, data rows first_row .. first_row + NPTS.
@@ -737,9 +747,12 @@ ws.row_breaks.append(Break(id=r - 1))
 heading(r, "Serviceability Checks")
 out_header(r + 1, "BCDEFG", ["Case", "Δ max (mm)", "at x (mm)", "Limit (mm)", "L / Δ", "Utilisation"])
 SLS_ANCHOR = f"B{r+2}"
-dyn(SLS_ANCHOR, f"=OAR.SLS(SectionSize,Span,E_mod,IncludeSW,{LOADS},{CRIT_RANGE},PsiL,PsiS,ShearDefl)")
-spill_format(r + 2, r + 6, "BCDEFG", [None, "0.00", "#,##0", "0.00", '"L/"0', "0%"], util_col="G")
-label(f"H{r+2}", "Δ1kN: 1 kN at midspan,", 7, GREY); label(f"H{r+3}", "beam alone", 7, GREY)
+dyn(SLS_ANCHOR, f"=OAR.SLS(SectionSize,Geom,E_mod,IncludeSW,{LOADS},{CRIT_RANGE},PsiL,PsiS,ShearDefl)")
+spill_format(r + 2, r + 11, "BCDEFG", [None, "0.00", "#,##0", "0.00", '"L/"0', "0%"], util_col="G")
+name("OAR_Flex_SLS", f"$B${r+2}:$B${r+11}")
+label(f"H{r+2}", "Δ1kN: 1 kN at midspan (tip),", 7, GREY); label(f"H{r+3}", "beam alone", 7, GREY)
+label(f"H{r+4}", "Overhang: span rows then tip rows;", 7, GREY); label(f"H{r+5}", "Q also on backspan / overhang only", 7, GREY)
+r = r + 5
 label(f"B{r+8}", "Deflected shapes (mm, plotted downward;  x in m)", 8, GREEN, b=True)
 ws.add_chart(chart("", DEF_BLOCK, [DEF_BLOCK + 1, DEF_BLOCK + 2, DEF_BLOCK + 3, DEF_BLOCK + 4], 13, "δ (mm)", True,
                    [GREEN, "8FA89C", TAUPE, "595959"], h=5.4, names=["Δg", "Δg+ψl·q", "Δg+ψs·q", "Δq"]), f"B{r+9}")
@@ -755,12 +768,12 @@ out_header(r, "BCDEFGHIJ", ["Combo", "Segment (m)", "Flange · ends", "Le (m)", 
 ws.row_dimensions[r].height = 16
 ULS_ANCHOR = f"B{r+1}"
 dyn(ULS_ANCHOR, f"=OAR.ULS({ARGS_ULS})")
-name("OAR_Flex_ULS", f"$B${r+1}:$B${r+16}")
-spill_format(r + 1, r + 16, "BCDEFGHIJ", [None, None, None, "0.00", "0.000", "0.000", "0.0", "0.0", "0%"], util_col="J")
-ws.conditional_formatting.add(f"C{r+1}:C{r+16}", Rule(type="expression", formula=[f'RIGHT(C{r+1},1)="*"'],
+name("OAR_Flex_ULS", f"$B${r+1}:$B${r+36}")
+spill_format(r + 1, r + 36, "BCDEFGHIJ", [None, None, None, "0.00", "0.000", "0.000", "0.0", "0.0", "0%"], util_col="J")
+ws.conditional_formatting.add(f"C{r+1}:C{r+36}", Rule(type="expression", formula=[f'RIGHT(C{r+1},1)="*"'],
     dxf=DifferentialStyle(font=Font(color="9C5700", bold=True))))
-label(f"B{r+17}", "* αm or kl overridden in the restraints table.   Full working for the governing segment follows.", 7, GREY, i=True)
-r = r + 19
+label(f"B{r+37}", "* αm or kl overridden in the restraints table.   Full working for the governing segment follows.", 7, GREY, i=True)
+r = r + 39
 ws.row_breaks.append(Break(id=r - 1))
 
 heading(r, "Governing Segment – Working")
@@ -778,12 +791,12 @@ r = r + 25
 heading(r, "Shear (AS 4100 Cl. 5.11)")
 out_header(r + 1, "BCDEFG", ["Combo", "V* (kN)", "at x (m)", "φVv (kN)", "Utilisation", "Note"])
 SH_ANCHOR = f"B{r+2}"
-dyn(SH_ANCHOR, f"=OAR.SHEAR(SectionSize,Grade,Span,IncludeSW,{LOADS},{COMBOS})")
-name("OAR_Flex_Shear", f"$B${r+2}:$B${r+9}")
-spill_format(r + 2, r + 9, "BCDEF", [None, "0.0", "0.00", "0.0", "0%"], util_col="F")
-for rr in range(r + 2, r + 10):
+dyn(SH_ANCHOR, f"=OAR.SHEAR(SectionSize,Grade,Geom,IncludeSW,{LOADS},{COMBOS})")
+name("OAR_Flex_Shear", f"$B${r+2}:$B${r+17}")
+spill_format(r + 2, r + 17, "BCDEF", [None, "0.0", "0.00", "0.0", "0%"], util_col="F")
+for rr in range(r + 2, r + 18):
     ws[f"G{rr}"].font = font(7, color="9C5700"); ws[f"G{rr}"].alignment = L
-r = r + 11
+r = r + 19
 
 # ---------------- Support reactions (named for transfer to other beams) ----------------
 heading(r, "Support Reactions")
@@ -796,8 +809,8 @@ RXA = f"_xlfn.ANCHORARRAY({RX_ANCHOR})"
 put(f"B{rx}", "Case", font(8, b=True), F_HDR, None, C); ws.merge_cells(f"B{rx}:D{rx+1}")
 for c1, c2, txt in [("E", "F", "No Dir"), ("G", "H", "Cross"), ("I", "J", "Long")]:
     put(f"{c1}{rx}", txt, font(8, b=True), F_HDR, None, C); ws[f"{c2}{rx}"].fill = F_HDR; ws.merge_cells(f"{c1}{rx}:{c2}{rx}")
-    put(f"{c1}{rx+1}", "Left (kN)", font(8, b=True), F_HDR, None, C)
-    put(f"{c2}{rx+1}", "Right (kN)", font(8, b=True), F_HDR, None, C)
+    put(f"{c1}{rx+1}", "A (kN)", font(8, b=True), F_HDR, None, C)
+    put(f"{c2}{rx+1}", "B (kN)", font(8, b=True), F_HDR, None, C)
 for cc in "CD":
     ws[f"{cc}{rx}"].fill = F_HDR
 for k, case in enumerate(["G", "Q", "Wd", "Wu"]):
@@ -821,9 +834,11 @@ label(f"B{rx+6}", "Names: RxnL_<case> / RxnR_<case>, plus _Cross or _Long for a 
       "No Dir shows – once wind loads have a Dir.", 7, GREY, i=True)
 r = rx + 7
 label(f"B{r}", "All cases and active combinations (kN, + = upward reaction; uplift cases show negative)", 7, GREY, i=True)
-out_header(r + 1, "BCD", ["ID", "Left (kN)", "Right (kN)"])
+out_header(r + 1, "BCD", ["ID", "A (kN)", "B (kN)"])
+eq_f = f'=IF(Overhang>0,IFERROR("Equilibrium EQ (Cl. 4.2.1), reaction at A: "&TEXT(INDEX({RXA},MATCH("EQ",INDEX({RXA},0,1),0),2),"0.00")&" kN"&IF(INDEX({RXA},MATCH("EQ",INDEX({RXA},0,1),0),2)<0,"  – HOLD-DOWN REQUIRED",""),""),"")'
+dyn(f"F{r+1}", eq_f, None, font(8, b=True, color="9C5700"), L)
 assert r + 2 == RX_ROW
-dyn(RX_ANCHOR, f"=OAR.REACTIONS(SectionSize,Span,IncludeSW,{LOADS},{COMBOS})")
+dyn(RX_ANCHOR, f"=OAR.REACTIONS(SectionSize,Geom,IncludeSW,{LOADS},{COMBOS})")
 spill_format(r + 2, r + 31, "BCD", [None, "0.00", "0.00"])
 name("OAR_Flex_Reactions", f"$B${r+2}:$B${r+31}")
 name("Out_Reactions", f"$B${r+2}")
@@ -833,10 +848,18 @@ lastrow = r + 32
 dyn("B7", '=IFERROR("Calculated with "&OAR.VERSION(),"OAR Steel add-in not loaded")', None, font(7, i=True, color=GREY), L)
 
 # ---------------- Summary cells wired to add-in results ----------------
+SLSG_ANCHOR = f"{hc(0)}80"
+label(f"{hc(0)}79", "Serviceability, worse of span / tip (OAR.SLS governing)", 7, GREY, i=True)
+dyn(SLSG_ANCHOR, f"=OAR.SLS(SectionSize,Geom,E_mod,IncludeSW,{LOADS},{CRIT_RANGE},PsiL,PsiS,ShearDefl,\"governing\")")
+SG = f"_xlfn.ANCHORARRAY({SLSG_ANCHOR})"
 sls_map = {"Res_Dg": 1, "Res_Dl": 2, "Res_Ds": 3, "Res_Dq": 4, "Res_D1": 5}
 for nm, k in sls_map.items():
     cell = names[nm].replace("$", "")
-    dyn(cell, f"=INDEX(_xlfn.ANCHORARRAY({SLS_ANCHOR}),{k},2)", "0.00").fill = F_OUT
+    dyn(cell, f"=INDEX({SG},{k},2)", "0.00").fill = F_OUT
+for srow, k in SLS_DEFL_ROWS:
+    dyn(f"F{srow}", f"=INDEX({SG},{k + 1},4)", "0.00").fill = F_OUT
+    dyn(f"H{srow}", f'=IFERROR(INDEX({SG},{k + 1},5),"")', '"L/"0').fill = F_OUT
+    dyn(f"B{srow}", f'=IFERROR(INDEX({SG},{k + 1},1),"")', None, font(9), C)
 gov_map = {"Res_Mdn": (1, 2), "Res_phiMdn": (1, 3), "Res_Mup": (2, 2), "Res_phiMup": (2, 3), "Res_V": (3, 2), "Res_phiV": (3, 3)}
 for nm, (i, j) in gov_map.items():
     cell = names[nm].replace("$", "")
