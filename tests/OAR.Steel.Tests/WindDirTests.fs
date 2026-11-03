@@ -5,7 +5,7 @@ open OAR.Steel
 open Helpers
 
 let private span = 8300.0
-let private beam = { Span = span; EI = 200000.0 * 86.4e6 }
+let private beam = Beam.simple (span) (200000.0 * 86.4e6)
 
 let private grid (rows: string list list) =
     let r = rows.Length
@@ -97,6 +97,9 @@ let tests =
               let cs = Inputs.combinations g
               Expect.equal cs.[0].Dir "Cross" "dir"
               Expect.equal cs.[1].Dir "" "blank"
+              // FILTER spills a blank Dir cell as 0: read as no direction
+              let z = Inputs.combinations (grid [ [ "ULS5"; "Wind"; "0.9G + Wu"; "0.9"; "0"; "0"; "1"; "0" ] ])
+              Expect.equal z.Head.Dir "" "0 = no Dir"
           }
 
           test "directions are checked separately, never added" {

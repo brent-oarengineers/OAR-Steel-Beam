@@ -6,7 +6,7 @@ open Helpers
 
 let private span = 8300.0
 let private ei = 200000.0 * 86.4e6 // 310UB40.4
-let private beam = { Span = span; EI = ei }
+let private beam = Beam.simple (span) (ei)
 
 [<Tests>]
 let tests =

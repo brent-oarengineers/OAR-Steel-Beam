@@ -88,19 +88,44 @@ type Flange =
     | Top
     | Bottom
 
+/// Different factors for loads lying outside the supports (on an overhang): used for pattern loading
+/// (Q on the backspan or the overhang only) and the equilibrium combination (0.9G backspan, 1.2G overhang).
+type Outside =
+    { /// supports: loads between A and B use the combination's own factors, loads beyond them use these
+      A: float
+      B: float
+      Factors: Map<LoadCase, float> }
+
 /// A load combination: factors on each case (all positive) and the critical flange
 /// that selects the restraint set for member bending checks. Dir = wind direction the combination
 /// applies to: its wind factors pick up loads tagged with that direction plus untagged wind loads.
 type Combination =
     { Id: string
       Description: string
+      /// Not used by the checks any more (compression flange comes from the moment sign); kept for older sheets
       CriticalFlange: Flange
       Factors: Map<LoadCase, float>
-      Dir: string }
+      Dir: string
+      /// factors for loads beyond the supports; None = the same factors everywhere
+      Outside: Outside option
+      /// false = equilibrium check only (reactions / hold-down), not used for member strength
+      Strength: bool }
 
 module Combination =
     let factor (c: Combination) (lc: LoadCase) =
         c.Factors.TryFind lc |> Option.defaultValue 0.0
+
+    /// Factor on case lc for load at position x (mm), allowing for different factors beyond the supports
+    let factorAt (c: Combination) (lc: LoadCase) (x: float) =
+        match c.Outside with
+        | Some o when x < o.A - 1e-6 || x > o.B + 1e-6 -> o.Factors.TryFind lc |> Option.defaultValue 0.0
+        | _ -> factor c lc
+
+    /// Largest factor on lc anywhere along the beam (for checks that only need to know a case is present)
+    let factorAny (c: Combination) (lc: LoadCase) =
+        match c.Outside with
+        | Some o -> max (factor c lc) (o.Factors.TryFind lc |> Option.defaultValue 0.0)
+        | None -> factor c lc
 
     /// A combination with factor 1.0 on one case only (for unfactored case results)
     let single (lc: LoadCase) : Combination =
@@ -108,7 +133,9 @@ module Combination =
           Description = LoadCase.name lc
           CriticalFlange = Top
           Factors = Map.ofList [ lc, 1.0 ]
-          Dir = "" }
+          Dir = ""
+          Outside = None
+          Strength = true }
 
     /// One wind case in one direction, factor 1.0, id e.g. "Wu Cross"
     let singleDir (lc: LoadCase) (dir: string) : Combination =
@@ -120,11 +147,15 @@ module Combination =
               Description = LoadCase.name lc + " " + d
               CriticalFlange = Top
               Factors = Map.ofList [ lc, 1.0 ]
-              Dir = d }
+              Dir = d
+              Outside = None
+              Strength = true }
 
     let ofFactors id (factors: (LoadCase * float) list) : Combination =
         { Id = id
           Description = id
           CriticalFlange = Top
           Factors = Map.ofList factors
-          Dir = "" }
+          Dir = ""
+          Outside = None
+          Strength = true }
