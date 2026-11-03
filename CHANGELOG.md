@@ -3,6 +3,16 @@
 Each version that reaches `main` is built, tested and published automatically as a GitHub Release.
 The calc sheet shows the version it was calculated with (title block, under the green bar).
 
+## v0.5.0 – two-span continuous beams
+- **Support condition "Two-span continuous"**: supports A (x = 0), B (x = span 1) and C (x = span 1 + span 2). Span 2 is entered in the "Overhang (tip) / span 2" cell; the add-in takes `span` as three cells {span 1, overhang, span 2} (the sheet's `Geom` range is now three cells; one- and two-cell ranges still work, so existing sheets are unchanged).
+- **Analysis:** the interior reaction comes from the flexibility method (release B, restore zero deflection there), so reactions, V, M and δ are exact closed forms, as for the simply supported and overhang cases. Checked against 3wL/8 – 10wL/8 – 3wL/8, M_B = −wL²/8, 9wL²/128 at 3L/8, δmax 0.00542 wL⁴/EI, the point-load case (13/32, 11/16, −3/32 P; 23PL³/1536EI) and the three-moment equation for unequal spans.
+- **Pattern loading:** each combination with Q is also checked with Q on span 1 only (`-span1`) and span 2 only (`-span2`) in ULS, shear, envelope and reactions; the full pattern gives the largest hogging at B, one span loaded the largest span moment and the uplift at the far end.
+- **ULS:** support B must be listed in the restraints table (F, P or C for both flanges); segments for both flanges end there. The hogging region over B is checked on the bottom flange with αm from the whole segment and a note that the moment reverses, as for the backspan of an overhang beam.
+- **SLS:** the five checks for span 1, then span 2 ("… span 2", L = span 2), with Q on both spans and on each span alone, and Δ1kN at the middle of each span. The summary shows the worse span per case.
+- **Reactions:** A, B and C. The per-case table is now one row per case and wind direction (rows for unused directions are blank and hidden on print), with columns A | B | C. Names: RxnL_ = A, RxnR_ = the right-end support (B, or C on two spans), new RxnB_ = support B.
+- Restraints table: the row after B becomes support C (F, F) on a two-span beam. The combinations note explains the -span1 / -span2 variants.
+- Not yet: two spans with an overhang, three or more spans (the engine analyses them but pattern loading is set up for two spans only).
+
 ## v0.4.1
 - Fix: a blank Dir in the printed combinations (spilled by FILTER as 0) was read as a wind direction "0", giving "Wd 0" / "Wu 0" reaction rows; Dir is now read as text only and the 0 is hidden on the sheet.
 - Print tidy-up: the hidden rows now come back as soon as the print or PDF export finishes (previously they stayed hidden until the next edit, so a blank load row couldn't be reached).

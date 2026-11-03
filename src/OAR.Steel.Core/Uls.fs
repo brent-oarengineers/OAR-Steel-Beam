@@ -164,14 +164,14 @@ module Uls =
         let at x =
             restrained |> List.tryFind (fun (p, _) -> abs (p.X - x) <= tol)
 
-        let isSupport x = abs (x - beam.SupportA) <= tol || abs (x - beam.SupportB) <= tol
+        let sups = Beam.supports beam
+        let isSupport x = sups |> List.exists (fun xs -> abs (x - xs) <= tol)
         let describe x =
-            if abs (x - beam.SupportA) <= tol then "support A"
-            elif abs (x - beam.SupportB) <= tol then "support B"
-            elif x <= tol then "left end"
-            else "right end (tip)"
+            match sups |> List.tryFindIndex (fun xs -> abs (x - xs) <= tol) with
+            | Some i -> sprintf "support %c" (char (int 'A' + i))
+            | None -> if x <= tol then "left end" else "right end (tip)"
 
-        for x in List.distinct [ 0.0; beam.SupportA; beam.SupportB; span ] do
+        for x in List.distinct ([ 0.0; span ] @ sups) do
             match at x with
             | None ->
                 failwithf "restraints: the %s (x = %g) must be listed with a restraint to the %s flange" (describe x) x (flangeName flange)
@@ -297,7 +297,7 @@ module Uls =
                   else
                       for (p1, t1), (p2, t2raw) in segments beam flange pts do
                           // a C at the far end starts continuous restraint there: it acts as F at a support, L elsewhere
-                          let isSup x = abs (x - beam.SupportA) <= 1.0 || abs (x - beam.SupportB) <= 1.0
+                          let isSup x = Beam.supports beam |> List.exists (fun xs -> abs (x - xs) <= 1.0)
                           let t2 = if t2raw = RC then (if isSup p2.X then RF else RL) else t2raw
                           if t1 = RC then
                               // C on the starting row: this length of the flange is continuously restrained

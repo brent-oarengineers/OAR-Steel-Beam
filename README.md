@@ -44,9 +44,10 @@ If the build complains about a package version, update `ExcelDna.AddIn` / `Expec
 
 ## 3. Functions (v0.1)
 
-All lengths mm. `span` is one cell (simply supported) or two cells {backspan, overhang}: supports at 0 and the backspan,
-tip at backspan + overhang. With an overhang, combinations with Q get -span / -cant pattern variants and EQ
-(equilibrium, reactions only) is added. Section properties use catalogue units (×10⁶ mm⁴ etc.). Errors appear as `#OAR! message`.
+All lengths mm. `span` is one cell (simply supported), two cells {backspan, overhang}: supports at 0 and the backspan,
+tip at backspan + overhang, or three cells {span 1, overhang, span 2}: a two-span continuous beam with supports A at 0,
+B at span 1 and C at span 1 + span 2 (overhang must then be 0). With an overhang, combinations with Q get -span / -cant
+pattern variants and EQ (equilibrium, reactions only) is added; with two spans they get -span1 / -span2 (Q on one span only). Section properties use catalogue units (×10⁶ mm⁴ etc.). Errors appear as `#OAR! message`.
 
 | Function | Returns |
 |---|---|
@@ -153,7 +154,10 @@ a text editor and rebuild; units are as printed in the catalogue.
 
 ## 6. Assumptions in v0.1 (check these)
 
-- Simply supported, or backspan + one overhang (right). Deflection limit for the tip uses L = 2 × overhang. E default 200 000 MPa, G = 80 000 MPa, g = 9.81 for self-weight.
+- Simply supported, backspan + one overhang (right), or two-span continuous (no overhang). Deflection limit for the tip uses
+  L = 2 × overhang; on two spans each span is checked with L = that span. Two-span analysis: flexibility method on the
+  interior support (exact for the beam theory, with shear deformation when it is switched on for deflections; reactions and
+  ULS actions use bending only), uniform section over both spans. E default 200 000 MPa, G = 80 000 MPa, g = 9.81 for self-weight.
 - Section capacity: Table 5.2 limits – flange outstand λep/λey 9/16 (HR) or 8/14 (WB, HW);
   web 82/115. Slender: Ze = Z(λsy/λs) for flange, Z(λsy/λs)² for web.
 - Shear: Aw = d·tw (hot-rolled) or (d−2tf)·tw (WB); αv = (82/λw)² when λw > 82; no shear–bending
@@ -164,4 +168,4 @@ a text editor and rebuild; units are as printed in the catalogue.
 ## Not yet covered
 
 Shear–bending interaction (flagged only), bearing / web crippling, kl automation from load position,
-cantilevers and continuous spans, hollow sections, UC data.
+three or more spans, two spans with an overhang, hollow sections (RHS / SHS planned).

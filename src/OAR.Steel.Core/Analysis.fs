@@ -10,12 +10,14 @@ type BeamLoad =
 
 /// Beam of total length Span on two simple supports at SupportA < SupportB (anywhere from 0 to Span,
 /// so either end may overhang). A plain simply supported beam has the supports at 0 and Span.
-/// GAs = shear stiffness G·As (N) for shear deformation in deflections; 0 = bending only.
+/// Interior = further simple supports between A and B (continuous beam, e.g. two spans); empty for a
+/// statically determinate beam. GAs = shear stiffness G·As (N) for shear deformation in deflections; 0 = bending only.
 type Beam =
     { Span: float
       EI: float
       SupportA: float
       SupportB: float
+      Interior: float list
       GAs: float }
 
 module Beam =
@@ -25,6 +27,7 @@ module Beam =
           EI = ei
           SupportA = 0.0
           SupportB = span
+          Interior = []
           GAs = 0.0 }
 
     /// Supports at xa and xb (overhangs beyond them)
@@ -35,6 +38,24 @@ module Beam =
           EI = ei
           SupportA = xa
           SupportB = xb
+          Interior = []
+          GAs = 0.0 }
+
+    /// Continuous beam with end supports at 0 and span and interior supports at the given positions
+    /// (one interior support = two spans). No overhangs.
+    let continuous (span: float) (ei: float) (interior: float list) : Beam =
+        let xs = List.sort interior
+        if xs.IsEmpty then failwith "continuous beam: give at least one interior support"
+        for x in xs do
+            if not (x > 1.0 && x < span - 1.0) then
+                failwithf "continuous beam: interior support at x = %g must lie between the end supports (0 and %g)" x span
+        for x1, x2 in List.pairwise xs do
+            if x2 - x1 <= 1.0 then failwithf "continuous beam: interior supports at %g and %g coincide" x1 x2
+        { Span = span
+          EI = ei
+          SupportA = 0.0
+          SupportB = span
+          Interior = xs
           GAs = 0.0 }
 
     /// Include shear deformation in deflections, with shear stiffness G·As (N)
@@ -43,8 +64,16 @@ module Beam =
     /// Shear area used for I-sections: clear web (d - 2tf)·tw (mm²)
     let shearArea (s: Section) = (s.d - 2.0 * s.tf) * s.tw
 
-    /// Distance between the supports
+    /// Distance between the end supports (the whole length between A and B on a continuous beam)
     let backspan (b: Beam) = b.SupportB - b.SupportA
+
+    /// Every support position, left to right
+    let supports (b: Beam) = b.SupportA :: b.Interior @ [ b.SupportB ]
+
+    /// The spans between consecutive supports, (start, end) in mm
+    let spans (b: Beam) = supports b |> List.pairwise
+
+    let isContinuous (b: Beam) = not b.Interior.IsEmpty
 
 /// Statics and elastic deflection of a beam on two simple supports (with or without overhangs).
 /// Sign convention: loads and deflection positive downward; sagging moment positive;
@@ -93,8 +122,8 @@ module Analysis =
                     let p = v x
                     if p = 0.0 then [] else [ Conc(p, x) ])
 
-    /// Support reactions (A, B), positive upward, N, by moments about each support
-    let reactions (beam: Beam) (acts: BeamLoad list) =
+    /// End-support reactions (A, B) of the beam treated as statically determinate on A and B only
+    let private detReactions (beam: Beam) (acts: BeamLoad list) =
         let xa = beam.SupportA
         let lab = Beam.backspan beam
         let total, momA =
@@ -110,9 +139,8 @@ module Analysis =
         let rb = momA / lab
         total - rb, rb
 
-    /// Shear force at x (N), just to the right of any point load or support located exactly at x
-    let shear (beam: Beam) (acts: BeamLoad list) (x: float) =
-        let ra, rb = reactions beam acts
+    let private detShear (beam: Beam) (acts: BeamLoad list) (x: float) =
+        let ra, rb = detReactions beam acts
         let fromSupports = (if beam.SupportA <= x then ra else 0.0) + (if beam.SupportB <= x then rb else 0.0)
         acts
         |> List.fold
@@ -124,9 +152,8 @@ module Analysis =
                     if e > a then v - w * (e - a) else v)
             fromSupports
 
-    /// Bending moment at x (N.mm), sagging positive
-    let moment (beam: Beam) (acts: BeamLoad list) (x: float) =
-        let ra, rb = reactions beam acts
+    let private detMoment (beam: Beam) (acts: BeamLoad list) (x: float) =
+        let ra, rb = detReactions beam acts
         let fromSupports =
             (if x > beam.SupportA then ra * (x - beam.SupportA) else 0.0)
             + (if x > beam.SupportB then rb * (x - beam.SupportB) else 0.0)
@@ -152,10 +179,8 @@ module Analysis =
                 | Dist(w, a, b) -> f - w * (mac a 4 - mac b 4) / 24.0)
             fromSupports
 
-    /// Deflection at x (mm), positive downward: δ'' = -M/EI with δ = 0 at both supports,
-    /// plus shear deformation δs' = V/GAs when the beam has a shear stiffness.
-    let deflection (beam: Beam) (acts: BeamLoad list) (x: float) =
-        let ra, rb = reactions beam acts
+    let private detDeflection (beam: Beam) (acts: BeamLoad list) (x: float) =
+        let ra, rb = detReactions beam acts
         let f = doubleIntegralM beam ra rb acts
         let xa, xb = beam.SupportA, beam.SupportB
         let fa, fb = f xa, f xb
@@ -165,12 +190,81 @@ module Analysis =
         let bending = (-(f x) + c1 * x + c0) / beam.EI
         if beam.GAs > 0.0 then
             // ∫V dx = M, so δs = (M(x) - the straight line through M at the two supports) / GAs
-            let m = moment beam acts
+            let m = detMoment beam acts
             let ma, mb = m xa, m xb
             let mLine = ma + (mb - ma) * (x - xa) / (xb - xa)
             bending + (m x - mLine) / beam.GAs
         else
             bending
+
+    /// Solve the small dense system a·x = b (Gaussian elimination, partial pivoting)
+    let private solve (a: float[,]) (b: float[]) =
+        let n = b.Length
+        let m = Array2D.copy a
+        let v = Array.copy b
+        for k in 0 .. n - 1 do
+            let piv = seq { k .. n - 1 } |> Seq.maxBy (fun i -> abs m.[i, k])
+            if abs m.[piv, k] < 1e-300 then failwith "continuous beam: singular support system"
+            if piv <> k then
+                for j in 0 .. n - 1 do
+                    let t = m.[k, j]
+                    m.[k, j] <- m.[piv, j]
+                    m.[piv, j] <- t
+                let t = v.[k]
+                v.[k] <- v.[piv]
+                v.[piv] <- t
+            for i in k + 1 .. n - 1 do
+                let f = m.[i, k] / m.[k, k]
+                for j in k .. n - 1 do
+                    m.[i, j] <- m.[i, j] - f * m.[k, j]
+                v.[i] <- v.[i] - f * v.[k]
+        let x = Array.zeroCreate n
+        for i in n - 1 .. -1 .. 0 do
+            let mutable sum = v.[i]
+            for j in i + 1 .. n - 1 do
+                sum <- sum - m.[i, j] * x.[j]
+            x.[i] <- sum / m.[i, i]
+        x
+
+    /// Interior support reactions (N, positive upward), by the flexibility method: release the interior
+    /// supports, then choose the reactions that bring the deflection back to zero at each one. The same
+    /// deflection function (with shear deformation when GAs > 0) gives both the release deflections and
+    /// the flexibilities, so the result is exact for the beam theory used.
+    let interiorReactions (beam: Beam) (acts: BeamLoad list) : float list =
+        match beam.Interior with
+        | [] -> []
+        | xs ->
+            let xa = List.toArray xs
+            let n = xa.Length
+            let d0 = xa |> Array.map (detDeflection beam acts)
+            let f = Array2D.init n n (fun i j -> detDeflection beam [ Conc(1.0, xa.[j]) ] xa.[i])
+            solve f d0 |> Array.toList
+
+    /// The actions plus the interior support reactions as upward point loads, so that the beam can be
+    /// treated as determinate on its end supports
+    let private withInterior (beam: Beam) (acts: BeamLoad list) =
+        match beam.Interior with
+        | [] -> acts
+        | xs -> acts @ List.map2 (fun x r -> Conc(-r, x)) xs (interiorReactions beam acts)
+
+    /// End-support reactions (A, B), positive upward, N. On a continuous beam the interior supports carry
+    /// the rest (interiorReactions; supportReactions gives them all in order).
+    let reactions (beam: Beam) (acts: BeamLoad list) = detReactions beam (withInterior beam acts)
+
+    /// Every support reaction, left to right: (x mm, R N positive upward)
+    let supportReactions (beam: Beam) (acts: BeamLoad list) =
+        let ra, rb = reactions beam acts
+        (beam.SupportA, ra) :: List.zip beam.Interior (interiorReactions beam acts) @ [ beam.SupportB, rb ]
+
+    /// Shear force at x (N), just to the right of any point load or support located exactly at x
+    let shear (beam: Beam) (acts: BeamLoad list) (x: float) = detShear beam (withInterior beam acts) x
+
+    /// Bending moment at x (N.mm), sagging positive
+    let moment (beam: Beam) (acts: BeamLoad list) (x: float) = detMoment beam (withInterior beam acts) x
+
+    /// Deflection at x (mm), positive downward: δ'' = -M/EI with δ = 0 at every support,
+    /// plus shear deformation δs' = V/GAs when the beam has a shear stiffness.
+    let deflection (beam: Beam) (acts: BeamLoad list) (x: float) = detDeflection beam (withInterior beam acts) x
 
     /// Location and value of the largest |f(x)| between lo and hi.
     /// Samples the interval, adds load boundary points, then refines with golden-section search.
@@ -210,7 +304,7 @@ module Analysis =
 
     /// Load breakpoints plus the support positions (where M and V change form)
     let breakpointsOn (beam: Beam) (acts: BeamLoad list) =
-        beam.SupportA :: beam.SupportB :: breakpoints acts
+        beam.SupportA :: beam.SupportB :: beam.Interior @ breakpoints acts
 
     /// Maximum deflection (location mm, value mm) for a set of actions
     let maxDeflection (beam: Beam) (acts: BeamLoad list) =
@@ -289,9 +383,29 @@ module Patterns =
           Factors = factors }
 
     /// Every strength combination that includes Q, plus the same with Q on the backspan only ("-span")
-    /// and on the overhang only ("-cant"). Unchanged when there is no overhang.
+    /// and on the overhang only ("-cant"). On a two-span continuous beam: Q on span 1 only ("-span1") and on
+    /// span 2 only ("-span2"), which give the largest span moments and deflections (the full pattern gives the
+    /// largest hogging at the interior support). Unchanged for a simply supported beam.
     let expand (beam: Beam) (combos: Combination list) : Combination list =
-        if not (hasOverhang beam) then
+        if Beam.isContinuous beam then
+            let spans = Beam.spans beam
+            if spans.Length > 2 then
+                failwith "pattern loading is only set up for two spans (one interior support)"
+            combos
+            |> List.collect (fun c ->
+                let q = Combination.factor c Q
+                if q = 0.0 || c.Outside.IsSome then
+                    [ c ]
+                else
+                    let noQ = c.Factors.Remove Q
+                    c
+                    :: (spans
+                        |> List.mapi (fun i (a, b) ->
+                            { c with
+                                Id = sprintf "%s-span%d" c.Id (i + 1)
+                                Description = sprintf "%s (Q on span %d only)" c.Description (i + 1)
+                                Outside = Some { A = a; B = b; Factors = noQ } })))
+        elif not (hasOverhang beam) then
             combos
         else
             combos
