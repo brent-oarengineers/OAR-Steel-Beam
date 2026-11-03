@@ -3,7 +3,8 @@
 ///
 /// A block is a sheet-scoped name starting "OAR_Flex" that refers to one column of key cells
 /// (e.g. the ID column of the combinations spill). A row whose key cell shows nothing is hidden.
-/// The rows come back on the next edit to that sheet, or with OAR > Show all rows.
+/// The rows come back as soon as the print or PDF export finishes (queued until Excel is idle),
+/// on the next edit to that sheet, or with OAR > Show all rows.
 namespace OAR.Steel.Excel
 
 open System
@@ -88,8 +89,15 @@ module Layout =
     // keep the Application object alive so its event connections are not collected
     let mutable private hooked: Application = null
 
+    let restoreWorkbook (wb: Workbook) =
+        for ws in worksheets wb do
+            safely (fun () -> restoreSheet ws)
+
+    // Excel has no AfterPrint event: a macro queued from BeforePrint runs once Excel is idle again,
+    // i.e. after the print / PDF export has finished, so the hidden rows never outlive the printout.
     let private onBeforePrint (wb: Workbook) =
         safely (fun () -> tidyWorkbook wb)
+        safely (fun () -> ExcelAsyncUtil.QueueAsMacro(ExcelAction(fun () -> restoreWorkbook wb)))
 
     let private onSheetChange (sh: obj) =
         match sh with
@@ -122,7 +130,7 @@ type Ribbon() =
       <tab id="oarTab" label="OAR">
         <group id="oarSteelGroup" label="Steel beam">
           <button id="oarTidy" label="Tidy for print" onAction="OnTidy"
-                  screentip="Hide unused rows in the combination, load, restraint and result tables on this sheet. Printing does this automatically; your next edit brings the rows back." />
+                  screentip="Hide unused rows in the combination, load, restraint and result tables on this sheet. Printing does this automatically and shows the rows again afterwards." />
           <button id="oarShowAll" label="Show all rows" onAction="OnShowAll"
                   screentip="Unhide the rows hidden for printing on this sheet." />
         </group>
