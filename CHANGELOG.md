@@ -6,6 +6,7 @@ The calc sheet shows the version it was calculated with (title block, under the 
 ## v0.3.6
 - **kl by load direction** (replaces the per-flange kl and the moment-reversal rule from v0.3.3): each segment takes kl from the direction of the load acting on it, as Space Gass does. A downward load on the top flange acts towards the shear centre and is destabilising (kl 1.4, free tip 2.0); an upward load (wind uplift) acts away from it (kl 1.0); a segment with no load within it takes kl 1.0. Factor box: "kl" and "kl free tip" rows are now load ↓ | load ↑ (defaults 1.4 | 1.0 and 2.0 | 1.0); kr and Continuous stay per flange. ULSDETAIL states the basis. The † mark is gone.
 - **Free-tip αm (Table 5.6.2):** 1.25 only for a point load at the tip (within 5% of the overhang); distributed load or point loads along the overhang give 2.25. With a tip point load plus other load, 1.25 is adopted and the note gives a moment-weighted estimate (e.g. 1.69) to guide an override.
+- L at a free (cantilever) tip is an error, as in Space Gass: use U, or F / P if the tip is restrained against twist.
 - Benchmarked against Space Gass B4 (point load mid-overhang: αm 2.25, load factors 2.62 / 5.63) and B5 (uplift: kl 1.0, φMb 55.43, load factors 3.57 / 16.88).
 
 ## v0.3.5 – stage 2: cantilever segments

@@ -550,7 +550,7 @@ name("OAR_Flex_Combos", f"$B${ch+1}:$B${clast}")
 # ---------------- Lateral restraints ----------------
 r = clast + 1
 heading(r, "Lateral Restraints (AS 4100 Cl. 5.4)")
-label(f"B{r+1}", "Restraint type at each cross-section, per flange: F, P, L or U (– = none). Supports must be F or P; U only at a free (cantilever) tip.", 7, GREY, i=True)
+label(f"B{r+1}", "Restraint type at each cross-section, per flange: F, P, L or U (– = none). Supports must be F or P; a free (cantilever) tip U, F or P (not L).", 7, GREY, i=True)
 rh = r + 2
 rcols = ["x (mm)", "Ref", "Restraint provided by", "Top flange", "Bottom fl.", "αm top →", "αm bot. →", "kl top →", "kl bot. →"]
 for col, txt in zip("BCDEFGHIJ", rcols):

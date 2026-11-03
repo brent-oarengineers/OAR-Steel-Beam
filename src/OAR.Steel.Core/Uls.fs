@@ -171,6 +171,12 @@ module Uls =
                 failwithf "restraints: the %s must be F or P for the %s flange (got %s)" (describe x) (flangeName flange) (RestraintType.code t)
             | _ -> ()
 
+        // at a free end (cantilever tip) only U, F or P make sense: an L restraint holds one flange laterally but
+        // nothing prevents twist there, so it does not form a segment end (Space Gass refuses it too)
+        for p, t in restrained do
+            let freeEnd = (p.X <= tol || abs (p.X - span) <= tol) && not (isSupport p.X)
+            if t = RL && freeEnd then
+                failwithf "restraints: L for the %s flange at the free end (x = %g) is not a valid segment end – use U, or F / P if the tip is also restrained against twist" (flangeName flange) p.X
         // U (unrestrained) is only valid at a free end, i.e. the tip of a cantilever beyond a support
         for p, t in restrained do
             if t = RU then

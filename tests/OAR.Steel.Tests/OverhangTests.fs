@@ -235,6 +235,9 @@ let tests =
               Expect.throws
                   (fun () -> run [ pt 0.0 (Some RF) (Some RF); pt lb (Some RL) (Some RF); pt (lb + a) (Some RF) (Some RF) ])
                   "support B must be F or P"
+              Expect.throws
+                  (fun () -> run [ pt 0.0 (Some RF) (Some RF); pt lb (Some RF) (Some RF); pt (lb + a) (Some RL) (Some RU) ])
+                  "L at a free end is not allowed (as Space Gass)"
           }
 
           // Space Gass 12.28 (AS 4100-1998), B2 C2, overhang 6–8 m with the tip unrestrained (FU):
