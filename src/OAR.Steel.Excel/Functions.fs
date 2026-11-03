@@ -9,7 +9,7 @@ open OAR.Steel
 [<Literal>]
 let Category = "OAR Steel"
 
-let private version = "0.3.1"
+let private version = "0.3.2"
 
 // ---------- conversion helpers ----------
 
@@ -93,6 +93,10 @@ let private loadsWithSW (sec: Section) (span: float) (includeSW: obj) (loads: ob
     let ls = Inputs.loads span (grid loads)
     let sw = if isMissing includeSW then true else Inputs.yesNo (toCell includeSW)
     if sw then Analysis.selfWeightLoad sec :: ls else ls
+
+/// Shear deformation in deflections when the [shearDefl] argument is Yes (G·As, As = clear web)
+let private withShearOpt (sec: Section) (o: obj) (b: Beam) =
+    if not (isMissing o) && Inputs.yesNo (toCell o) then Beam.withShear (Units.G_MPa * Beam.shearArea sec) b else b
 
 // ---------- functions ----------
 
@@ -178,11 +182,12 @@ let oarSLS
     ([<ExcelArgument(Name = "criteria", Description = "5x2 range: span ratio | max mm")>] criteria: obj)
     ([<ExcelArgument(Name = "psiL")>] psiL: obj)
     ([<ExcelArgument(Name = "psiS")>] psiS: obj)
+    ([<ExcelArgument(Name = "[shearDefl]", Description = "Yes = include shear deformation (default No)")>] shearDefl: obj)
     : obj =
     guard (fun () ->
         let s = section designation
         let l = num "span" span
-        let beam = Beam.simple (l) (numOr "E" Units.E_MPa e * s.Ix)
+        let beam = Beam.simple (l) (numOr "E" Units.E_MPa e * s.Ix) |> withShearOpt s shearDefl
         let ls = loadsWithSW s l includeSW loads
         let crit = Inputs.deflectionCriteria (grid criteria)
         let res = Serviceability.check beam ls crit (num "psiL" psiL) (num "psiS" psiS)
@@ -207,11 +212,12 @@ let oarDiagram
     ([<ExcelArgument(Name = "combos", Description = "Combinations table data range (ID..Dir: G Q Wd Wu, or older G..Wiu)")>] combos: obj)
     ([<ExcelArgument(Name = "comboId", Description = "e.g. ULS2, or a single case G, Q, Wu...")>] comboId: obj)
     ([<ExcelArgument(Name = "[points]", Description = "number of intervals (default 20)")>] points: obj)
+    ([<ExcelArgument(Name = "[shearDefl]", Description = "Yes = include shear deformation (default No)")>] shearDefl: obj)
     : obj =
     guard (fun () ->
         let s = section designation
         let l = num "span" span
-        let beam = Beam.simple (l) (numOr "E" Units.E_MPa e * s.Ix)
+        let beam = Beam.simple (l) (numOr "E" Units.E_MPa e * s.Ix) |> withShearOpt s shearDefl
         let ls = loadsWithSW s l includeSW loads
         let id = str comboId
         // a single case, optionally with a wind direction ("Wu", "Wu Cross"), or a combination ID
@@ -562,12 +568,13 @@ let oarDeflections
     ([<ExcelArgument(Name = "psiL")>] psiL: obj)
     ([<ExcelArgument(Name = "psiS")>] psiS: obj)
     ([<ExcelArgument(Name = "[points]", Description = "intervals (default 60)")>] points: obj)
+    ([<ExcelArgument(Name = "[shearDefl]", Description = "Yes = include shear deformation (default No)")>] shearDefl: obj)
     : obj =
     guard (fun () ->
         let c = ctx designation (box 300.0) span e includeSW loads
         let n = max 2 (int (numOr "points" 60.0 points))
         let rows =
-            Serviceability.curves c.Beam c.Loads (num "psiL" psiL) (num "psiS" psiS) n
+            Serviceability.curves (withShearOpt c.Sec shearDefl c.Beam) c.Loads (num "psiL" psiL) (num "psiS" psiS) n
             |> List.map (fun (x, a, b, d, q) -> [ box (m1 x); box a; box b; box d; box q ])
         table ([ box "x (m)"; box "Δg"; box "Δg+ψl·q"; box "Δg+ψs·q"; box "Δq" ] :: rows))
 

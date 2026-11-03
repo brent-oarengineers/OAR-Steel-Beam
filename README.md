@@ -1,4 +1,4 @@
-# OAR Steel – Excel add-in (v0.3.1)
+# OAR Steel – Excel add-in (v0.3.2)
 
 F# / Excel-DNA add-in for the OAR steel beam calc sheet. Engineering lives in `OAR.Steel.Core`
 (no Excel references, fully testable); `OAR.Steel.Excel` only converts worksheet values.
@@ -53,7 +53,7 @@ All lengths mm. Section properties use catalogue units (×10⁶ mm⁴ etc.). Err
 | `OAR.SECTIONLIST([family])` | spills the designations with complete data for UB, UC, WB or PFC (feeds the Section size dropdown) |
 | `OAR.SECTIONPROPS(size, [grade])` | spills name / value / unit / note, incl. λe flange & web, Ze and class |
 | `OAR.LOADS(loads, span)` | spills how the loads table was read (case, shape, magnitude, a, b, up/down, wind Dir) |
-| `OAR.SLS(size, span, E, includeSW, loads, criteria, psiL, psiS)` | spills 5 rows: case, Δmax, x at max, limit, L/Δ, utilisation |
+| `OAR.SLS(size, span, E, includeSW, loads, criteria, psiL, psiS, [shearDefl])` | spills 5 rows: case, Δmax, x at max, limit, L/Δ, utilisation |
 | `OAR.DIAGRAM(size, span, E, includeSW, loads, combos, id, [n])` | spills x, V*, M*, δ along the span for a combination ID or single case (G, Q, Wu, Wu Cross…) |
 | `OAR.MAXACTIONS(size, span, includeSW, loads, combos)` | spills per combination: M* max, x, V* max |
 | `OAR.REACTIONS(size, span, includeSW, loads, combos)` | spills reactions for each case (wind per direction, e.g. Wu Cross) and combination |
@@ -65,7 +65,7 @@ All lengths mm. Section properties use catalogue units (×10⁶ mm⁴ etc.). Err
 | `OAR.SHEAR(size, grade, span, SW, loads, combos)` | per combination: V*, x, φVv, utilisation, interaction note |
 | `OAR.ENVELOPE(size, span, SW, loads, combos, [n])` | x, M* max/min, V* max/min for charts |
 | `OAR.LOADDIAGRAM(size, span, SW, loads, ["line"\|"point"])` | applied load diagram data: line-load steps per case (kN/m) or point loads (kN), padded with #N/A for charts |
-| `OAR.DEFLECTIONS(size, span, E, SW, loads, ψl, ψs, [n])` | x and the four deflected shapes for charts |
+| `OAR.DEFLECTIONS(size, span, E, SW, loads, ψl, ψs, [n], [shearDefl])` | x and the four deflected shapes for charts |
 
 `restraints` = Restraints table (x | Ref | Description | Top | Bottom | αm top | αm bottom; each αm applies to that flange's segment from the row to the next restraint on that flange); `k` = 2 × 2 range
 (kl top, kl bottom / kr top, kr bottom). For every combination both flanges are checked: each flange's
@@ -122,6 +122,8 @@ row whose key cell shows nothing; the next edit on that sheet unhides them. The 
 | Segments | DCT Ex 2 through the builder (Le 11.2 m; αm 0.98 vs override 1.088) | 1e-4 |
 | Segments | Blockpad UDL: αm 1.166, Le 11.62 m | 1e-6 |
 | Segments | uplift uses bottom-flange restraints and kl; compression flange from moment sign; support validation | exact |
+| RFEM B2 | backspan + overhang, C1–C5: reactions and M at B to 0.01; tip and backspan δ (with shear deformation, Az 22.51 cm²) to 0.05 mm | 0.01 kN / 0.05 mm |
+| Shear defl. | wL²/8GAs midspan; tip load Pa(L+a)/(L·GAs) | 1e-9 |
 | Overhang | tip point load and full-length UDL closed forms (reactions, M at B, tip and backspan deflection), mirror case, per-flange segments with reversal | 1e-9 |
 
 `python tools/reference_check.py` re-computes the capacity benchmarks with separate code, and
@@ -146,6 +148,7 @@ a text editor and rebuild; units are as printed in the catalogue.
   web 82/115. Slender: Ze = Z(λsy/λs) for flange, Z(λsy/λs)² for web.
 - Shear: Aw = d·tw (hot-rolled) or (d−2tf)·tw (WB); αv = (82/λw)² when λw > 82; no shear–bending
   interaction or bearing yet.
+- Deflection is bending only unless "Include shear deformation" is Yes (As = (d − 2tf)·tw, G = 80 000 MPa).
 - SLS: Δg, Δg+ψl·Q, Δg+ψs·Q, ΔQ from G and Q cases only (wind not in SLS); 1 kN at midspan.
 
 ## Not yet covered

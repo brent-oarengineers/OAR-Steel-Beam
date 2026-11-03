@@ -132,6 +132,41 @@ let tests =
               near 1e-6 (0.9 * 0.9 / (2.0 * 2.7)) (Units.toKNm (Analysis.moment b acts5 (900.0 / 2.7))) "C5 sagging peak"
           }
 
+          test "shear deformation: closed forms" {
+              let gas = 80000.0 * 2251.0
+              let ss = Beam.simple 6000.0 ei |> Beam.withShear gas
+              let w = 3.0
+              let udl = [ Dist(w, 0.0, 6000.0) ]
+              let bendingOnly = Analysis.deflection (Beam.simple 6000.0 ei) udl 3000.0
+              within 1e-9 (w * 6000.0 ** 2.0 / (8.0 * gas)) (Analysis.deflection ss udl 3000.0 - bendingOnly) "UDL: wL²/8GAs at midspan"
+              let ov = beam |> Beam.withShear gas
+              let p = 10000.0
+              let tip = [ Conc(p, lb + a) ]
+              let extra = Analysis.deflection ov tip (lb + a) - Analysis.deflection beam tip (lb + a)
+              within 1e-9 (p * a * (lb + a) / (lb * gas)) extra "tip load: Pa(L+a)/(L GAs)"
+              near 1e-9 0.0 (Analysis.deflection ov tip lb) "still zero at B"
+          }
+
+          // RFEM includes shear deformation (Az = 22.51 cm² for 360UB44.7): tip deflections to its 0.1 mm display.
+          test "RFEM benchmark B2: tip deflections with shear deformation" {
+              let b = Beam.supported 8000.0 (200000.0 * 121e6) 0.0 6000.0 |> Beam.withShear (80000.0 * 2251.0)
+              let lc1 f = Dist(f * 3.0, 0.0, 6000.0)
+              let lc2 f = Dist(f * 3.0, 6000.0, 8000.0)
+              let lc3 f = Conc(f * 10000.0, 8000.0)
+              let lc4 f = Dist(f * 4.0, 0.0, 6000.0)
+              let lc5 f = Dist(f * 4.0, 6000.0, 8000.0)
+              let tips =
+                  [ "C1", [ lc1 1.35; lc2 1.35; lc3 1.35 ], 4.9
+                    "C2", [ lc1 1.2; lc2 1.2; lc3 1.2; lc4 1.5; lc5 1.5 ], 2.4
+                    "C3", [ lc1 1.2; lc2 1.2; lc3 1.2; lc5 1.5 ], 6.9
+                    "C4", [ lc1 1.2; lc2 1.2; lc3 1.2; lc4 1.5 ], -0.1
+                    "C5", [ lc1 0.9; lc2 1.2; lc3 1.2; lc5 1.5 ], 7.6
+                    "LC3", [ lc3 1.0 ], 4.6 ]
+              for name, acts, d in tips do
+                  near 0.05 d (Analysis.deflection b acts 8000.0) (name + " tip")
+              near 0.05 2.2 (Analysis.deflection b [ lc1 1.0 ] 3000.0) "LC1 backspan midspan"
+          }
+
           test "restraints: the tip must be listed; an unrestrained tip is not covered yet" {
               let s = Sections.find "310UB40.4"
               let b = Beam.supported (lb + a) (200000.0 * s.Ix) 0.0 lb

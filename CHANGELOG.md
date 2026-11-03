@@ -3,6 +3,10 @@
 Each version that reaches `main` is built, tested and published automatically as a GitHub Release.
 The calc sheet shows the version it was calculated with (title block, under the green bar).
 
+## v0.3.2
+- **Shear deformation option** for deflections: Geometry "Include shear deformation in deflections" (Yes/No, default No). Adds δs from V/(G·As) with As = clear web (d − 2tf)·tw, G = 80 000 MPa. Applies to the SLS checks and the deflected-shape chart; `OAR.SLS`, `OAR.DEFLECTIONS` and `OAR.DIAGRAM` take an optional last argument `shearDefl`.
+- Checked against RFEM 6 (benchmark B2, backspan + overhang, which includes shear deformation by default): all tip and backspan deflections agree to RFEM's 0.1 mm; reactions and support moments agree to 0.01.
+
 ## v0.3.1
 - **Compression flange found per segment from the moment sign.** Every combination now checks the top flange's segments wherever the moment sags and the bottom flange's segments wherever it hogs, each with its own restraints, kl and kr. The Crit. flange input is gone (the library and printed combinations show the Group instead). M* for a segment is the largest moment compressing that flange; αm still uses the whole segment's moment diagram, and a segment where the moment reverses is noted.
 - Analysis generalised to two simple supports anywhere on the beam (overhangs), with exact deflections by double integration of M/EI (Macaulay). Simply supported results are unchanged – all existing benchmarks (DCT Ex 1 and 2, Blockpad, VBA PUDL) pass as before. The sheet itself is still simply supported; the overhang inputs and cantilever rules follow in the next stages.

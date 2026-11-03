@@ -144,7 +144,7 @@ label(f"B{s0+1}", "Adopted section", 7, GREY)
 ws.merge_cells(f"B{s0+2}:D{s0+2}")
 put(f"B{s0+2}", '=IF(SectionSize="","–",SectionSize&"  Gr "&Grade)',
     font(12, b=True, color=GREEN), al=L)
-put(f"B{s0+3}", '="Span "&TEXT(Span,"#,##0")&" mm  ·  "&Support&IF(IncludeSW="Yes","  ·  incl. self-weight","")',
+put(f"B{s0+3}", '="Span "&TEXT(Span,"#,##0")&" mm  ·  "&Support&IF(IncludeSW="Yes","  ·  incl. self-weight","")&IF(ShearDefl="Yes","  ·  Δ incl. shear deformation","")',
     font(7, color=GREY), al=L)
 label(f"F{s0+1}", "Max utilisation", 7, GREY, al=L)
 ws.merge_cells(f"F{s0+2}:G{s0+2}")
@@ -256,6 +256,7 @@ rows = [
     ("Support condition", "Support", "Simply supported", None, None),
     ("Elastic modulus", "E_mod", 200000, "#,##0", "MPa"),
     ("Include self-weight", "IncludeSW", "Yes", None, None),
+    ("Include shear deformation in deflections", "ShearDefl", "No", None, None),
 ]
 for i, (lab, nm, val, nf, unit) in enumerate(rows):
     rr = r + 1 + i
@@ -268,7 +269,7 @@ dv_yn = DataValidation(type="list", formula1='"Yes,No"')
 dv_sup = DataValidation(type="list", formula1='"Simply supported"')
 dv_grade = DataValidation(type="list", formula1='"250,300,350,400"')
 for dv in (dv_type, dv_yn, dv_sup, dv_grade): ws.add_data_validation(dv)
-dv_type.add(f"E{r+1}"); dv_grade.add(f"E{r+3}"); dv_sup.add(f"E{r+5}"); dv_yn.add(f"E{r+7}")
+dv_type.add(f"E{r+1}"); dv_grade.add(f"E{r+3}"); dv_sup.add(f"E{r+5}"); dv_yn.add(f"E{r+7}"); dv_yn.add(f"E{r+8}")
 ws[f"E{r+5}"].alignment = L
 ws.merge_cells(f"E{r+5}:F{r+5}")
 
@@ -672,7 +673,7 @@ NPTS = 60
 label(f"{hc(0)}12", "Envelope (OAR.ENVELOPE)", 7, GREY, i=True)
 label(f"{hc(6)}12", "Deflected shapes (OAR.DEFLECTIONS)", 7, GREY, i=True)
 dyn(ENV_ANCHOR, f"=OAR.ENVELOPE(SectionSize,Span,IncludeSW,{LOADS},{COMBOS},{NPTS})")
-dyn(DEF_ANCHOR, f"=OAR.DEFLECTIONS(SectionSize,Span,E_mod,IncludeSW,{LOADS},PsiL,PsiS,{NPTS})")
+dyn(DEF_ANCHOR, f"=OAR.DEFLECTIONS(SectionSize,Span,E_mod,IncludeSW,{LOADS},PsiL,PsiS,{NPTS},ShearDefl)")
 
 def chart(title, xcol, ycols, first_row, ytitle, reverse, colors, w=17.6, h=5.6, names=None):
     """Scatter chart over a fixed block: x in xcol, series in ycols, data rows first_row .. first_row + NPTS.
@@ -734,7 +735,7 @@ ws.row_breaks.append(Break(id=r - 1))
 heading(r, "Serviceability Checks")
 out_header(r + 1, "BCDEFG", ["Case", "Δ max (mm)", "at x (mm)", "Limit (mm)", "L / Δ", "Utilisation"])
 SLS_ANCHOR = f"B{r+2}"
-dyn(SLS_ANCHOR, f"=OAR.SLS(SectionSize,Span,E_mod,IncludeSW,{LOADS},{CRIT_RANGE},PsiL,PsiS)")
+dyn(SLS_ANCHOR, f"=OAR.SLS(SectionSize,Span,E_mod,IncludeSW,{LOADS},{CRIT_RANGE},PsiL,PsiS,ShearDefl)")
 spill_format(r + 2, r + 6, "BCDEFG", [None, "0.00", "#,##0", "0.00", '"L/"0', "0%"], util_col="G")
 label(f"H{r+2}", "Δ1kN: 1 kN at midspan,", 7, GREY); label(f"H{r+3}", "beam alone", 7, GREY)
 label(f"B{r+8}", "Deflected shapes (mm, plotted downward;  x in m)", 8, GREEN, b=True)

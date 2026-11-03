@@ -10,11 +10,13 @@ type BeamLoad =
 
 /// Beam of total length Span on two simple supports at SupportA < SupportB (anywhere from 0 to Span,
 /// so either end may overhang). A plain simply supported beam has the supports at 0 and Span.
+/// GAs = shear stiffness G·As (N) for shear deformation in deflections; 0 = bending only.
 type Beam =
     { Span: float
       EI: float
       SupportA: float
-      SupportB: float }
+      SupportB: float
+      GAs: float }
 
 module Beam =
     /// Simply supported: supports at both ends
@@ -22,7 +24,8 @@ module Beam =
         { Span = span
           EI = ei
           SupportA = 0.0
-          SupportB = span }
+          SupportB = span
+          GAs = 0.0 }
 
     /// Supports at xa and xb (overhangs beyond them)
     let supported (span: float) (ei: float) (xa: float) (xb: float) : Beam =
@@ -31,7 +34,14 @@ module Beam =
         { Span = span
           EI = ei
           SupportA = xa
-          SupportB = xb }
+          SupportB = xb
+          GAs = 0.0 }
+
+    /// Include shear deformation in deflections, with shear stiffness G·As (N)
+    let withShear (gas: float) (b: Beam) : Beam = { b with GAs = gas }
+
+    /// Shear area used for I-sections: clear web (d - 2tf)·tw (mm²)
+    let shearArea (s: Section) = (s.d - 2.0 * s.tf) * s.tw
 
     /// Distance between the supports
     let backspan (b: Beam) = b.SupportB - b.SupportA
@@ -128,7 +138,8 @@ module Analysis =
                 | Dist(w, a, b) -> f - w * (mac a 4 - mac b 4) / 24.0)
             fromSupports
 
-    /// Deflection at x (mm), positive downward: δ'' = -M/EI with δ = 0 at both supports
+    /// Deflection at x (mm), positive downward: δ'' = -M/EI with δ = 0 at both supports,
+    /// plus shear deformation δs' = V/GAs when the beam has a shear stiffness.
     let deflection (beam: Beam) (acts: BeamLoad list) (x: float) =
         let ra, rb = reactions beam acts
         let f = doubleIntegralM beam ra rb acts
@@ -137,7 +148,15 @@ module Analysis =
         // δ(x) = (-F(x) + C1 x + C0) / EI, chosen so δ(xa) = δ(xb) = 0
         let c1 = (fb - fa) / (xb - xa)
         let c0 = fa - c1 * xa
-        (-(f x) + c1 * x + c0) / beam.EI
+        let bending = (-(f x) + c1 * x + c0) / beam.EI
+        if beam.GAs > 0.0 then
+            // ∫V dx = M, so δs = (M(x) - the straight line through M at the two supports) / GAs
+            let m = moment beam acts
+            let ma, mb = m xa, m xb
+            let mLine = ma + (mb - ma) * (x - xa) / (xb - xa)
+            bending + (m x - mLine) / beam.GAs
+        else
+            bending
 
     /// Location and value of the largest |f(x)| between lo and hi.
     /// Samples the interval, adds load boundary points, then refines with golden-section search.
