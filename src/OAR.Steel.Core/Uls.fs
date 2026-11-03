@@ -125,6 +125,9 @@ module Uls =
         | RP, RL
         | RP, RU -> 1.0 + term
         | RP, RP -> 1.0 + 2.0 * term
+        | RL, RU
+        | RU, RL ->
+            failwith "an L restraint can't bound a segment to a free end (LU is not in Table 5.6.3(1)): the segment to the tip must start at F or P. Delete the L on the overhang or make it F / P"
         | _ ->
             failwithf "segment with end restraints %s%s is not covered by Table 5.6.3(1)" (RestraintType.code lo) (RestraintType.code hi)
 

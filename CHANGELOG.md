@@ -7,6 +7,7 @@ The calc sheet shows the version it was calculated with (title block, under the 
 - Fix: a blank Dir in the printed combinations (spilled by FILTER as 0) was read as a wind direction "0", giving "Wd 0" / "Wu 0" reaction rows; Dir is now read as text only and the 0 is hidden on the sheet.
 - Print tidy-up: the hidden rows now come back as soon as the print or PDF export finishes (previously they stayed hidden until the next edit, so a blank load row couldn't be reached).
 - Restraints table has 12 blank rows between A and B (was 5); unused rows are hidden on print.
+- Clearer error for an L restraint on the overhang next to the free tip (an LU segment is not in Table 5.6.3(1)).
 - Summary deflection rows describe the tip check when it governs (e.g. "Dead load – tip", "1 kN at the tip").
 - Checked in Excel against B2 (6.0 m + 2.0 m overhang): reactions for ULS1, ULS2, ULS2-span, ULS2-cant and EQ equal RFEM C1–C5; overhang φMb 150.8 and backspan φMb 123.1 equal Space Gass; tip deflections equal the bending-only values.
 
