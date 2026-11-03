@@ -41,7 +41,11 @@ type RestraintPoint =
       /// αm for the top-flange segment that starts at this point (overrides Cl. 5.6.1.1(a)(iii))
       AlphaMTop: float option
       /// αm for the bottom-flange segment that starts at this point
-      AlphaMBottom: float option }
+      AlphaMBottom: float option
+      /// kl for the top-flange segment that starts at this point (overrides the kl box and the reversal rule)
+      KlOverrideTop: float option
+      /// kl for the bottom-flange segment that starts at this point
+      KlOverrideBottom: float option }
 
 /// kl and kr for each critical flange (sheet inputs)
 type KFactors =
@@ -78,6 +82,8 @@ type SegmentCheck =
       Utilisation: float
       /// kl raised to the higher of the top and bottom flange values because the moment reverses in the segment
       KlRaised: bool
+      /// kl taken from the restraints table for this segment
+      KlOverridden: bool
       Note: string }
 
 type ShearCheck =
@@ -118,6 +124,11 @@ module Uls =
         | Top -> r.AlphaMTop
         | Bottom -> r.AlphaMBottom
 
+    let klFor (flange: Flange) (r: RestraintPoint) =
+        match flange with
+        | Top -> r.KlOverrideTop
+        | Bottom -> r.KlOverrideBottom
+
     let flangeName =
         function
         | Top -> "top"
@@ -156,17 +167,18 @@ module Uls =
         if restrained |> List.exists (fun (p, _) -> p.X < -tol || p.X > span + tol) then
             failwith "restraints: a restraint position is outside the beam"
 
-        // an αm override must sit on a row that starts a segment for that flange, otherwise it would be ignored
+        // an αm or kl override must sit on a row that starts a segment for that flange, otherwise it would be ignored
         for p in pts do
-            match alphaMFor flange p with
-            | None -> ()
-            | Some _ ->
-                if (restraintFor flange p).IsNone then
-                    failwithf "restraints: αm %s is given at x = %g but the %s flange is not restrained there (no segment starts at that row)"
-                        (flangeName flange) p.X (flangeName flange)
-                if abs (p.X - span) <= tol then
-                    failwithf "restraints: αm %s is given at the right end (x = %g); it applies to the segment starting at that row, so leave it blank"
-                        (flangeName flange) p.X
+            for what, v in [ "αm", alphaMFor flange p; "kl", klFor flange p ] do
+                match v with
+                | None -> ()
+                | Some _ ->
+                    if (restraintFor flange p).IsNone then
+                        failwithf "restraints: %s %s is given at x = %g but the %s flange is not restrained there (no segment starts at that row)"
+                            what (flangeName flange) p.X (flangeName flange)
+                    if abs (p.X - span) <= tol then
+                        failwithf "restraints: %s %s is given at the right end (x = %g); it applies to the segment starting at that row, so leave it blank"
+                            what (flangeName flange) p.X
 
         restrained
         |> List.pairwise
@@ -241,6 +253,7 @@ module Uls =
                             MemberCap = cap
                             Utilisation = mcv / cap.PhiMb
                             KlRaised = false
+                            KlOverridden = false
                             Note = "" }
                       yield r
                   else
@@ -263,12 +276,18 @@ module Uls =
                               // so a top-flange load is destabilising for part of it: use the higher kl of the two flanges
                               let opposite = Analysis.maxAbsOn p1.X p2.X bps (fun x -> compressive (if flange = Top then Bottom else Top) (m x)) |> snd
                               let reverses = opposite > tolM
-                              let klUsed = if reverses then max k.KlTop k.KlBottom else kl
-                              let klRaised = klUsed > kl
+                              let klAuto = if reverses then max k.KlTop k.KlBottom else kl
+                              let klUsed, klOverridden =
+                                  match klFor flange p1 with
+                                  | Some v -> v, true
+                                  | None -> klAuto, false
+                              let klRaised = not klOverridden && klUsed > kl
                               let le = Capacity.effectiveLength ktv klUsed kr len
                               let cap = Capacity.memberMoment s grade e le am overridden
                               let note =
-                                  if not reverses then ""
+                                  if klOverridden then
+                                      sprintf "kl = %.2f from the restraints table%s" klUsed (if reverses then "; moment reverses in this segment (αm from the whole segment)" else "")
+                                  elif not reverses then ""
                                   elif klRaised then
                                       sprintf "moment reverses in this segment: αm from the whole segment; kl = %.2f (higher of top / bottom flange) as the load is destabilising where the other flange is in compression" klUsed
                                   else "moment reverses in this segment: αm from the whole segment"
@@ -292,6 +311,7 @@ module Uls =
                                     MemberCap = cap
                                     Utilisation = mcs / cap.PhiMb
                                     KlRaised = klRaised
+                                    KlOverridden = klOverridden
                                     Note = note }
                               yield r ]
 

@@ -552,28 +552,28 @@ r = clast + 1
 heading(r, "Lateral Restraints (AS 4100 Cl. 5.4)")
 label(f"B{r+1}", "Restraint type at each cross-section for the critical flange: F, P, L or U (– = none). Supports must be F or P.", 7, GREY, i=True)
 rh = r + 2
-rcols = ["x (mm)", "Ref", "Restraint provided by", "Top flange", "Bottom fl.", "αm top →", "αm bot. →"]
-for col, txt in zip("BCDEFGH", rcols):
+rcols = ["x (mm)", "Ref", "Restraint provided by", "Top flange", "Bottom fl.", "αm top →", "αm bot. →", "kl top →", "kl bot. →"]
+for col, txt in zip("BCDEFGHIJ", rcols):
     put(f"{col}{rh}", txt, font(8, b=True), F_HDR, None, C)
-restr = [("=0", "A", "Left support – cleat", "F", "F", None, None)] + \
-        [(None, None, None, None, None, None, None)] * 5 + \
-        [("=Span", "B", "Right support – cleat", "F", "F", None, None)]
+restr = [("=0", "A", "Left support – cleat", "F", "F", None, None, None, None)] + \
+        [(None,) * 9] * 5 + \
+        [("=Span", "B", "Right support – cleat", "F", "F", None, None, None, None)]
 for i, rv in enumerate(restr):
     rr = rh + 1 + i
-    for col, v, nf in zip("BCDEFGH", rv, ["#,##0", None, None, None, None, "0.00", "0.00"]):
+    for col, v, nf in zip("BCDEFGHIJ", rv, ["#,##0", None, None, None, None, "0.00", "0.00", "0.00", "0.00"]):
         if isinstance(v, str) and v.startswith("="):
             out(f"{col}{rr}", v, nf)
         else:
             inp(f"{col}{rr}", v, nf, L if col == "D" else C)
 rlast = rh + len(restr)
-trs = Table(displayName="Restraints_B1", ref=f"B{rh}:H{rlast}")
+trs = Table(displayName="Restraints_B1", ref=f"B{rh}:J{rlast}")
 trs.tableStyleInfo = TableStyleInfo(name="TableStyleLight15", showRowStripes=False)
 ws.add_table(trs)
 dv_r = DataValidation(type="list", formula1='"F,P,L,U,–"')
 ws.add_data_validation(dv_r); dv_r.add(f"E{rh+1}:F{rlast}")
 name("OAR_Flex_Restraints", "Restraints_B1[x (mm)]")
-label(f"B{rlast+1}", "αm top / αm bot. → override αm for that flange's segment from this row to the next restraint on that flange "
-      "(blank = Cl. 5.6.1.1(a)(iii)). Flagged * in the output.", 7, GREY, i=True)
+label(f"B{rlast+1}", "αm / kl → overrides for that flange's segment from this row to the next restraint on that flange "
+      "(blank: αm by Cl. 5.6.1.1(a)(iii), kl from the factor box below). Flagged * in the output.", 7, GREY, i=True)
 kb = rlast + 3
 for col, txt in zip("EFG", ["Factor", "Top", "Bottom"]):
     put(f"{col}{kb}", txt, font(8, b=True), F_HDR, None, C)
@@ -757,7 +757,7 @@ name("OAR_Flex_ULS", f"$B${r+1}:$B${r+16}")
 spill_format(r + 1, r + 16, "BCDEFGHIJ", [None, None, None, "0.00", "0.000", "0.000", "0.0", "0.0", "0%"], util_col="J")
 ws.conditional_formatting.add(f"C{r+1}:C{r+16}", Rule(type="expression", formula=[f'RIGHT(C{r+1},1)="*"'],
     dxf=DifferentialStyle(font=Font(color="9C5700", bold=True))))
-label(f"B{r+17}", "* αm overridden in the restraints table.   † moment reverses in the segment: kl = higher of top / bottom.   Full working for the governing segment follows.", 7, GREY, i=True)
+label(f"B{r+17}", "* αm or kl overridden in the restraints table.   † moment reverses in the segment: kl = higher of top / bottom.   Full working for the governing segment follows.", 7, GREY, i=True)
 r = r + 19
 ws.row_breaks.append(Break(id=r - 1))
 

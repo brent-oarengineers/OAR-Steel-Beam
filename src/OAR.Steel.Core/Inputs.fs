@@ -220,8 +220,8 @@ module Inputs =
                   { Ratio = ratio
                     MaxMm = optNum (i + 1) "max" grid.[i, 1] } ]
 
-    /// Restraints table, 5 to 7 columns:
-    /// x (mm) | Ref | Description | Top flange | Bottom flange | [αm top] | [αm bottom]
+    /// Restraints table, 5 to 9 columns:
+    /// x (mm) | Ref | Description | Top flange | Bottom flange | [αm top] | [αm bottom] | [kl top] | [kl bottom]
     /// αm top / bottom = override for that flange's segment that starts at this row and runs to the next restraint.
     /// Restraint codes F, P, L, U; blank or "–" = no restraint to that flange at this point.
     let restraints (grid: Cell[,]) : RestraintPoint list =
@@ -247,13 +247,20 @@ module Inputs =
                       | _ -> v
                   let amTop = amCol 5 "αm top"
                   let amBot = amCol 6 "αm bottom"
+                  let klCol (j: int) name =
+                      let v = if Array2D.length2 grid > j then optNum row name grid.[i, j] else None
+                      match v with
+                      | Some x when x <= 0.0 || x > 3.0 -> failwithf "restraint row %d: %s must be > 0 and <= 3.0" row name
+                      | _ -> v
                   let p: RestraintPoint =
                       { X = xo.Value
                         Ref = text grid.[i, 1]
                         Top = code row "top" grid.[i, 3]
                         Bottom = code row "bottom" grid.[i, 4]
                         AlphaMTop = amTop
-                        AlphaMBottom = amBot }
+                        AlphaMBottom = amBot
+                        KlOverrideTop = klCol 7 "kl top"
+                        KlOverrideBottom = klCol 8 "kl bottom" }
                   yield p ]
 
     /// k factors, 2 x 2: [kl top, kl bottom; kr top, kr bottom]

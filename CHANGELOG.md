@@ -3,6 +3,9 @@
 Each version that reaches `main` is built, tested and published automatically as a GitHub Release.
 The calc sheet shows the version it was calculated with (title block, under the green bar).
 
+## v0.3.4
+- **kl override per segment:** restraints table has kl top → and kl bot. → columns, like αm. A value applies to that flange's segment from the row to the next restraint on that flange and replaces both the factor-box kl and the moment-reversal rule. Flagged * in the ULS table; ULSDETAIL shows "override". Must be > 0 and ≤ 3.0; an override on a row where that flange is unrestrained, or at the right end, is an error.
+
 ## v0.3.3
 - **kl in segments where the moment reverses:** the higher of the top- and bottom-flange kl is used (e.g. 1.4 for a bottom-flange segment that also sags under top-flange load), because the load is destabilising where the other flange is in compression. Such segments are marked † in the ULS table, and the note in `OAR.ULSDETAIL` states the kl used. Purely sagging or hogging segments are unchanged.
 - Matches RFEM 6 (benchmark B2, C2, bottom flange 0–6 m): Le 8.40 m, Mo 66.49, αs 0.231. RFEM's αm is 1% higher (2.427 vs 2.404) because it interpolates the quarter-point moments.

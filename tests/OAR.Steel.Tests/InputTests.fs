@@ -83,6 +83,10 @@ let tests =
               Expect.equal r.[1].AlphaMBottom None "αm bottom blank"
               Expect.equal r.[2].Top (Some RP) "P"
               Expect.throws (fun () -> Inputs.restraints (grid [ [ "0"; ""; ""; "X"; "F"; "" ] ]) |> ignore) "bad code"
+              let r9 = Inputs.restraints (grid [ [ "0"; "A"; ""; "F"; "F"; ""; ""; "1.4"; "1.0" ] ]) |> List.exactlyOne
+              Expect.equal r9.KlOverrideTop (Some 1.4) "kl top override"
+              Expect.equal r9.KlOverrideBottom (Some 1.0) "kl bottom override"
+              Expect.throws (fun () -> Inputs.restraints (grid [ [ "0"; ""; ""; "F"; "F"; ""; ""; "0"; "" ] ]) |> ignore) "kl must be > 0"
           }
 
           test "k factors 2 x 2" {

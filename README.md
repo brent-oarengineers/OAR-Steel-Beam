@@ -1,4 +1,4 @@
-# OAR Steel – Excel add-in (v0.3.3)
+# OAR Steel – Excel add-in (v0.3.4)
 
 F# / Excel-DNA add-in for the OAR steel beam calc sheet. Engineering lives in `OAR.Steel.Core`
 (no Excel references, fully testable); `OAR.Steel.Excel` only converts worksheet values.
@@ -67,7 +67,7 @@ All lengths mm. Section properties use catalogue units (×10⁶ mm⁴ etc.). Err
 | `OAR.LOADDIAGRAM(size, span, SW, loads, ["line"\|"point"])` | applied load diagram data: line-load steps per case (kN/m) or point loads (kN), padded with #N/A for charts |
 | `OAR.DEFLECTIONS(size, span, E, SW, loads, ψl, ψs, [n], [shearDefl])` | x and the four deflected shapes for charts |
 
-`restraints` = Restraints table (x | Ref | Description | Top | Bottom | αm top | αm bottom; each αm applies to that flange's segment from the row to the next restraint on that flange); `k` = 2 × 2 range
+`restraints` = Restraints table (x | Ref | Description | Top | Bottom | αm top | αm bottom | kl top | kl bottom; each αm / kl override applies to that flange's segment from the row to the next restraint on that flange); `k` = 2 × 2 range
 (kl top, kl bottom / kr top, kr bottom). For every combination both flanges are checked: each flange's
 segments (from its own restraints) are checked wherever the moment puts that flange in compression
 (top: sagging, bottom: hogging; moments under 1% of the combination's peak are ignored). M* = the largest

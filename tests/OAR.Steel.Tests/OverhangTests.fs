@@ -11,7 +11,7 @@ let private ei = 200000.0 * 121e6
 let private beam = Beam.supported (lb + a) ei 0.0 lb
 
 let private pt x top bottom : RestraintPoint =
-    { X = x; Ref = ""; Top = top; Bottom = bottom; AlphaMTop = None; AlphaMBottom = None }
+    { X = x; Ref = ""; Top = top; Bottom = bottom; AlphaMTop = None; AlphaMBottom = None; KlOverrideTop = None; KlOverrideBottom = None }
 
 let private k1 = { KlTop = 1.0; KlBottom = 1.0; KrTop = 1.0; KrBottom = 1.0; ContinuousTop = false; ContinuousBottom = false }
 
@@ -194,6 +194,30 @@ let tests =
               let over = r |> List.find (fun c -> c.Flange = Bottom && c.X1 = lb)
               Expect.isFalse over.KlRaised "overhang is all hogging: kl stays at the bottom-flange value"
               within 1e-12 1.0 over.Kl "overhang kl"
+          }
+
+          test "kl override in the restraints table replaces the reversal rule" {
+              let s = Sections.find "360UB44.7"
+              let b = Beam.supported 8000.0 (200000.0 * s.Ix) 0.0 6000.0
+              let ld shape mag : Load = { Case = G; Shape = shape; Magnitude = mag; Description = ""; Dir = "" }
+              let loads = [ ld (Partial(0.0, 8000.0)) 9.6; ld (Point 8000.0) 12000.0 ]
+              let p0Base = pt 0.0 (Some RF) (Some RF)
+              let p0 = { p0Base with KlOverrideBottom = Some 1.0 }
+              let pts = [ p0; pt lb (Some RF) (Some RF); pt (lb + a) (Some RF) (Some RF) ]
+              let k = { k1 with KlTop = 1.4 }
+              let r = Uls.checkCombination s 300 200000.0 b loads pts k (Combination.single G)
+              let seg = r |> List.find (fun c -> c.Flange = Bottom && c.X1 = 0.0)
+              Expect.isTrue seg.KlOverridden "override used"
+              Expect.isFalse seg.KlRaised "not raised"
+              within 1e-9 6000.0 seg.MemberCap.Le "Le = 1.0 x 6.0 m"
+              Expect.stringContains seg.Note "restraints table" "note"
+              let topSeg = r |> List.find (fun c -> c.Flange = Top && c.X1 = 0.0)
+              within 1e-12 1.4 topSeg.Kl "top flange keeps its own kl"
+              let tipBase = pt (lb + a) (Some RF) (Some RF)
+              let atTip = { tipBase with KlOverrideBottom = Some 1.0 }
+              Expect.throws
+                  (fun () -> Uls.checkCombination s 300 200000.0 b loads [ p0; pt lb (Some RF) (Some RF); atTip ] k (Combination.single G) |> ignore)
+                  "kl override at the right end is an error"
           }
 
           test "restraints: the tip must be listed; an unrestrained tip is not covered yet" {
