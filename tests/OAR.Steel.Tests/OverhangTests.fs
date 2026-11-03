@@ -105,6 +105,33 @@ let tests =
               within 1e-9 (ra * ra / 6.0) t2.Mm "peak sagging RA²/2w in the middle segment"
           }
 
+          // RFEM 6 benchmark B2 (Brent, 3 Nov 2026): 360UB44.7, supports at 0 and 6.0 m, tip at 8.0 m.
+          // G: 3 kN/m backspan (LC1), 3 kN/m overhang (LC2), 10 kN at tip (LC3); Q: 4 kN/m backspan (LC4), overhang (LC5).
+          // RFEM reactions and moments at B to 0.01. (RFEM's sagging peaks are at 0.6 m result points, so they
+          // are not compared; its deflections include shear deformation, which the engine does not.)
+          test "RFEM benchmark B2: reactions and moment at B for C1 to C5" {
+              let b = Beam.supported 8000.0 (200000.0 * 121e6) 0.0 6000.0
+              let lc1 f = Dist(f * 3.0, 0.0, 6000.0)
+              let lc2 f = Dist(f * 3.0, 6000.0, 8000.0)
+              let lc3 f = Conc(f * 10000.0, 8000.0)
+              let lc4 f = Dist(f * 4.0, 0.0, 6000.0)
+              let lc5 f = Dist(f * 4.0, 6000.0, 8000.0)
+              let cases =
+                  [ "C1", [ lc1 1.35; lc2 1.35; lc3 1.35 ], 6.30, 39.60, -35.10
+                    "C2", [ lc1 1.2; lc2 1.2; lc3 1.2; lc4 1.5; lc5 1.5 ], 21.60, 67.20, -43.20
+                    "C3", [ lc1 1.2; lc2 1.2; lc3 1.2; lc5 1.5 ], 3.60, 49.20, -43.20
+                    "C4", [ lc1 1.2; lc2 1.2; lc3 1.2; lc4 1.5 ], 23.60, 53.20, -31.20
+                    "C5", [ lc1 0.9; lc2 1.2; lc3 1.2; lc5 1.5 ], 0.90, 46.50, -43.20 ]
+              for name, acts, ra, rb, mb in cases do
+                  let a1, b1 = Analysis.reactions b acts
+                  near 0.005 ra (Units.toKN a1) (name + " RA")
+                  near 0.005 rb (Units.toKN b1) (name + " RB")
+                  near 0.005 mb (Units.toKNm (Analysis.moment b acts 6000.0)) (name + " M at B")
+              // sagging peak C5: RA²/2w at x = RA/w (w = 0.9 x 3 = 2.7 kN/m)
+              let acts5 = [ lc1 0.9; lc2 1.2; lc3 1.2; lc5 1.5 ]
+              near 1e-6 (0.9 * 0.9 / (2.0 * 2.7)) (Units.toKNm (Analysis.moment b acts5 (900.0 / 2.7))) "C5 sagging peak"
+          }
+
           test "restraints: the tip must be listed; an unrestrained tip is not covered yet" {
               let s = Sections.find "310UB40.4"
               let b = Beam.supported (lb + a) (200000.0 * s.Ix) 0.0 lb
