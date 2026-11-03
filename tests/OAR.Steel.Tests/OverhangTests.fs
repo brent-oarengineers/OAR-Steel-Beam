@@ -268,6 +268,40 @@ let tests =
               within 0.005 (1.0 / 2.85) back.Utilisation "backspan load factor 2.85"
           }
 
+          // Space Gass 12.28, benchmark B3: 360UB44.7, supports 0 and 5.0 m, tip 6.5 m (U), one ULS case:
+          // 8 kN/m full length + 20 kN at 2.0 m, top flange. Group 1 (0–5 m FF): kl 1.40, Le 7.000, αm 1.35, αs 0.29,
+          // φMo 76.99, Mbx 86.47, M* 44.40, load factor 1.95. Group 2 (overhang FU): kl 2.00, Le 3.000, αm 2.25,
+          // Mb = Ms (section governs), M* -9.00, load factor 24.63. V* 30.20 at A, 12.00 at B (overhang).
+          test "Space Gass B3: UDL-only overhang (αm 2.25) and backspan point load" {
+              let s = Sections.find "360UB44.7"
+              let b = Beam.supported 6500.0 (200000.0 * s.Ix) 0.0 5000.0
+              let ld shape mag : Load = { Case = G; Shape = shape; Magnitude = mag; Description = ""; Dir = "" }
+              let loads = [ ld (Partial(0.0, 6500.0)) 8.0; ld (Point 2000.0) 20000.0 ]
+              let pts = [ pt 0.0 (Some RF) (Some RF); pt 5000.0 (Some RF) (Some RF); pt 6500.0 (Some RU) (Some RU) ]
+              let k = { k1 with KlTop = 1.4 }
+              let acts = Analysis.actions 6500.0 (Combination.single G) loads
+              let ra, _ = Analysis.reactions b acts
+              near 0.005 30.20 (Units.toKN ra) "RA = V* at A"
+              near 0.005 -9.00 (Units.toKNm (Analysis.moment b acts 5000.0)) "M at B"
+              let r = Uls.checkCombination s 300 200000.0 b loads pts k (Combination.single G)
+              let top = r |> List.find (fun c -> c.Flange = Top && c.X1 = 0.0)
+              within 1e-12 1.4 top.Kl "kl"
+              within 1e-9 7000.0 top.MemberCap.Le "Le 7.000"
+              near 0.005 1.35 top.MemberCap.AlphaM "αm 1.35"
+              near 0.005 0.29 top.MemberCap.AlphaS "αs 0.29"
+              within 0.0005 76.99 (0.9 * Units.toKNm top.MemberCap.Mo) "φMo 76.99"
+              within 0.0005 86.47 (Units.toKNm top.MemberCap.PhiMb) "Mbx 86.47"
+              within 1e-6 44.40 (Units.toKNm top.Mm) "M* 44.40"
+              within 0.005 (1.0 / 1.95) top.Utilisation "load factor 1.95"
+              let over = r |> List.find (fun c -> c.Flange = Bottom && c.X1 = 5000.0)
+              Expect.equal over.Ends "FU" "FU"
+              within 1e-12 2.0 over.Kl "kl free tip"
+              within 1e-9 3000.0 over.MemberCap.Le "Le 3.000"
+              within 1e-12 2.25 over.MemberCap.AlphaM "αm 2.25"
+              within 0.0005 221.68 (Units.toKNm over.MemberCap.PhiMb) "φMb = φMsx (section governs)"
+              within 0.005 (1.0 / 24.63) over.Utilisation "load factor 24.63"
+          }
+
           test "free tip: distributed load only gives αm 2.25; override still wins" {
               let s = Sections.find "360UB44.7"
               let b = Beam.supported 8000.0 (200000.0 * s.Ix) 0.0 6000.0
