@@ -757,7 +757,7 @@ name("OAR_Flex_ULS", f"$B${r+1}:$B${r+16}")
 spill_format(r + 1, r + 16, "BCDEFGHIJ", [None, None, None, "0.00", "0.000", "0.000", "0.0", "0.0", "0%"], util_col="J")
 ws.conditional_formatting.add(f"C{r+1}:C{r+16}", Rule(type="expression", formula=[f'RIGHT(C{r+1},1)="*"'],
     dxf=DifferentialStyle(font=Font(color="9C5700", bold=True))))
-label(f"B{r+17}", "* αm overridden in the restraints table.  Full working for the governing segment follows.", 7, GREY, i=True)
+label(f"B{r+17}", "* αm overridden in the restraints table.   † moment reverses in the segment: kl = higher of top / bottom.   Full working for the governing segment follows.", 7, GREY, i=True)
 r = r + 19
 ws.row_breaks.append(Break(id=r - 1))
 

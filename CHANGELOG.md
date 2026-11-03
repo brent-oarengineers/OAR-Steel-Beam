@@ -3,6 +3,10 @@
 Each version that reaches `main` is built, tested and published automatically as a GitHub Release.
 The calc sheet shows the version it was calculated with (title block, under the green bar).
 
+## v0.3.3
+- **kl in segments where the moment reverses:** the higher of the top- and bottom-flange kl is used (e.g. 1.4 for a bottom-flange segment that also sags under top-flange load), because the load is destabilising where the other flange is in compression. Such segments are marked † in the ULS table, and the note in `OAR.ULSDETAIL` states the kl used. Purely sagging or hogging segments are unchanged.
+- Matches RFEM 6 (benchmark B2, C2, bottom flange 0–6 m): Le 8.40 m, Mo 66.49, αs 0.231. RFEM's αm is 1% higher (2.427 vs 2.404) because it interpolates the quarter-point moments.
+
 ## v0.3.2
 - **Shear deformation option** for deflections: Geometry "Include shear deformation in deflections" (Yes/No, default No). Adds δs from V/(G·As) with As = clear web (d − 2tf)·tw, G = 80 000 MPa. Applies to the SLS checks and the deflected-shape chart; `OAR.SLS`, `OAR.DEFLECTIONS` and `OAR.DIAGRAM` take an optional last argument `shearDefl`.
 - Checked against RFEM 6 (benchmark B2, backspan + overhang, which includes shear deformation by default): all tip and backspan deflections agree to RFEM's 0.1 mm; reactions and support moments agree to 0.01.

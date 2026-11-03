@@ -167,6 +167,35 @@ let tests =
               near 0.05 2.2 (Analysis.deflection b [ lc1 1.0 ] 3000.0) "LC1 backspan midspan"
           }
 
+          // RFEM 6 steel design, B2 C2, purlins removed (run B), x = 6.0: bottom flange 0–6 m F–F with the moment
+          // reversing at 4.5 m. RFEM uses kl = 1.4 (top-flange load, top flange compressed over 0–4.5 m):
+          // Le 8.40 m, Mo 66.49, αs 0.231, αm 2.427 (from interpolated quarter-point moments; exact 2.404), η 0.348.
+          test "RFEM B2 C2 run B: reversing segment takes the higher kl" {
+              let s = Sections.find "360UB44.7"
+              let b = Beam.supported 8000.0 (200000.0 * s.Ix) 0.0 6000.0
+              let ld shape mag : Load = { Case = G; Shape = shape; Magnitude = mag; Description = ""; Dir = "" }
+              let loads =
+                  [ ld (Partial(0.0, 6000.0)) (1.2 * 3.0 + 1.5 * 4.0)
+                    ld (Partial(6000.0, 8000.0)) (1.2 * 3.0 + 1.5 * 4.0)
+                    ld (Point 8000.0) (1.2 * 10000.0) ]
+              let pts = [ pt 0.0 (Some RF) (Some RF); pt lb (Some RF) (Some RF); pt (lb + a) (Some RF) (Some RF) ]
+              let k = { k1 with KlTop = 1.4 }
+              let r = Uls.checkCombination s 300 200000.0 b loads pts k (Combination.single G)
+              let seg = r |> List.find (fun c -> c.Flange = Bottom && c.X1 = 0.0)
+              within 1e-12 1.4 seg.Kl "kl raised to the top-flange value"
+              Expect.isTrue seg.KlRaised "flagged"
+              Expect.stringContains seg.Note "kl = 1.40" "note"
+              within 1e-9 8400.0 seg.MemberCap.Le "Le = 1.4 x 6.0 m"
+              within 0.0005 66.49 (Units.toKNm seg.MemberCap.Mo) "Mo (RFEM 66.49)"
+              within 0.002 0.231 seg.MemberCap.AlphaS "αs (RFEM 0.231)"
+              within 0.002 2.404 seg.MemberCap.AlphaM "αm exact (RFEM 2.427 from interpolated M2)"
+              within 0.002 136.76 (Units.toKNm (seg.MemberCap.PhiMb / 0.9)) "Mb (RFEM 138.04 with its αm)"
+              within 1e-9 43.2 (Units.toKNm seg.Mm) "M* at B"
+              let over = r |> List.find (fun c -> c.Flange = Bottom && c.X1 = lb)
+              Expect.isFalse over.KlRaised "overhang is all hogging: kl stays at the bottom-flange value"
+              within 1e-12 1.0 over.Kl "overhang kl"
+          }
+
           test "restraints: the tip must be listed; an unrestrained tip is not covered yet" {
               let s = Sections.find "310UB40.4"
               let b = Beam.supported (lb + a) (200000.0 * s.Ix) 0.0 lb

@@ -76,6 +76,8 @@ type SegmentCheck =
       AlphaMFormula: float
       MemberCap: MemberMoment
       Utilisation: float
+      /// kl raised to the higher of the top and bottom flange values because the moment reverses in the segment
+      KlRaised: bool
       Note: string }
 
 type ShearCheck =
@@ -238,6 +240,7 @@ module Uls =
                             AlphaMFormula = 1.0
                             MemberCap = cap
                             Utilisation = mcv / cap.PhiMb
+                            KlRaised = false
                             Note = "" }
                       yield r
                   else
@@ -256,11 +259,19 @@ module Uls =
                                   | Some v -> (v, true)
                                   | None -> (amFormula, false)
                               let ktv = kt s len t1 t2
-                              let le = Capacity.effectiveLength ktv kl kr len
-                              let cap = Capacity.memberMoment s grade e le am overridden
+                              // where the moment reverses in the segment, both flanges are in compression somewhere,
+                              // so a top-flange load is destabilising for part of it: use the higher kl of the two flanges
                               let opposite = Analysis.maxAbsOn p1.X p2.X bps (fun x -> compressive (if flange = Top then Bottom else Top) (m x)) |> snd
+                              let reverses = opposite > tolM
+                              let klUsed = if reverses then max k.KlTop k.KlBottom else kl
+                              let klRaised = klUsed > kl
+                              let le = Capacity.effectiveLength ktv klUsed kr len
+                              let cap = Capacity.memberMoment s grade e le am overridden
                               let note =
-                                  if opposite > tolM then "moment reverses in this segment (αm from the whole segment)" else ""
+                                  if not reverses then ""
+                                  elif klRaised then
+                                      sprintf "moment reverses in this segment: αm from the whole segment; kl = %.2f (higher of top / bottom flange) as the load is destabilising where the other flange is in compression" klUsed
+                                  else "moment reverses in this segment: αm from the whole segment"
                               let r: SegmentCheck =
                                   { Combo = combo.Id
                                     Flange = flange
@@ -269,7 +280,7 @@ module Uls =
                                     Ends = RestraintType.code t1 + RestraintType.code t2
                                     Length = len
                                     Kt = ktv
-                                    Kl = kl
+                                    Kl = klUsed
                                     Kr = kr
                                     M2 = m2
                                     M3 = m3
@@ -280,6 +291,7 @@ module Uls =
                                     AlphaMFormula = amFormula
                                     MemberCap = cap
                                     Utilisation = mcs / cap.PhiMb
+                                    KlRaised = klRaised
                                     Note = note }
                               yield r ]
 

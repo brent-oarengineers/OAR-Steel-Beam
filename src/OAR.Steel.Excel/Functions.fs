@@ -9,7 +9,7 @@ open OAR.Steel
 [<Literal>]
 let Category = "OAR Steel"
 
-let private version = "0.3.2"
+let private version = "0.3.3"
 
 // ---------- conversion helpers ----------
 
@@ -390,10 +390,10 @@ let private segmentChecks (c: BeamCtx) combos restraints kfactors =
 let private m1 (v: float) = v / 1000.0 // mm -> m
 
 let private segText (r: SegmentCheck) =
-    sprintf "%.2f–%.2f%s" (m1 r.X1) (m1 r.X2) (if r.MemberCap.AlphaMOverridden then " *" else "")
+    sprintf "%.2f–%.2f%s%s" (m1 r.X1) (m1 r.X2) (if r.MemberCap.AlphaMOverridden then " *" else "") (if r.KlRaised then " †" else "")
 
 [<ExcelFunction(Name = "OAR.ULS",
-                Description = "Spills member bending checks for every segment of every combination, both flanges where the moment compresses them: combo | segment m (* = αm override) | flange and ends | Le m | αm | αs | φMb kN.m | M* kN.m | utilisation",
+                Description = "Spills member bending checks for every segment of every combination, both flanges where the moment compresses them: combo | segment m (* = αm override, † = kl raised for moment reversal) | flange and ends | Le m | αm | αs | φMb kN.m | M* kN.m | utilisation",
                 Category = Category)>]
 let oarUls
     ([<ExcelArgument(Name = "designation")>] designation: obj)
