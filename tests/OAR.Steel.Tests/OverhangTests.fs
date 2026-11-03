@@ -377,6 +377,33 @@ let tests =
               within 0.005 (1.0 / 16.88) over.Utilisation "load factor 16.88"
           }
 
+          // Space Gass B6: B3 beam and loads (250UB31.4, 8 kN/m + 20 kN at 2.0 m) with purlins (L, top flange only) at
+          // 1.67 and 3.33 m; tip U. Governing Group 1 segment 1.67–3.33 m (LL top): kl 1.40, Le 2.324, αm 1.08, αs 0.76,
+          // φMo 203.28, Mbx 93.44, M* 44.40, load factor 2.10. Overhang FU: kl 2.00, Le 3.000, αm 2.25, load factor 12.66.
+          test "Space Gass B6: top-flange purlins form LL segments; bottom flange still spans support to support" {
+              let s = Sections.find "250UB31.4"
+              let b = Beam.supported 6500.0 (200000.0 * s.Ix) 0.0 5000.0
+              let ld shape mag : Load = { Case = G; Shape = shape; Magnitude = mag; Description = ""; Dir = "" }
+              let loads = [ ld (Partial(0.0, 6500.0)) 8.0; ld (Point 2000.0) 20000.0 ]
+              let pts =
+                  [ pt 0.0 (Some RF) (Some RF); pt 1670.0 (Some RL) None; pt 3330.0 (Some RL) None
+                    pt 5000.0 (Some RF) (Some RF); pt 6500.0 (Some RU) (Some RU) ]
+              let k = { k1 with KlDown = 1.4 }
+              let r = Uls.checkCombination s 300 200000.0 b loads pts k (Combination.single G)
+              let g = Uls.governing None r |> Option.get
+              Expect.equal (g.Flange, g.X1, g.X2, g.Ends) (Top, 1670.0, 3330.0, "LL") "governing segment"
+              within 1e-9 2324.0 g.MemberCap.Le "Le 2.324"
+              near 0.005 1.08 g.MemberCap.AlphaM "αm 1.08"
+              near 0.005 0.76 g.MemberCap.AlphaS "αs 0.76"
+              within 0.0005 203.28 (0.9 * Units.toKNm g.MemberCap.Mo) "φMo 203.28"
+              within 0.0005 93.44 (Units.toKNm g.MemberCap.PhiMb) "Mbx 93.44"
+              within 0.005 (1.0 / 2.10) g.Utilisation "load factor 2.10"
+              let bot = r |> List.find (fun c -> c.Flange = Bottom && c.X1 = 0.0)
+              Expect.equal (bot.X2, bot.Ends) (5000.0, "FF") "bottom flange ignores the purlins"
+              let over = r |> List.find (fun c -> c.Flange = Bottom && c.X1 = 5000.0)
+              within 0.005 (1.0 / 12.66) over.Utilisation "overhang load factor 12.66"
+          }
+
           test "mixed loading on a free-tip cantilever: 1.25 adopted, moment-weighted estimate noted" {
               let s = Sections.find "360UB44.7"
               let b = Beam.supported 8000.0 (200000.0 * s.Ix) 0.0 6000.0
