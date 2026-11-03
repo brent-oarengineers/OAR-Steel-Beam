@@ -7,7 +7,7 @@ open Helpers
 let private pt x top bottom am : RestraintPoint =
     { X = x; Ref = ""; Top = top; Bottom = bottom; AlphaMTop = am; AlphaMBottom = am; KlOverrideTop = None; KlOverrideBottom = None }
 
-let private k1 = { KlTop = 1.0; KlBottom = 1.0; KrTop = 1.0; KrBottom = 1.0; ContinuousTop = false; ContinuousBottom = false; KlTipTop = 2.0; KlTipBottom = 2.0 }
+let private k1 = { KlDown = 1.0; KlUp = 1.0; KrTop = 1.0; KrBottom = 1.0; ContinuousTop = false; ContinuousBottom = false; KlTipDown = 2.0; KlTipUp = 2.0 }
 
 let private gravity = Combination.ofFactors "G" [ G, 1.0 ]
 
@@ -58,7 +58,7 @@ let tests =
           // DCT Example 2: restraint at the supports only, top-flange load within the segment, kl = 1.4.
           test "DCT Example 2 through the segment builder" {
               let s = Sections.find "310UB46.2"
-              let k = { k1 with KlTop = 1.4 }
+              let k = { k1 with KlDown = 1.4 }
               let pts = [ pt 0.0 (Some RF) (Some RF) None; pt 8000.0 (Some RF) (Some RF) None ]
               let r = Uls.checkCombination s 300 200000.0 (dctBeam s) dctLoads pts k gravity |> List.exactlyOne
               within 1e-9 11200.0 r.MemberCap.Le "Le = 1.0 x 1.4 x 1.0 x 8.0 m"
@@ -77,7 +77,7 @@ let tests =
               let beam = Beam.simple (8300.0) (200000.0 * s.Ix)
               let loads = [ { Case = G; Shape = FullSpan; Magnitude = 3.272; Description = ""; Dir = "" } ]
               let pts = [ pt 0.0 (Some RF) (Some RF) None; pt 8300.0 (Some RF) (Some RF) None ]
-              let r = Uls.checkCombination s 300 200000.0 beam loads pts { k1 with KlTop = 1.4 } gravity |> List.exactlyOne
+              let r = Uls.checkCombination s 300 200000.0 beam loads pts { k1 with KlDown = 1.4 } gravity |> List.exactlyOne
               within 1e-6 1.16619037896906 r.AlphaMFormula "αm"
               within 1e-9 11620.0 r.MemberCap.Le "Le"
               within 1e-7 (3.272 * 8300.0 ** 2.0 / 8.0) r.Mm "M*"
@@ -94,7 +94,7 @@ let tests =
                     pt 2767.0 (Some RL) None None // purlin: top flange only
                     pt 5533.0 (Some RL) None None
                     pt 8300.0 (Some RF) (Some RF) None ]
-              let k = { k1 with KlTop = 1.4 }
+              let k = { k1 with KlDown = 1.4 }
               let upBase = Combination.ofFactors "0.9G+Wu" [ G, 0.9; Wu, 1.0 ]
               let up = { upBase with CriticalFlange = Bottom }
               let r = Uls.checkCombination s 300 200000.0 beam loads pts k up |> List.exactlyOne
@@ -170,7 +170,7 @@ let tests =
                   [ { Case = G; Shape = FullSpan; Magnitude = 1.0; Description = ""; Dir = "" }
                     { Case = Wu; Shape = FullSpan; Magnitude = 5.0; Description = ""; Dir = "" } ]
               let pts = [ pt 0.0 (Some RF) (Some RF) None; pt 8300.0 (Some RF) (Some RF) None ]
-              let k = { k1 with KlTop = 1.4; ContinuousTop = true }
+              let k = { k1 with KlDown = 1.4; ContinuousTop = true }
               let r = Uls.checkCombination s 300 200000.0 beam loads pts k gravity |> List.exactlyOne
               Expect.equal r.Ends "cont." "continuous"
               within 1e-12 (Capacity.sectionMomentX s 300).PhiMs r.MemberCap.PhiMb "φMb = φMsx"

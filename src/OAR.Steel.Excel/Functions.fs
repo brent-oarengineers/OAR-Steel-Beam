@@ -9,7 +9,7 @@ open OAR.Steel
 [<Literal>]
 let Category = "OAR Steel"
 
-let private version = "0.3.5"
+let private version = "0.3.6"
 
 // ---------- conversion helpers ----------
 
@@ -390,10 +390,10 @@ let private segmentChecks (c: BeamCtx) combos restraints kfactors =
 let private m1 (v: float) = v / 1000.0 // mm -> m
 
 let private segText (r: SegmentCheck) =
-    sprintf "%.2f–%.2f%s%s" (m1 r.X1) (m1 r.X2) (if r.MemberCap.AlphaMOverridden || r.KlOverridden then " *" else "") (if r.KlRaised then " †" else "")
+    sprintf "%.2f–%.2f%s" (m1 r.X1) (m1 r.X2) (if r.MemberCap.AlphaMOverridden || r.KlOverridden then " *" else "")
 
 [<ExcelFunction(Name = "OAR.ULS",
-                Description = "Spills member bending checks for every segment of every combination, both flanges where the moment compresses them: combo | segment m (* = αm or kl override, † = kl raised for moment reversal) | flange and ends | Le m | αm | αs | φMb kN.m | M* kN.m | utilisation",
+                Description = "Spills member bending checks for every segment of every combination, both flanges where the moment compresses them: combo | segment m (* = αm or kl override) | flange and ends | Le m | αm | αs | φMb kN.m | M* kN.m | utilisation",
                 Category = Category)>]
 let oarUls
     ([<ExcelArgument(Name = "designation")>] designation: obj)
@@ -404,7 +404,7 @@ let oarUls
     ([<ExcelArgument(Name = "loads")>] loads: obj)
     ([<ExcelArgument(Name = "combos", Description = "active combinations (ID..Dir: G Q Wd Wu, or older G..Wiu)")>] combos: obj)
     ([<ExcelArgument(Name = "restraints", Description = "Restraints table: x | Ref | Description | Top | Bottom | αm top | αm bottom | kl top | kl bottom")>] restraints: obj)
-    ([<ExcelArgument(Name = "kfactors", Description = "kl top, kl bottom / kr top, kr bottom / [continuous Yes/No] / [kl free tip]")>] kfactors: obj)
+    ([<ExcelArgument(Name = "kfactors", Description = "kl load down, kl load up / kr top, kr bottom / [continuous Yes/No top, bottom] / [kl free tip down, up]")>] kfactors: obj)
     : obj =
     guard (fun () ->
         let c = ctx designation gr span e includeSW loads
@@ -460,7 +460,7 @@ let oarUlsDetail
                   row "End restraints" (box r.Ends) "Cl. 5.4"
                   row "Segment length l" (box r.Length) "mm"
                   row "kt" (box r.Kt) "Table 5.6.3(1)"
-                  row "kl" (box r.Kl) (if r.KlOverridden then "override" elif r.KlRaised then "raised: moment reversal" else "Table 5.6.3(2)")
+                  row "kl" (box r.Kl) ("Table 5.6.3(2): " + r.KlBasis)
                   row "kr" (box r.Kr) "Table 5.6.3(3)"
                   row "Le = kt kl kr l" (box mc.Le) "mm"
                   row "M2*" (box (Units.toKNm r.M2)) "kN·m"

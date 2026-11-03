@@ -18,7 +18,7 @@ let private grid4 (rows: float list list) =
     Array2D.init rows.Length 2 (fun i j ->
         if i = 2 then Str(if rows.[i].[j] = 0.0 then "No" else "Yes") else Num rows.[i].[j])
 
-let private k1 = { KlTop = 1.0; KlBottom = 1.0; KrTop = 1.0; KrBottom = 1.0; ContinuousTop = false; ContinuousBottom = false; KlTipTop = 2.0; KlTipBottom = 2.0 }
+let private k1 = { KlDown = 1.0; KlUp = 1.0; KrTop = 1.0; KrBottom = 1.0; ContinuousTop = false; ContinuousBottom = false; KlTipDown = 2.0; KlTipUp = 2.0 }
 
 [<Tests>]
 let tests =
@@ -172,10 +172,10 @@ let tests =
               near 0.05 2.2 (Analysis.deflection b [ lc1 1.0 ] 3000.0) "LC1 backspan midspan"
           }
 
-          // RFEM 6 steel design, B2 C2, purlins removed (run B), x = 6.0: bottom flange 0–6 m F–F with the moment
-          // reversing at 4.5 m. RFEM uses kl = 1.4 (top-flange load, top flange compressed over 0–4.5 m):
-          // Le 8.40 m, Mo 66.49, αs 0.231, αm 2.427 (from interpolated quarter-point moments; exact 2.404), η 0.348.
-          test "RFEM B2 C2 run B: reversing segment takes the higher kl" {
+          // RFEM 6 steel design, B2 C2, purlins removed (run B), x = 6.0: bottom flange 0–6 m F–F, hogging governs.
+          // RFEM and Space Gass both use kl = 1.4 (downward load on the top flange):
+          // Le 8.40 m, Mo 66.49, αs 0.231, αm 2.427 (RFEM interpolates quarter-point moments; exact 2.404), η 0.348.
+          test "RFEM B2 C2 run B: downward top-flange load gives kl 1.4 for the hogging segment" {
               let s = Sections.find "360UB44.7"
               let b = Beam.supported 8000.0 (200000.0 * s.Ix) 0.0 6000.0
               let ld shape mag : Load = { Case = G; Shape = shape; Magnitude = mag; Description = ""; Dir = "" }
@@ -184,12 +184,11 @@ let tests =
                     ld (Partial(6000.0, 8000.0)) (1.2 * 3.0 + 1.5 * 4.0)
                     ld (Point 8000.0) (1.2 * 10000.0) ]
               let pts = [ pt 0.0 (Some RF) (Some RF); pt lb (Some RF) (Some RF); pt (lb + a) (Some RF) (Some RF) ]
-              let k = { k1 with KlTop = 1.4 }
+              let k = { k1 with KlDown = 1.4 }
               let r = Uls.checkCombination s 300 200000.0 b loads pts k (Combination.single G)
               let seg = r |> List.find (fun c -> c.Flange = Bottom && c.X1 = 0.0)
-              within 1e-12 1.4 seg.Kl "kl raised to the top-flange value"
-              Expect.isTrue seg.KlRaised "flagged"
-              Expect.stringContains seg.Note "kl = 1.40" "note"
+              within 1e-12 1.4 seg.Kl "kl for downward load"
+              Expect.stringContains seg.KlBasis "load down" "basis"
               within 1e-9 8400.0 seg.MemberCap.Le "Le = 1.4 x 6.0 m"
               within 0.0005 66.49 (Units.toKNm seg.MemberCap.Mo) "Mo (RFEM 66.49)"
               within 0.002 0.231 seg.MemberCap.AlphaS "αs (RFEM 0.231)"
@@ -197,11 +196,10 @@ let tests =
               within 0.002 136.76 (Units.toKNm (seg.MemberCap.PhiMb / 0.9)) "Mb (RFEM 138.04 with its αm)"
               within 1e-9 43.2 (Units.toKNm seg.Mm) "M* at B"
               let over = r |> List.find (fun c -> c.Flange = Bottom && c.X1 = lb)
-              Expect.isFalse over.KlRaised "overhang is all hogging: kl stays at the bottom-flange value"
-              within 1e-12 1.0 over.Kl "overhang kl"
+              within 1e-12 1.4 over.Kl "overhang (tip restrained): downward load, kl 1.4"
           }
 
-          test "kl override in the restraints table replaces the reversal rule" {
+          test "kl override in the restraints table replaces the factor-box kl" {
               let s = Sections.find "360UB44.7"
               let b = Beam.supported 8000.0 (200000.0 * s.Ix) 0.0 6000.0
               let ld shape mag : Load = { Case = G; Shape = shape; Magnitude = mag; Description = ""; Dir = "" }
@@ -209,11 +207,10 @@ let tests =
               let p0Base = pt 0.0 (Some RF) (Some RF)
               let p0 = { p0Base with KlOverrideBottom = Some 1.0 }
               let pts = [ p0; pt lb (Some RF) (Some RF); pt (lb + a) (Some RF) (Some RF) ]
-              let k = { k1 with KlTop = 1.4 }
+              let k = { k1 with KlDown = 1.4 }
               let r = Uls.checkCombination s 300 200000.0 b loads pts k (Combination.single G)
               let seg = r |> List.find (fun c -> c.Flange = Bottom && c.X1 = 0.0)
               Expect.isTrue seg.KlOverridden "override used"
-              Expect.isFalse seg.KlRaised "not raised"
               within 1e-9 6000.0 seg.MemberCap.Le "Le = 1.0 x 6.0 m"
               Expect.stringContains seg.Note "restraints table" "note"
               let topSeg = r |> List.find (fun c -> c.Flange = Top && c.X1 = 0.0)
@@ -249,7 +246,7 @@ let tests =
               let ld shape mag : Load = { Case = G; Shape = shape; Magnitude = mag; Description = ""; Dir = "" }
               let loads = [ ld (Partial(0.0, 8000.0)) 9.6; ld (Point 8000.0) 12000.0 ]
               let pts = [ pt 0.0 (Some RF) (Some RF); pt lb (Some RF) (Some RF); pt (lb + a) (Some RU) (Some RU) ]
-              let k = { k1 with KlTop = 1.4 }
+              let k = { k1 with KlDown = 1.4 }
               let r = Uls.checkCombination s 300 200000.0 b loads pts k (Combination.single G)
               let over = r |> List.find (fun c -> c.Flange = Bottom && c.X1 = lb)
               Expect.equal over.Ends "FU" "ends"
@@ -278,7 +275,7 @@ let tests =
               let ld shape mag : Load = { Case = G; Shape = shape; Magnitude = mag; Description = ""; Dir = "" }
               let loads = [ ld (Partial(0.0, 6500.0)) 8.0; ld (Point 2000.0) 20000.0 ]
               let pts = [ pt 0.0 (Some RF) (Some RF); pt 5000.0 (Some RF) (Some RF); pt 6500.0 (Some RU) (Some RU) ]
-              let k = { k1 with KlTop = 1.4 }
+              let k = { k1 with KlDown = 1.4 }
               let acts = Analysis.actions 6500.0 (Combination.single G) loads
               let ra, _ = Analysis.reactions b acts
               near 0.005 30.20 (Units.toKN ra) "RA = V* at A"
@@ -312,7 +309,7 @@ let tests =
               let ld shape mag : Load = { Case = G; Shape = shape; Magnitude = mag; Description = ""; Dir = "" }
               let loads = [ ld (Partial(0.0, 6500.0)) 8.0; ld (Point 2000.0) 20000.0 ]
               let pts = [ pt 0.0 (Some RF) (Some RF); pt 5000.0 (Some RF) (Some RF); pt 6500.0 (Some RU) (Some RU) ]
-              let k = { k1 with KlTop = 1.4 }
+              let k = { k1 with KlDown = 1.4 }
               let r = Uls.checkCombination s 300 200000.0 b loads pts k (Combination.single G)
               let top = r |> List.find (fun c -> c.Flange = Top && c.X1 = 0.0)
               within 1e-9 7000.0 top.MemberCap.Le "Le 7.000"
@@ -332,6 +329,65 @@ let tests =
               let sh = Uls.shearChecks s 300 b loads [ Combination.single G ] |> List.exactlyOne
               within 0.005 (1.0 / 8.80) sh.Utilisation "shear load factor 8.80"
               within 0.0005 113.97 (Units.toKNm (Capacity.sectionMomentX s 300).PhiMs) "φMsx 113.97"
+          }
+
+          // Space Gass B4: 250UB31.4, supports 0 / 5.0 m, tip 6.5 m (U); 8 kN/m full length + 15 kN at 5.75 m (mid-overhang).
+          // Group 1 (0–5 m FF, hogging governs): kl 1.40, Le 7.000, αm 1.68, φMo 37.80, Mbx 53.00, M* -20.25, load factor 2.62.
+          // Group 2 (overhang FU): kl 2.00, Le 3.000, αm 2.25 (point load not at the tip), Mbx = φMsx 113.97, load factor 5.63.
+          test "Space Gass B4: point load along the overhang (not at the tip) takes αm 2.25" {
+              let s = Sections.find "250UB31.4"
+              let b = Beam.supported 6500.0 (200000.0 * s.Ix) 0.0 5000.0
+              let ld shape mag : Load = { Case = G; Shape = shape; Magnitude = mag; Description = ""; Dir = "" }
+              let loads = [ ld (Partial(0.0, 6500.0)) 8.0; ld (Point 5750.0) 15000.0 ]
+              let pts = [ pt 0.0 (Some RF) (Some RF); pt 5000.0 (Some RF) (Some RF); pt 6500.0 (Some RU) (Some RU) ]
+              let k = { k1 with KlDown = 1.4 }
+              let r = Uls.checkCombination s 300 200000.0 b loads pts k (Combination.single G)
+              let back = r |> List.find (fun c -> c.Flange = Bottom && c.X1 = 0.0)
+              within 1e-12 1.4 back.Kl "kl 1.40"
+              near 0.005 1.68 back.MemberCap.AlphaM "αm 1.68"
+              within 0.0005 53.00 (Units.toKNm back.MemberCap.PhiMb) "Mbx 53.00"
+              within 0.005 (1.0 / 2.62) back.Utilisation "load factor 2.62"
+              let over = r |> List.find (fun c -> c.Flange = Bottom && c.X1 = 5000.0)
+              within 1e-12 2.25 over.MemberCap.AlphaM "αm 2.25"
+              within 0.0005 113.97 (Units.toKNm over.MemberCap.PhiMb) "Mbx = φMsx"
+              within 0.005 (1.0 / 5.63) over.Utilisation "load factor 5.63"
+          }
+
+          // Space Gass B5: same beam, 6 kN/m uplift (Wu) full length. Upward load on the top flange is not destabilising: kl 1.00.
+          // Group 1 (0–5 m FF, hogging): Le 5.000, αm 1.22, αs 0.40, φMo 59.41, Mbx 55.43, M* -15.52, load factor 3.57.
+          // Group 2 (overhang FU, sagging – top flange compressed): kl 1.00, Le 1.500, αm 2.25, section governs, load factor 16.88.
+          test "Space Gass B5: uplift gives kl 1.0 (load acts away from the shear centre)" {
+              let s = Sections.find "250UB31.4"
+              let b = Beam.supported 6500.0 (200000.0 * s.Ix) 0.0 5000.0
+              let loads = [ { Case = Wu; Shape = FullSpan; Magnitude = 6.0; Description = ""; Dir = "" } ]
+              let pts = [ pt 0.0 (Some RF) (Some RF); pt 5000.0 (Some RF) (Some RF); pt 6500.0 (Some RU) (Some RU) ]
+              let k = { k1 with KlDown = 1.4; KlUp = 1.0; KlTipDown = 2.0; KlTipUp = 1.0 }
+              let r = Uls.checkCombination s 300 200000.0 b loads pts k (Combination.single Wu)
+              let back = r |> List.find (fun c -> c.Flange = Bottom && c.X1 = 0.0)
+              within 1e-12 1.0 back.Kl "kl 1.00"
+              within 1e-9 5000.0 back.MemberCap.Le "Le 5.000"
+              near 0.005 1.22 back.MemberCap.AlphaM "αm 1.22"
+              within 0.0005 59.41 (0.9 * Units.toKNm back.MemberCap.Mo) "φMo 59.41"
+              within 0.0005 55.43 (Units.toKNm back.MemberCap.PhiMb) "Mbx 55.43"
+              within 0.005 (1.0 / 3.57) back.Utilisation "load factor 3.57"
+              let over = r |> List.find (fun c -> c.Flange = Top && c.X1 = 5000.0)
+              within 1e-12 1.0 over.Kl "free tip under uplift: kl 1.00"
+              within 1e-9 1500.0 over.MemberCap.Le "Le 1.500"
+              within 1e-12 2.25 over.MemberCap.AlphaM "αm 2.25"
+              within 0.005 (1.0 / 16.88) over.Utilisation "load factor 16.88"
+          }
+
+          test "mixed loading on a free-tip cantilever: 1.25 adopted, moment-weighted estimate noted" {
+              let s = Sections.find "360UB44.7"
+              let b = Beam.supported 8000.0 (200000.0 * s.Ix) 0.0 6000.0
+              let ld shape mag : Load = { Case = G; Shape = shape; Magnitude = mag; Description = ""; Dir = "" }
+              let loads = [ ld (Partial(0.0, 8000.0)) 9.6; ld (Point 8000.0) 12000.0 ]
+              let pts = [ pt 0.0 (Some RF) (Some RF); pt lb (Some RF) (Some RF); pt (lb + a) (Some RU) (Some RU) ]
+              let r = Uls.checkCombination s 300 200000.0 b loads pts k1 (Combination.single G)
+              let over = r |> List.find (fun c -> c.Flange = Bottom && c.X1 = lb)
+              within 1e-12 1.25 over.MemberCap.AlphaM "adopted 1.25"
+              // tip 12 kN x 2 m = 24 kN.m, UDL 9.6 x 2² / 2 = 19.2 kN.m -> (24 x 1.25 + 19.2 x 2.25) / 43.2 = 1.69
+              Expect.stringContains over.Note "moment-weighted estimate 1.69" "estimate in the note"
           }
 
           test "free tip: distributed load only gives αm 2.25; override still wins" {
@@ -354,8 +410,9 @@ let tests =
 
           test "free-tip kl comes from its own row in the factor box" {
               let k = Inputs.kFactors (grid4 [ [ 1.4; 1.0 ]; [ 1.0; 1.0 ]; [ 0.0; 0.0 ]; [ 2.0; 1.5 ] ])
-              within 1e-12 2.0 k.KlTipTop "tip top"
-              within 1e-12 1.5 k.KlTipBottom "tip bottom"
+              within 1e-12 2.0 k.KlTipDown "tip top"
+              within 1e-12 1.5 k.KlTipUp "tip bottom"
               let k3 = Inputs.kFactors (grid4 [ [ 1.4; 1.0 ]; [ 1.0; 1.0 ] ])
-              within 1e-12 2.0 k3.KlTipBottom "default 2.0"
+              within 1e-12 2.0 k3.KlTipDown "default 2.0 for load down"
+              within 1e-12 1.0 k3.KlTipUp "default 1.0 for load up"
           } ]

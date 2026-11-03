@@ -263,7 +263,8 @@ module Inputs =
                         KlOverrideBottom = klCol 8 "kl bottom" }
                   yield p ]
 
-    /// k factors, 2 to 4 rows x 2 (top, bottom): kl | kr | [continuous Yes/No] | [kl for a free (U) tip, default 2.0]
+    /// k factors, 2 to 4 rows x 2: kl (load down, load up) | kr (top, bottom) | [continuous Yes/No (top, bottom)] |
+    /// [kl for a free (U) tip (load down, load up), default 2.0 / 1.0]
     let kFactors (grid: Cell[,]) : KFactors =
         let rows = Array2D.length1 grid
         if rows < 2 || rows > 4 || Array2D.length2 grid <> 2 then
@@ -279,14 +280,14 @@ module Inputs =
                  | "NO" | "N" | "FALSE" | "0" | "" -> false
                  | t -> failwithf "continuous restraint must be Yes or No (got '%s')" t)
             else false
-        { KlTop = v 0 0 "kl top"
-          KlBottom = v 0 1 "kl bottom"
+        { KlDown = v 0 0 "kl load down"
+          KlUp = v 0 1 "kl load up"
           KrTop = v 1 0 "kr top"
           KrBottom = v 1 1 "kr bottom"
           ContinuousTop = cont 0
           ContinuousBottom = cont 1
-          KlTipTop = (if rows = 4 then v 3 0 "kl free tip top" else 2.0)
-          KlTipBottom = (if rows = 4 then v 3 1 "kl free tip bottom" else 2.0) }
+          KlTipDown = (if rows = 4 then v 3 0 "kl free tip, load down" else 2.0)
+          KlTipUp = (if rows = 4 then v 3 1 "kl free tip, load up" else 1.0) }
 
     let yesNo (c: Cell) =
         match (text c).ToUpperInvariant() with

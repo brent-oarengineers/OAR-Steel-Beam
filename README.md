@@ -1,4 +1,4 @@
-# OAR Steel – Excel add-in (v0.3.5)
+# OAR Steel – Excel add-in (v0.3.6)
 
 F# / Excel-DNA add-in for the OAR steel beam calc sheet. Engineering lives in `OAR.Steel.Core`
 (no Excel references, fully testable); `OAR.Steel.Excel` only converts worksheet values.
@@ -71,11 +71,12 @@ All lengths mm. Section properties use catalogue units (×10⁶ mm⁴ etc.). Err
 (kl top, kl bottom / kr top, kr bottom). For every combination both flanges are checked: each flange's
 segments (from its own restraints) are checked wherever the moment puts that flange in compression
 (top: sagging, bottom: hogging; moments under 1% of the combination's peak are ignored). M* = the largest
-compressing moment in the segment, αm from the whole segment's diagram. Where the moment reverses within a
-segment, kl = the higher of kl top and kl bottom (marked † in OAR.ULS). Both ends of the beam must be
+compressing moment in the segment, αm from the whole segment's diagram. kl comes from the direction of the load
+on each segment: downward on the top flange = destabilising (kl ↓, default 1.4), upward = kl ↑ (default 1.0),
+no load within the segment = 1.0. Both ends of the beam must be
 listed for a checked flange, and the supports must be F or P. A free tip may be U: that segment takes αm from
-Table 5.6.2 (1.25 with a concentrated load on it, 2.25 for distributed load only) and kl from the factor box's
-"kl free tip" row (default 2.0). kt from Table 5.6.3(1) (nw = 1); kl, kr as entered.
+Table 5.6.2 (1.25 for a point load at the tip, otherwise 2.25; mixed loading adopts 1.25 and notes a
+moment-weighted estimate) and kl from the factor box's "kl free tip" row (default 2.0 ↓ / 1.0 ↑). kt from Table 5.6.3(1) (nw = 1); kl, kr as entered.
 
 Ranges on the base sheet: `loads` = `Loads_B1[[Type]:[Dir]]` (v0.3: Type | Trib | Description | G | Q | Wd | Wu | Start | End | Dir;
 the v0.2 one-case-per-row layout `Case..Dir` / `Case..End` is still read), `combos` = the active-combinations
@@ -125,6 +126,7 @@ row whose key cell shows nothing; the next edit on that sheet unhides them. The 
 | Segments | DCT Ex 2 through the builder (Le 11.2 m; αm 0.98 vs override 1.088) | 1e-4 |
 | Segments | Blockpad UDL: αm 1.166, Le 11.62 m | 1e-6 |
 | Segments | uplift uses bottom-flange restraints and kl; compression flange from moment sign; support validation | exact |
+| Space Gass B3–B5 | UDL-only overhang (αm 2.25), mid-overhang point load (2.25), uplift (kl 1.0); 250UB31.4 backspan failing at 1.04 | 0.1% |
 | Space Gass B2 | C2 overhang FU (kl 2.0, Le 4.0, αm 1.25, φMb 150.78) and backspan FF (φMb 123.09) | 0.05% |
 | RFEM B2 LTB | C1 4–6 m, C2 2–4 m (Run A) and C2 0–6 m bottom flange (Run B): kl, Le, Mo, αs, Mb | 0.1% |
 | RFEM B2 | backspan + overhang, C1–C5: reactions and M at B to 0.01; tip and backspan δ (with shear deformation, Az 22.51 cm²) to 0.05 mm | 0.01 kN / 0.05 mm |

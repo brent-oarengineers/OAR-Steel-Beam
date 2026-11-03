@@ -575,10 +575,10 @@ name("OAR_Flex_Restraints", "Restraints_B1[x (mm)]")
 label(f"B{rlast+1}", "αm / kl → overrides for that flange's segment from this row to the next restraint on that flange "
       "(blank: αm by Cl. 5.6.1.1(a)(iii), kl from the factor box below). Flagged * in the output.", 7, GREY, i=True)
 kb = rlast + 3
-for col, txt in zip("EFG", ["Factor", "Top", "Bottom"]):
+for col, txt in zip("EFG", ["Factor", "Top / load ↓", "Bottom / load ↑"]):
     put(f"{col}{kb}", txt, font(8, b=True), F_HDR, None, C)
 kf = [("kl", 1.4, 1.0, "kl", "0.00"), ("kr", 1.0, 1.0, "kr", "0.00"), ("Continuous", "No", "No", "Cont", None),
-      ("kl free tip", 2.0, 2.0, "klTip", "0.00")]
+      ("kl free tip", 2.0, 1.0, "klTip", "0.00")]
 for i, (lab, top, bot, nm, nf) in enumerate(kf):
     rr = kb + 1 + i
     label(f"E{rr}", lab, 9, al=C)
@@ -587,10 +587,10 @@ for i, (lab, top, bot, nm, nf) in enumerate(kf):
 dv_cont = DataValidation(type="list", formula1='"Yes,No"')
 ws.add_data_validation(dv_cont); dv_cont.add(f"F{kb+3}:G{kb+3}")
 KF_RANGE = f"$F${kb+1}:$G${kb+4}"
-label(f"H{kb+1}", "kl: load height, Table 5.6.3(2)", 7, GREY, i=True)
-label(f"H{kb+2}", "kr: rotation, Table 5.6.3(3); kt from restraints", 7, GREY, i=True)
+label(f"H{kb+1}", "kl by load on the segment: ↓ on top flange (destabilising) | ↑ uplift, Table 5.6.3(2)", 7, GREY, i=True)
+label(f"H{kb+2}", "kr per flange: top | bottom, Table 5.6.3(3); kt from restraints", 7, GREY, i=True)
 label(f"H{kb+3}", "Yes = flange continuously restrained: φMb = φMsx", 7, GREY, i=True)
-label(f"H{kb+4}", "kl for a cantilever segment with a free (U) tip, Table 5.6.3(2)", 7, GREY, i=True)
+label(f"H{kb+4}", "kl for a cantilever with a free (U) tip: load ↓ | load ↑", 7, GREY, i=True)
 rlast = kb + 4
 
 # bottom-flange summary row: say so and grey it out when no combination hogs the beam
@@ -759,7 +759,7 @@ name("OAR_Flex_ULS", f"$B${r+1}:$B${r+16}")
 spill_format(r + 1, r + 16, "BCDEFGHIJ", [None, None, None, "0.00", "0.000", "0.000", "0.0", "0.0", "0%"], util_col="J")
 ws.conditional_formatting.add(f"C{r+1}:C{r+16}", Rule(type="expression", formula=[f'RIGHT(C{r+1},1)="*"'],
     dxf=DifferentialStyle(font=Font(color="9C5700", bold=True))))
-label(f"B{r+17}", "* αm or kl overridden in the restraints table.   † moment reverses in the segment: kl = higher of top / bottom.   Full working for the governing segment follows.", 7, GREY, i=True)
+label(f"B{r+17}", "* αm or kl overridden in the restraints table.   Full working for the governing segment follows.", 7, GREY, i=True)
 r = r + 19
 ws.row_breaks.append(Break(id=r - 1))
 
