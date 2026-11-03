@@ -111,7 +111,8 @@ module Serviceability =
     let governing (results: DeflectionResult list) =
         let arr = List.toArray results
         if arr.Length <= 5 then results
-        else [ for i in 0..4 -> if arr.[i + 5].Utilisation > arr.[i].Utilisation then arr.[i + 5] else arr.[i] ]
+        // the second row (tip, or span 2) only when it is clearly worse, so equal spans report span 1
+        else [ for i in 0..4 -> if arr.[i + 5].Utilisation > arr.[i].Utilisation * (1.0 + 1e-9) + 1e-12 then arr.[i + 5] else arr.[i] ]
 
     /// Deflected shapes for plotting at n+1 stations: (x, Δg, Δg+ψl.q, Δg+ψs.q, Δq), mm, downward positive
     let curves (beam: Beam) (loads: Load list) (psiL: float) (psiS: float) (n: int) =

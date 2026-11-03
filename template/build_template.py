@@ -318,8 +318,9 @@ for i, (case, desc, ratio, lim, psi) in enumerate(sls):
 name("DeflCriteria", f"$B${hdr+1}:$G${hdr+5}")
 SLS_DEFL_ROWS = defl_rows
 name("PsiL", f"$G${hdr+2}"); name("PsiS", f"$G${hdr+3}")
-label(f"H{hdr+1}", "Limit = lesser of L/ratio and max (overhang tip: L = 2 × overhang; two spans: L = each span)", 7, GREY)
-label(f"H{hdr+2}", "Blank max = ratio only", 7, GREY)
+label(f"H{hdr+1}", "Limit = lesser of L/ratio and max;  blank max = ratio only", 7, GREY)
+label(f"H{hdr+2}", "Overhang tip: L = 2 × overhang", 7, GREY)
+label(f"H{hdr+3}", "Two spans: L = each span", 7, GREY)
 
 # ---------------- Loads ----------------
 r = r + 8
@@ -774,6 +775,8 @@ ULS_ANCHOR = f"B{r+1}"
 dyn(ULS_ANCHOR, f"=OAR.ULS({ARGS_ULS})")
 name("OAR_Flex_ULS", f"$B${r+1}:$B${r+36}")
 spill_format(r + 1, r + 36, "BCDEFGHIJ", [None, None, None, "0.00", "0.000", "0.000", "0.0", "0.0", "0%"], util_col="J")
+for rr in range(r + 1, r + 37):   # long pattern IDs (ULS2-span1) shrink to the Combo column instead of running into Segment
+    ws[f"B{rr}"].alignment = Alignment(horizontal="center", vertical="center", shrink_to_fit=True)
 ws.conditional_formatting.add(f"C{r+1}:C{r+36}", Rule(type="expression", formula=[f'RIGHT(C{r+1},1)="*"'],
     dxf=DifferentialStyle(font=Font(color="9C5700", bold=True))))
 label(f"B{r+37}", "* αm or kl overridden in the restraints table.   Full working for the governing segment follows.", 7, GREY, i=True)

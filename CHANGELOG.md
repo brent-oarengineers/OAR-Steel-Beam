@@ -11,6 +11,7 @@ The calc sheet shows the version it was calculated with (title block, under the 
 - **SLS:** the five checks for span 1, then span 2 ("… span 2", L = span 2), with Q on both spans and on each span alone, and Δ1kN at the middle of each span. The summary shows the worse span per case.
 - **Reactions:** A, B and C. The per-case table is now one row per case and wind direction (rows for unused directions are blank and hidden on print), with columns A | B | C. Names: RxnL_ = A, RxnR_ = the right-end support (B, or C on two spans), new RxnB_ = support B.
 - Restraints table: the row after B becomes support C (F, F) on a two-span beam. The combinations note explains the -span1 / -span2 variants.
+- Summary: with equal spans the deflection rows report span 1 (span 2 only when it is worse); long pattern IDs shrink to fit the Combo column.
 - Not yet: two spans with an overhang, three or more spans (the engine analyses them but pattern loading is set up for two spans only).
 
 ## v0.4.1
