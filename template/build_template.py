@@ -560,7 +560,7 @@ rcols = ["x (mm)", "Ref", "Restraint provided by", "Top flange", "Bottom fl.", "
 for col, txt in zip("BCDEFGHIJ", rcols):
     put(f"{col}{rh}", txt, font(8, b=True), F_HDR, None, C)
 restr = [("=0", "A", "Left support – cleat", "F", "F", None, None, None, None)] + \
-        [(None,) * 9] * 5 + \
+        [(None,) * 9] * 12 + \
         [("=Span", "B", "Right support – cleat", "F", "F", None, None, None, None),
          ('=IF(Overhang>0,Span+Overhang,"")', '=IF(Overhang>0,"Tip","")', '=IF(Overhang>0,"Cantilever tip","")', "TIPU", "TIPU", None, None, None, None)]
 for i, rv in enumerate(restr):
