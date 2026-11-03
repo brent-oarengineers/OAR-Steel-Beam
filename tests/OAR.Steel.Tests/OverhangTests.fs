@@ -13,7 +13,12 @@ let private beam = Beam.supported (lb + a) ei 0.0 lb
 let private pt x top bottom : RestraintPoint =
     { X = x; Ref = ""; Top = top; Bottom = bottom; AlphaMTop = None; AlphaMBottom = None; KlOverrideTop = None; KlOverrideBottom = None }
 
-let private k1 = { KlTop = 1.0; KlBottom = 1.0; KrTop = 1.0; KrBottom = 1.0; ContinuousTop = false; ContinuousBottom = false }
+/// numeric k-factor grid (row 3 of a 4-row grid is the continuous Yes/No row: 0 = No)
+let private grid4 (rows: float list list) =
+    Array2D.init rows.Length 2 (fun i j ->
+        if i = 2 then Str(if rows.[i].[j] = 0.0 then "No" else "Yes") else Num rows.[i].[j])
+
+let private k1 = { KlTop = 1.0; KlBottom = 1.0; KrTop = 1.0; KrBottom = 1.0; ContinuousTop = false; ContinuousBottom = false; KlTipTop = 2.0; KlTipBottom = 2.0 }
 
 [<Tests>]
 let tests =
@@ -220,16 +225,71 @@ let tests =
                   "kl override at the right end is an error"
           }
 
-          test "restraints: the tip must be listed; an unrestrained tip is not covered yet" {
+          test "restraints: the tip must be listed; U only at a free end" {
               let s = Sections.find "310UB40.4"
               let b = Beam.supported (lb + a) (200000.0 * s.Ix) 0.0 lb
               let loads = [ { Case = G; Shape = FullSpan; Magnitude = 3.0; Description = ""; Dir = "" } ]
               let run pts = Uls.checkCombination s 300 200000.0 b loads pts k1 (Combination.single G) |> ignore
               Expect.throws (fun () -> run [ pt 0.0 (Some RF) (Some RF); pt lb (Some RF) (Some RF) ]) "tip missing"
+              run [ pt 0.0 (Some RF) (Some RF); pt lb (Some RF) (Some RF); pt (lb + a) (Some RU) (Some RU) ] // U tip is fine
               Expect.throws
-                  (fun () -> run [ pt 0.0 (Some RF) (Some RF); pt lb (Some RF) (Some RF); pt (lb + a) (Some RU) (Some RU) ])
-                  "U tip"
+                  (fun () -> run [ pt 0.0 (Some RF) (Some RF); pt 3000.0 (Some RU) (Some RU); pt lb (Some RF) (Some RF); pt (lb + a) (Some RF) (Some RF) ])
+                  "U inside the backspan"
               Expect.throws
                   (fun () -> run [ pt 0.0 (Some RF) (Some RF); pt lb (Some RL) (Some RF); pt (lb + a) (Some RF) (Some RF) ])
                   "support B must be F or P"
+          }
+
+          // Space Gass 12.28 (AS 4100-1998), B2 C2, overhang 6–8 m with the tip unrestrained (FU):
+          // kt 1.00, kl 2.00, Le 4.000 m, αm 1.25, αs 0.54, φMo 184.64 (Mo 205.16), φMb 150.78, M* 43.20, load factor 3.49.
+          // (RFEM 6 reported the same Le, Mo and αs but took αm = 0.25 from Table 5.6.2.)
+          test "Space Gass B2 C2: cantilever with a free tip, αm 1.25 from Table 5.6.2" {
+              let s = Sections.find "360UB44.7"
+              let b = Beam.supported 8000.0 (200000.0 * s.Ix) 0.0 6000.0
+              let ld shape mag : Load = { Case = G; Shape = shape; Magnitude = mag; Description = ""; Dir = "" }
+              let loads = [ ld (Partial(0.0, 8000.0)) 9.6; ld (Point 8000.0) 12000.0 ]
+              let pts = [ pt 0.0 (Some RF) (Some RF); pt lb (Some RF) (Some RF); pt (lb + a) (Some RU) (Some RU) ]
+              let k = { k1 with KlTop = 1.4 }
+              let r = Uls.checkCombination s 300 200000.0 b loads pts k (Combination.single G)
+              let over = r |> List.find (fun c -> c.Flange = Bottom && c.X1 = lb)
+              Expect.equal over.Ends "FU" "ends"
+              within 1e-12 1.0 over.Kt "kt FU"
+              within 1e-12 2.0 over.Kl "kl free tip"
+              within 1e-9 4000.0 over.MemberCap.Le "Le 4.000 m"
+              within 1e-12 1.25 over.MemberCap.AlphaM "αm 1.25"
+              Expect.stringContains over.AlphaMBasis "Table 5.6.2" "basis"
+              within 0.0005 205.16 (Units.toKNm over.MemberCap.Mo) "Mo"
+              within 0.002 0.544 over.MemberCap.AlphaS "αs"
+              within 0.0005 150.78 (Units.toKNm over.MemberCap.PhiMb) "φMb (Space Gass 150.78)"
+              within 0.005 (1.0 / 3.49) over.Utilisation "load factor 3.49"
+              // the backspan segment in the same run: Space Gass Group 1, φMb 123.09, load factor 2.85
+              let back = r |> List.find (fun c -> c.Flange = Bottom && c.X1 = 0.0)
+              within 0.0005 123.09 (Units.toKNm back.MemberCap.PhiMb) "backspan φMb (Space Gass 123.09)"
+              within 0.005 (1.0 / 2.85) back.Utilisation "backspan load factor 2.85"
+          }
+
+          test "free tip: distributed load only gives αm 2.25; override still wins" {
+              let s = Sections.find "360UB44.7"
+              let b = Beam.supported 8000.0 (200000.0 * s.Ix) 0.0 6000.0
+              let loads = [ { Case = G; Shape = FullSpan; Magnitude = 3.0; Description = ""; Dir = "" } ]
+              let tip = pt (lb + a) (Some RU) (Some RU)
+              let pts = [ pt 0.0 (Some RF) (Some RF); pt lb (Some RF) (Some RF); tip ]
+              let r = Uls.checkCombination s 300 200000.0 b loads pts k1 (Combination.single G)
+              let over = r |> List.find (fun c -> c.Flange = Bottom && c.X1 = lb)
+              within 1e-12 2.25 over.MemberCap.AlphaM "UDL: 2.25"
+              Expect.stringContains over.Note "free tip" "noted"
+              let bBase = pt lb (Some RF) (Some RF)
+              let bOv = { bBase with AlphaMBottom = Some 1.0 }
+              let ro = Uls.checkCombination s 300 200000.0 b loads [ pt 0.0 (Some RF) (Some RF); bOv; tip ] k1 (Combination.single G)
+              let o2 = ro |> List.find (fun c -> c.Flange = Bottom && c.X1 = lb)
+              within 1e-12 1.0 o2.MemberCap.AlphaM "override"
+              Expect.equal o2.AlphaMBasis "override" "basis"
+          }
+
+          test "free-tip kl comes from its own row in the factor box" {
+              let k = Inputs.kFactors (grid4 [ [ 1.4; 1.0 ]; [ 1.0; 1.0 ]; [ 0.0; 0.0 ]; [ 2.0; 1.5 ] ])
+              within 1e-12 2.0 k.KlTipTop "tip top"
+              within 1e-12 1.5 k.KlTipBottom "tip bottom"
+              let k3 = Inputs.kFactors (grid4 [ [ 1.4; 1.0 ]; [ 1.0; 1.0 ] ])
+              within 1e-12 2.0 k3.KlTipBottom "default 2.0"
           } ]

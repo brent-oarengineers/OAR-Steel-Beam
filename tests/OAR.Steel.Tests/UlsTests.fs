@@ -7,7 +7,7 @@ open Helpers
 let private pt x top bottom am : RestraintPoint =
     { X = x; Ref = ""; Top = top; Bottom = bottom; AlphaMTop = am; AlphaMBottom = am; KlOverrideTop = None; KlOverrideBottom = None }
 
-let private k1 = { KlTop = 1.0; KlBottom = 1.0; KrTop = 1.0; KrBottom = 1.0; ContinuousTop = false; ContinuousBottom = false }
+let private k1 = { KlTop = 1.0; KlBottom = 1.0; KrTop = 1.0; KrBottom = 1.0; ContinuousTop = false; ContinuousBottom = false; KlTipTop = 2.0; KlTipBottom = 2.0 }
 
 let private gravity = Combination.ofFactors "G" [ G, 1.0 ]
 

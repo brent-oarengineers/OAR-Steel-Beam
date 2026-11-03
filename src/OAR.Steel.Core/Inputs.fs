@@ -263,17 +263,17 @@ module Inputs =
                         KlOverrideBottom = klCol 8 "kl bottom" }
                   yield p ]
 
-    /// k factors, 2 x 2: [kl top, kl bottom; kr top, kr bottom]
+    /// k factors, 2 to 4 rows x 2 (top, bottom): kl | kr | [continuous Yes/No] | [kl for a free (U) tip, default 2.0]
     let kFactors (grid: Cell[,]) : KFactors =
         let rows = Array2D.length1 grid
-        if (rows <> 2 && rows <> 3) || Array2D.length2 grid <> 2 then
-            failwith "k factors: expected 2 x 2 (kl, kr) or 3 x 2 (kl, kr, continuous restraint Yes/No) for top and bottom flanges"
+        if rows < 2 || rows > 4 || Array2D.length2 grid <> 2 then
+            failwith "k factors: expected 2 to 4 rows x 2 (kl, kr, [continuous Yes/No], [kl for a free tip]) for top and bottom flanges"
         let v i j name =
             match optNum (i + 1) name grid.[i, j] with
             | Some x when x > 0.0 -> x
             | _ -> failwithf "k factors: %s must be a positive number" name
         let cont j =
-            if rows = 3 then
+            if rows >= 3 then
                 (match (text grid.[2, j]).ToUpperInvariant() with
                  | "YES" | "Y" | "TRUE" | "1" -> true
                  | "NO" | "N" | "FALSE" | "0" | "" -> false
@@ -284,7 +284,9 @@ module Inputs =
           KrTop = v 1 0 "kr top"
           KrBottom = v 1 1 "kr bottom"
           ContinuousTop = cont 0
-          ContinuousBottom = cont 1 }
+          ContinuousBottom = cont 1
+          KlTipTop = (if rows = 4 then v 3 0 "kl free tip top" else 2.0)
+          KlTipBottom = (if rows = 4 then v 3 1 "kl free tip bottom" else 2.0) }
 
     let yesNo (c: Cell) =
         match (text c).ToUpperInvariant() with

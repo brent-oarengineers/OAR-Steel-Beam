@@ -550,7 +550,7 @@ name("OAR_Flex_Combos", f"$B${ch+1}:$B${clast}")
 # ---------------- Lateral restraints ----------------
 r = clast + 1
 heading(r, "Lateral Restraints (AS 4100 Cl. 5.4)")
-label(f"B{r+1}", "Restraint type at each cross-section for the critical flange: F, P, L or U (– = none). Supports must be F or P.", 7, GREY, i=True)
+label(f"B{r+1}", "Restraint type at each cross-section, per flange: F, P, L or U (– = none). Supports must be F or P; U only at a free (cantilever) tip.", 7, GREY, i=True)
 rh = r + 2
 rcols = ["x (mm)", "Ref", "Restraint provided by", "Top flange", "Bottom fl.", "αm top →", "αm bot. →", "kl top →", "kl bot. →"]
 for col, txt in zip("BCDEFGHIJ", rcols):
@@ -577,7 +577,8 @@ label(f"B{rlast+1}", "αm / kl → overrides for that flange's segment from this
 kb = rlast + 3
 for col, txt in zip("EFG", ["Factor", "Top", "Bottom"]):
     put(f"{col}{kb}", txt, font(8, b=True), F_HDR, None, C)
-kf = [("kl", 1.4, 1.0, "kl", "0.00"), ("kr", 1.0, 1.0, "kr", "0.00"), ("Continuous", "No", "No", "Cont", None)]
+kf = [("kl", 1.4, 1.0, "kl", "0.00"), ("kr", 1.0, 1.0, "kr", "0.00"), ("Continuous", "No", "No", "Cont", None),
+      ("kl free tip", 2.0, 2.0, "klTip", "0.00")]
 for i, (lab, top, bot, nm, nf) in enumerate(kf):
     rr = kb + 1 + i
     label(f"E{rr}", lab, 9, al=C)
@@ -585,11 +586,12 @@ for i, (lab, top, bot, nm, nf) in enumerate(kf):
     name(f"{nm}_Top", f"$F${rr}"); name(f"{nm}_Bot", f"$G${rr}")
 dv_cont = DataValidation(type="list", formula1='"Yes,No"')
 ws.add_data_validation(dv_cont); dv_cont.add(f"F{kb+3}:G{kb+3}")
-KF_RANGE = f"$F${kb+1}:$G${kb+3}"
+KF_RANGE = f"$F${kb+1}:$G${kb+4}"
 label(f"H{kb+1}", "kl: load height, Table 5.6.3(2)", 7, GREY, i=True)
 label(f"H{kb+2}", "kr: rotation, Table 5.6.3(3); kt from restraints", 7, GREY, i=True)
 label(f"H{kb+3}", "Yes = flange continuously restrained: φMb = φMsx", 7, GREY, i=True)
-rlast = kb + 3
+label(f"H{kb+4}", "kl for a cantilever segment with a free (U) tip, Table 5.6.3(2)", 7, GREY, i=True)
+rlast = kb + 4
 
 # bottom-flange summary row: say so and grey it out when no combination hogs the beam
 for srow in range(sum_hdr + 1, sum_last + 1):

@@ -55,7 +55,10 @@ type KFactors =
       KrBottom: float
       /// flange continuously restrained along the span (e.g. sheeting / closely spaced purlins): φMb = φMsx
       ContinuousTop: bool
-      ContinuousBottom: bool}
+      ContinuousBottom: bool
+      /// kl for a segment with an unrestrained (U) end, i.e. a cantilever with a free tip (Table 5.6.3(2))
+      KlTipTop: float
+      KlTipBottom: float }
 
 /// Member bending check of one segment for one combination, with all working kept.
 type SegmentCheck =
@@ -78,6 +81,8 @@ type SegmentCheck =
       /// signed moment at XAtMm (sagging +)
       MmSigned: float
       AlphaMFormula: float
+      /// where the αm used came from: "Cl. 5.6.1.1(a)(iii)", "Table 5.6.2 …" or "override"
+      AlphaMBasis: string
       MemberCap: MemberMoment
       Utilisation: float
       /// kl raised to the higher of the top and bottom flange values because the moment reverses in the segment
@@ -160,9 +165,14 @@ module Uls =
                 failwithf "restraints: the %s (x = %g) must be listed with a restraint to the %s flange" (describe x) x (flangeName flange)
             | Some(_, t) when isSupport x && t <> RF && t <> RP ->
                 failwithf "restraints: the %s must be F or P for the %s flange (got %s)" (describe x) (flangeName flange) (RestraintType.code t)
-            | Some(_, RU) ->
-                failwithf "restraints: the %s is U for the %s flange; unrestrained cantilever tips are not covered yet" (describe x) (flangeName flange)
             | _ -> ()
+
+        // U (unrestrained) is only valid at a free end, i.e. the tip of a cantilever beyond a support
+        for p, t in restrained do
+            if t = RU then
+                let atFreeEnd = (p.X <= tol || abs (p.X - span) <= tol) && not (isSupport p.X)
+                if not atFreeEnd then
+                    failwithf "restraints: U for the %s flange at x = %g is only allowed at the free end of a cantilever" (flangeName flange) p.X
 
         if restrained |> List.exists (fun (p, _) -> p.X < -tol || p.X > span + tol) then
             failwith "restraints: a restraint position is outside the beam"
@@ -250,6 +260,7 @@ module Uls =
                             XAtMm = xm
                             MmSigned = m xm
                             AlphaMFormula = 1.0
+                            AlphaMBasis = "continuous restraint"
                             MemberCap = cap
                             Utilisation = mcv / cap.PhiMb
                             KlRaised = false
@@ -267,30 +278,50 @@ module Uls =
                               let m4 = m (q 3.0)
                               let _, mmAll = Analysis.maxAbsOn p1.X p2.X bps m
                               let amFormula = Capacity.alphaMFormula mmAll m2 m3 m4
-                              let am, overridden =
+                              // a segment unrestrained at one end (cantilever, free tip U): αm from Table 5.6.2 by the load
+                              // on the segment – a concentrated load gives 1.25, distributed load only gives 2.25 (the
+                              // lower value governs when both act; a free tip carries no applied moment, so 0.25 does not arise)
+                              let cantilever = (t1 = RU || t2 = RU)
+                              let amAuto, amBasis =
+                                  if cantilever then
+                                      let hasPoint =
+                                          acts |> List.exists (fun a ->
+                                              match a with
+                                              | Conc(_, x) -> x >= p1.X - 1.0 && x <= p2.X + 1.0
+                                              | Dist _ -> false)
+                                      if hasPoint then 1.25, "Table 5.6.2, concentrated load"
+                                      else 2.25, "Table 5.6.2, distributed load"
+                                  else amFormula, "Cl. 5.6.1.1(a)(iii)"
+                              let am, overridden, amBasisUsed =
                                   match alphaMFor flange p1 with
-                                  | Some v -> (v, true)
-                                  | None -> (amFormula, false)
+                                  | Some v -> (v, true, "override")
+                                  | None -> (amAuto, false, amBasis)
                               let ktv = kt s len t1 t2
                               // where the moment reverses in the segment, both flanges are in compression somewhere,
                               // so a top-flange load is destabilising for part of it: use the higher kl of the two flanges
                               let opposite = Analysis.maxAbsOn p1.X p2.X bps (fun x -> compressive (if flange = Top then Bottom else Top) (m x)) |> snd
                               let reverses = opposite > tolM
-                              let klAuto = if reverses then max k.KlTop k.KlBottom else kl
+                              let klFlange =
+                                  if cantilever then (match flange with Top -> k.KlTipTop | Bottom -> k.KlTipBottom) else kl
+                              let klBoth = if cantilever then max k.KlTipTop k.KlTipBottom else max k.KlTop k.KlBottom
+                              let klAuto = if reverses then max klFlange klBoth else klFlange
                               let klUsed, klOverridden =
                                   match klFor flange p1 with
                                   | Some v -> v, true
                                   | None -> klAuto, false
-                              let klRaised = not klOverridden && klUsed > kl
+                              let klRaised = not klOverridden && klUsed > klFlange
                               let le = Capacity.effectiveLength ktv klUsed kr len
                               let cap = Capacity.memberMoment s grade e le am overridden
-                              let note =
+                              let tipNote = if cantilever && not overridden then sprintf "free tip: αm = %.2f from %s" am amBasis else ""
+                              let join (a: string) (b: string) = if a = "" then b elif b = "" then a else a + "; " + b
+                              let noteCore =
                                   if klOverridden then
                                       sprintf "kl = %.2f from the restraints table%s" klUsed (if reverses then "; moment reverses in this segment (αm from the whole segment)" else "")
                                   elif not reverses then ""
                                   elif klRaised then
                                       sprintf "moment reverses in this segment: αm from the whole segment; kl = %.2f (higher of top / bottom flange) as the load is destabilising where the other flange is in compression" klUsed
                                   else "moment reverses in this segment: αm from the whole segment"
+                              let note = join tipNote noteCore
                               let r: SegmentCheck =
                                   { Combo = combo.Id
                                     Flange = flange
@@ -308,6 +339,7 @@ module Uls =
                                     XAtMm = xc
                                     MmSigned = m xc
                                     AlphaMFormula = amFormula
+                                    AlphaMBasis = amBasisUsed
                                     MemberCap = cap
                                     Utilisation = mcs / cap.PhiMb
                                     KlRaised = klRaised

@@ -3,6 +3,14 @@
 Each version that reaches `main` is built, tested and published automatically as a GitHub Release.
 The calc sheet shows the version it was calculated with (title block, under the green bar).
 
+## v0.3.5 – stage 2: cantilever segments
+- **Free (U) tip** allowed at the end of an overhang (U anywhere else is an error). For a segment unrestrained at one end:
+  - αm from **Table 5.6.2**: concentrated load on the segment → 1.25; distributed load only → 2.25 (a free tip carries no applied moment, so 0.25 does not arise). The basis is shown in ULSDETAIL and the note; the αm override still applies.
+  - kl from a new **"kl free tip"** row in the factor box (default 2.0 top and bottom, Table 5.6.3(2)); the per-segment kl override still applies.
+  - kt from Table 5.6.3(1) (FU = 1.0, PU = 1 + …), Le to the tip.
+- Benchmarked against Space Gass 12.28 (B2, C2): overhang FU – kl 2.0, Le 4.0 m, αm 1.25, Mo 205.16, αs 0.54, φMb 150.78, load factor 3.49; backspan FF – φMb 123.09, load factor 2.85. (RFEM 6 used αm = 0.25 for the same overhang; Space Gass and Table 5.6.2 give 1.25.)
+- The sheet itself is still simply supported: overhang geometry, pattern loading and tip deflection are stage 3.
+
 ## v0.3.4
 - **kl override per segment:** restraints table has kl top → and kl bot. → columns, like αm. A value applies to that flange's segment from the row to the next restraint on that flange and replaces both the factor-box kl and the moment-reversal rule. Flagged * in the ULS table; ULSDETAIL shows "override". Must be > 0 and ≤ 3.0; an override on a row where that flange is unrestrained, or at the right end, is an error.
 
