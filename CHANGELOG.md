@@ -12,6 +12,7 @@ The calc sheet shows the version it was calculated with (title block, under the 
 - **Reactions:** A, B and C. The per-case table is now one row per case and wind direction (rows for unused directions are blank and hidden on print), with columns A | B | C. Names: RxnL_ = A, RxnR_ = the right-end support (B, or C on two spans), new RxnB_ = support B.
 - Restraints table: the row after B becomes support C (F, F) on a two-span beam. The combinations note explains the -span1 / -span2 variants.
 - Summary: with equal spans the deflection rows report span 1 (span 2 only when it is worse); long pattern IDs shrink to fit the Combo column.
+- OAR > Show all rows now unhides every hidden row on the sheet (not only the print-tidy blocks) and says in the status bar why if it can't, e.g. a protected sheet. One broken block no longer stops the others coming back after printing.
 - Not yet: two spans with an overhang, three or more spans (the engine analyses them but pattern loading is set up for two spans only).
 
 ## v0.4.1

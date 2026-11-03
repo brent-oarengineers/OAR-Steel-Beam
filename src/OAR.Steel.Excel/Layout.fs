@@ -50,12 +50,20 @@ module Layout =
     /// Unhide flex rows on the sheet (only touches the sheet if something is hidden)
     let restoreSheet (ws: Worksheet) =
         for rng in flexRanges ws do
-            let rows = rng.EntireRow
-            let allShown =
-                match rows.Hidden with
-                | :? bool as h -> not h
-                | _ -> false // mixed
-            if not allShown then rows.Hidden <- box false
+            // one block failing (e.g. a name left pointing at #REF!) must not stop the others coming back
+            try
+                let rows = rng.EntireRow
+                let allShown =
+                    match rows.Hidden with
+                    | :? bool as h -> not h
+                    | _ -> false // mixed
+                if not allShown then rows.Hidden <- box false
+            with _ ->
+                ()
+
+    /// Show every hidden row in the sheet's used range (OAR > Show all rows), whatever hid it
+    let showAllRows (ws: Worksheet) =
+        ws.UsedRange.EntireRow.Hidden <- box false
 
     let private worksheets (wb: Workbook) =
         [ for o in (wb.Worksheets :> Collections.IEnumerable) do
@@ -82,8 +90,16 @@ module Layout =
         | _ -> ()
 
     let restoreActiveSheet () =
-        match app().ActiveSheet with
-        | :? Worksheet as ws -> safely (fun () -> restoreSheet ws)
+        let a = app ()
+        match a.ActiveSheet with
+        | :? Worksheet as ws ->
+            try
+                showAllRows ws
+                a.StatusBar <- box false
+            with e ->
+                // say why instead of failing silently (most often a protected sheet)
+                let why = if ws.ProtectContents then "the sheet is protected – unprotect it first" else e.Message
+                a.StatusBar <- box ("OAR Show all rows: " + why)
         | _ -> ()
 
     // keep the Application object alive so its event connections are not collected
@@ -132,7 +148,7 @@ type Ribbon() =
           <button id="oarTidy" label="Tidy for print" onAction="OnTidy"
                   screentip="Hide unused rows in the combination, load, restraint and result tables on this sheet. Printing does this automatically and shows the rows again afterwards." />
           <button id="oarShowAll" label="Show all rows" onAction="OnShowAll"
-                  screentip="Unhide the rows hidden for printing on this sheet." />
+                  screentip="Unhide every hidden row on this sheet." />
         </group>
       </tab>
     </tabs>
