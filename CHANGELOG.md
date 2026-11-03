@@ -3,6 +3,12 @@
 Each version that reaches `main` is built, tested and published automatically as a GitHub Release.
 The calc sheet shows the version it was calculated with (title block, under the green bar).
 
+## v0.3.1
+- **Compression flange found per segment from the moment sign.** Every combination now checks the top flange's segments wherever the moment sags and the bottom flange's segments wherever it hogs, each with its own restraints, kl and kr. The Crit. flange input is gone (the library and printed combinations show the Group instead). M* for a segment is the largest moment compressing that flange; αm still uses the whole segment's moment diagram, and a segment where the moment reverses is noted.
+- Analysis generalised to two simple supports anywhere on the beam (overhangs), with exact deflections by double integration of M/EI (Macaulay). Simply supported results are unchanged – all existing benchmarks (DCT Ex 1 and 2, Blockpad, VBA PUDL) pass as before. The sheet itself is still simply supported; the overhang inputs and cantilever rules follow in the next stages.
+- Summary rows read "Bending – top flange (sagging)" and "Bending – bottom flange (hogging)"; the bottom row greys out when nothing hogs the beam.
+- ULS table: "Flange · ends" column (e.g. "Top FL", "Bottom FF").
+
 ## v0.3.0
 - **New loads table layout:** one row per load position with a column per case – `Type | Trib | Description | G | Q | Wd | Wu | Start | End | Dir`. With a Trib the case values are pressures (kPa, load = trib × value); with a blank Trib they are direct kN/m (Point: kN). Cells show their unit (kPa / kN/m / kN).
 - Internal wind pressure is entered as its own row: −cpi in Wd, +cpi in Wu. The Wid / Wiu cases are gone from new sheets; combinations are G | Q | Wd | Wu | Dir (ULS4 = 1.2G + ψcQ + Wd, ULS5 = 0.9G + Wu, plus the Cross / Long versions).

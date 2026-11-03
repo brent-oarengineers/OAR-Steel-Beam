@@ -164,8 +164,8 @@ sum_rows = [
     ("dfl", "Δq", "Live load only", "Res_Dq", 3),
     ("dfl", "Δ1kN", "1 kN at midspan", "Res_D1", 4),
     ("grp", "Strength"),
-    ("str", "M* / φMbx", "Bending – gravity (top flange)", "Res_Mdn", "Res_phiMdn", "kN·m"),
-    ("str", "M* / φMbx", "Bending – uplift (bottom flange)", "Res_Mup", "Res_phiMup", "kN·m"),
+    ("str", "M* / φMbx", "Bending – top flange (sagging)", "Res_Mdn", "Res_phiMdn", "kN·m"),
+    ("str", "M* / φMbx", "Bending – bottom flange (hogging)", "Res_Mup", "Res_phiMup", "kN·m"),
     ("str", "V* / φVv", "Shear", "Res_V", "Res_phiV", "kN"),
 ]
 util_cells = []; defl_rows = []
@@ -464,8 +464,8 @@ ws.add_data_validation(dv_desc)
 dv_desc.add(f"D{first}:D{last}")
 
 # ---------------- Load combination library (right-hand side, not printed) ----------------
-LIB_COLS = "MNOPQRSTUVW"
-for col, w in zip(LIB_COLS, [8, 7, 9, 8, 9, 26, 6.5, 6.5, 6.5, 6.5, 7]):
+LIB_COLS = "MNOPQRSTUV"
+for col, w in zip(LIB_COLS, [8, 7, 8, 9, 26, 6.5, 6.5, 6.5, 6.5, 7]):
     ws.column_dimensions[col].width = w
 lr = 43
 ws.row_dimensions[lr].height = 20
@@ -476,53 +476,48 @@ label(f"M{lr+1}", "Include: blank = follow the Combination set;  Yes / No = forc
 label(f"M{lr+2}", "Groups: Gravity (Floor, Roof, All), Wind (Roof, All), Storage (All only), Custom (always, unless Include = No).  Add rows at the bottom for custom combinations.", 7, GREY, i=True)
 label(f"M{lr+3}", "Wind rows with a Dir are used when any wind load has a Dir; wind rows without one are used otherwise.", 7, GREY, i=True)
 lh = lr + 4
-lcols = ["Include", "Active", "Group", "ID", "Crit. flange", "Combination", "G", "Q", "Wd", "Wu", "Dir"]
+lcols = ["Include", "Active", "ID", "Group", "Combination", "G", "Q", "Wd", "Wu", "Dir"]
 for col, txt in zip(LIB_COLS, lcols):
     put(f"{col}{lh}", txt, font(8, b=True), F_HDR, None, C)
 W4 = [1.2, "=PsiC", 1.0, 0]
 W5 = [0.9, 0, 0, 1.0]
 lib = [
-    ("Gravity", "ULS1", "Top", "1.35G", [1.35, 0, 0, 0], None),
-    ("Gravity", "ULS2", "Top", "1.2G + 1.5Q", [1.2, 1.5, 0, 0], None),
-    ("Storage", "ULS3", "Top", "1.2G + 1.5ψlQ", [1.2, "=1.5*PsiL", 0, 0], None),
-    ("Wind", "ULS4", "Top", "1.2G + ψcQ + Wd", W4, None),
-    ("Wind", "ULS5", "Bottom", "0.9G + Wu", W5, None),
-    ("Wind", "ULS4C", "Top", "1.2G + ψcQ + Wd", W4, "Cross"),
-    ("Wind", "ULS5C", "Bottom", "0.9G + Wu", W5, "Cross"),
-    ("Wind", "ULS4L", "Top", "1.2G + ψcQ + Wd", W4, "Long"),
-    ("Wind", "ULS5L", "Bottom", "0.9G + Wu", W5, "Long"),
-    ("Custom", None, None, None, [None] * 4, None),
-    ("Custom", None, None, None, [None] * 4, None),
-    ("Custom", None, None, None, [None] * 4, None),
+    ("Gravity", "ULS1", "1.35G", [1.35, 0, 0, 0], None),
+    ("Gravity", "ULS2", "1.2G + 1.5Q", [1.2, 1.5, 0, 0], None),
+    ("Storage", "ULS3", "1.2G + 1.5ψlQ", [1.2, "=1.5*PsiL", 0, 0], None),
+    ("Wind", "ULS4", "1.2G + ψcQ + Wd", W4, None),
+    ("Wind", "ULS5", "0.9G + Wu", W5, None),
+    ("Wind", "ULS4C", "1.2G + ψcQ + Wd", W4, "Cross"),
+    ("Wind", "ULS5C", "0.9G + Wu", W5, "Cross"),
+    ("Wind", "ULS4L", "1.2G + ψcQ + Wd", W4, "Long"),
+    ("Wind", "ULS5L", "0.9G + Wu", W5, "Long"),
+    ("Custom", None, None, [None] * 4, None),
+    ("Custom", None, None, [None] * 4, None),
+    ("Custom", None, None, [None] * 4, None),
 ]
 lfirst = lh + 1
-for i, (grp, cid, fl, desc, fac, wdir) in enumerate(lib):
+for i, (grp, cid, desc, fac, wdir) in enumerate(lib):
     rr = lfirst + i
     inp(f"M{rr}", None)
     # wind rows follow the loads: Dir rows when any wind load has a Dir, undivided rows otherwise
-    out(f"N{rr}", f'=IF(M{rr}="No",0,IF(P{rr}="",0,IF(M{rr}="Yes",1,IF(AND(O{rr}="Wind",IF(W{rr}="",NumDirWind>0,NumDirWind=0)),0,'
-                  f'IF(OR(CombSet="All",O{rr}="Custom",AND(O{rr}="Gravity",CombSet<>"Custom"),AND(O{rr}="Wind",CombSet="Roof")),1,0)))))', '"✓";;')
-    inp(f"O{rr}", grp); inp(f"P{rr}", cid); inp(f"Q{rr}", fl); inp(f"R{rr}", desc, al=L)
-    for col, v in zip("STUV", fac):
+    out(f"N{rr}", f'=IF(M{rr}="No",0,IF(O{rr}="",0,IF(M{rr}="Yes",1,IF(AND(P{rr}="Wind",IF(V{rr}="",NumDirWind>0,NumDirWind=0)),0,'
+                  f'IF(OR(CombSet="All",P{rr}="Custom",AND(P{rr}="Gravity",CombSet<>"Custom"),AND(P{rr}="Wind",CombSet="Roof")),1,0)))))', '"✓";;')
+    inp(f"O{rr}", cid); inp(f"P{rr}", grp); inp(f"Q{rr}", desc, al=L)
+    for col, v in zip("RSTU", fac):
         inp(f"{col}{rr}", v, "0.00")
-    inp(f"W{rr}", wdir)
+    inp(f"V{rr}", wdir)
 llast = lfirst + len(lib) - 1
-tl = Table(displayName="CombLib_B1", ref=f"M{lh}:W{llast}")
+tl = Table(displayName="CombLib_B1", ref=f"M{lh}:V{llast}")
 tl.tableStyleInfo = TableStyleInfo(name="TableStyleLight15", showRowStripes=False)
 ws.add_table(tl)
 dv_inc = DataValidation(type="list", formula1='"Yes,No"', allow_blank=True)
 dv_grp = DataValidation(type="list", formula1='"Gravity,Wind,Storage,Custom"')
-dv_fl = DataValidation(type="list", formula1='"Top,Bottom"')
-for dv in (dv_inc, dv_grp, dv_fl): ws.add_data_validation(dv)
-dv_inc.add(f"M{lfirst}:M{llast+30}"); dv_grp.add(f"O{lfirst}:O{llast+30}"); dv_fl.add(f"Q{lfirst}:Q{llast+30}")
-dv_dir.add(f"W{lfirst}:W{llast+30}")
-# count of active uplift (bottom flange) combinations, used to grey out the uplift summary row
-label(f"R{llast+2}", "Active uplift (bottom flange) combinations:", 7, GREY, al=R)
-out(f"S{llast+2}", '=COUNTIFS(CombLib_B1[Active],1,CombLib_B1[Crit. flange],"Bottom")', "0")
-name("NumUpliftCombos", f"$S${llast+2}")
-label(f"R{llast+3}", "Wind loads with a Dir:", 7, GREY, al=R)
-out(f"S{llast+3}", '=COUNTIF(Loads_B1[Dir],"?*")', "0")
-name("NumDirWind", f"$S${llast+3}")
+for dv in (dv_inc, dv_grp): ws.add_data_validation(dv)
+dv_inc.add(f"M{lfirst}:M{llast+30}"); dv_grp.add(f"P{lfirst}:P{llast+30}")
+dv_dir.add(f"V{lfirst}:V{llast+30}")
+label(f"Q{llast+2}", "Wind loads with a Dir:", 7, GREY, al=R)
+out(f"R{llast+2}", '=COUNTIF(Loads_B1[Dir],"?*")', "0")
+name("NumDirWind", f"$R${llast+2}")
 
 # ---------------- Load combinations (printed: active rows only) ----------------
 r = sr + 3
@@ -535,7 +530,7 @@ label(f"H{r+1}", "Table 4.1 (roofs 0.0)", 7, GREY)
 label(f"B{r+2}", "Floor = gravity only.  Roof = gravity + wind.  All = every library row.  Custom = only rows set to Yes / Custom.  Edit in the library to the right →",
       7, GREY, i=True)
 ch = r + 3
-for col, txt in zip("BCDEFGHI", ["ID", "Crit. flange", "Combination", "G", "Q", "Wd", "Wu", "Dir"]):
+for col, txt in zip("BCDEFGHI", ["ID", "Group", "Combination", "G", "Q", "Wd", "Wu", "Dir"]):
     put(f"{col}{ch}", txt, font(8, b=True), F_HDR, None, C)
 COMBO_ANCHOR = f"B{ch+1}"
 ws[COMBO_ANCHOR] = ArrayFormula(COMBO_ANCHOR, '=_xlfn._xlws.FILTER(CombLib_B1[[ID]:[Dir]],CombLib_B1[Active]=1,"No combinations selected")')
@@ -595,11 +590,11 @@ label(f"H{kb+2}", "kr: rotation, Table 5.6.3(3); kt from restraints", 7, GREY, i
 label(f"H{kb+3}", "Yes = flange continuously restrained: φMb = φMsx", 7, GREY, i=True)
 rlast = kb + 3
 
-# uplift summary row: say so and grey it out when no uplift combinations are active
+# bottom-flange summary row: say so and grey it out when no combination hogs the beam
 for srow in range(sum_hdr + 1, sum_last + 1):
-    if ws[f"D{srow}"].value == "Bending – uplift (bottom flange)":
-        ws[f"D{srow}"] = '=IF(NumUpliftCombos=0,"Bending – uplift (none active)","Bending – uplift (bottom flange)")'
-        ws.conditional_formatting.add(f"B{srow}:J{srow}", Rule(type="expression", formula=["NumUpliftCombos=0"],
+    if ws[f"D{srow}"].value == "Bending – bottom flange (hogging)":
+        ws[f"D{srow}"] = f'=IF(N(E{srow})=0,"Bending – bottom flange (no hogging)","Bending – bottom flange (hogging)")'
+        ws.conditional_formatting.add(f"B{srow}:J{srow}", Rule(type="expression", formula=[f"N($E{srow})=0"],
             dxf=DifferentialStyle(font=Font(color="BFBFBF"))))
 
 # ---------------- Outputs (add-in) ----------------
@@ -753,7 +748,7 @@ label(f"B{r+1}", "Bending moment envelope, all active combinations (kN·m, saggi
 ws.add_chart(chart("", ENV_BLOCK, [ENV_BLOCK + 1, ENV_BLOCK + 2], 13, "M* (kN·m)", True, [GREEN, TAUPE], h=5.4,
                    names=["M* max", "M* min"]), f"B{r+2}")
 r = r + 14
-out_header(r, "BCDEFGHIJ", ["Combo", "Segment (m)", "Ends", "Le (m)", "αm", "αs", "φMb (kN·m)", "M* (kN·m)", "Utilisation"])
+out_header(r, "BCDEFGHIJ", ["Combo", "Segment (m)", "Flange · ends", "Le (m)", "αm", "αs", "φMb (kN·m)", "M* (kN·m)", "Utilisation"])
 ws.row_dimensions[r].height = 16
 ULS_ANCHOR = f"B{r+1}"
 dyn(ULS_ANCHOR, f"=OAR.ULS({ARGS_ULS})")

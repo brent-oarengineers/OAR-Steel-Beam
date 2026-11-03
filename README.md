@@ -1,4 +1,4 @@
-# OAR Steel – Excel add-in (v0.3.0)
+# OAR Steel – Excel add-in (v0.3.1)
 
 F# / Excel-DNA add-in for the OAR steel beam calc sheet. Engineering lives in `OAR.Steel.Core`
 (no Excel references, fully testable); `OAR.Steel.Excel` only converts worksheet values.
@@ -68,8 +68,11 @@ All lengths mm. Section properties use catalogue units (×10⁶ mm⁴ etc.). Err
 | `OAR.DEFLECTIONS(size, span, E, SW, loads, ψl, ψs, [n])` | x and the four deflected shapes for charts |
 
 `restraints` = Restraints table (x | Ref | Description | Top | Bottom | αm top | αm bottom; each αm applies to that flange's segment from the row to the next restraint on that flange); `k` = 2 × 2 range
-(kl top, kl bottom / kr top, kr bottom). Segments are built per combination from its critical flange column;
-both supports must be F or P. kt from Table 5.6.3(1) (nw = 1); kl, kr as entered.
+(kl top, kl bottom / kr top, kr bottom). For every combination both flanges are checked: each flange's
+segments (from its own restraints) are checked wherever the moment puts that flange in compression
+(top: sagging, bottom: hogging; moments under 1% of the combination's peak are ignored). M* = the largest
+compressing moment in the segment, αm from the whole segment's diagram. Both ends of the beam must be
+listed for a checked flange, and the supports must be F or P. kt from Table 5.6.3(1) (nw = 1); kl, kr as entered.
 
 Ranges on the base sheet: `loads` = `Loads_B1[[Type]:[Dir]]` (v0.3: Type | Trib | Description | G | Q | Wd | Wu | Start | End | Dir;
 the v0.2 one-case-per-row layout `Case..Dir` / `Case..End` is still read), `combos` = the active-combinations
@@ -118,7 +121,8 @@ row whose key cell shows nothing; the next edit on that sheet unhides them. The 
 | Segments | DCT Ex 1 through the builder (segment 2 φMb 47.6 with αm 1.0; end segment αm 1.817) | 0.5% |
 | Segments | DCT Ex 2 through the builder (Le 11.2 m; αm 0.98 vs override 1.088) | 1e-4 |
 | Segments | Blockpad UDL: αm 1.166, Le 11.62 m | 1e-6 |
-| Segments | uplift uses bottom-flange restraints and kl; flange/moment-sign warning; support validation | exact |
+| Segments | uplift uses bottom-flange restraints and kl; compression flange from moment sign; support validation | exact |
+| Overhang | tip point load and full-length UDL closed forms (reactions, M at B, tip and backspan deflection), mirror case, per-flange segments with reversal | 1e-9 |
 
 `python tools/reference_check.py` re-computes the capacity benchmarks with separate code, and
 `python tools/example_b1.py` independently calculates the base-sheet example beam (B1) so the sheet
@@ -137,7 +141,7 @@ a text editor and rebuild; units are as printed in the catalogue.
 
 ## 6. Assumptions in v0.1 (check these)
 
-- Simply supported single span only. E default 200 000 MPa, G = 80 000 MPa, g = 9.81 for self-weight.
+- Engine: two simple supports anywhere (overhangs); the sheet is still simply supported (cantilever rules not yet in). E default 200 000 MPa, G = 80 000 MPa, g = 9.81 for self-weight.
 - Section capacity: Table 5.2 limits – flange outstand λep/λey 9/16 (HR) or 8/14 (WB, HW);
   web 82/115. Slender: Ze = Z(λsy/λs) for flange, Z(λsy/λs)² for web.
 - Shear: Aw = d·tw (hot-rolled) or (d−2tf)·tw (WB); αv = (82/λw)² when λw > 82; no shear–bending
