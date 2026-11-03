@@ -94,6 +94,7 @@ type Flange =
 type Combination =
     { Id: string
       Description: string
+      /// Not used by the checks any more (compression flange comes from the moment sign); kept for older sheets
       CriticalFlange: Flange
       Factors: Map<LoadCase, float>
       Dir: string }

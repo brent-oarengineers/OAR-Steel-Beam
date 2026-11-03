@@ -9,7 +9,7 @@ open OAR.Steel
 [<Literal>]
 let Category = "OAR Steel"
 
-let private version = "0.3.0"
+let private version = "0.3.1"
 
 // ---------- conversion helpers ----------
 
@@ -182,7 +182,7 @@ let oarSLS
     guard (fun () ->
         let s = section designation
         let l = num "span" span
-        let beam = { Span = l; EI = numOr "E" Units.E_MPa e * s.Ix }
+        let beam = Beam.simple (l) (numOr "E" Units.E_MPa e * s.Ix)
         let ls = loadsWithSW s l includeSW loads
         let crit = Inputs.deflectionCriteria (grid criteria)
         let res = Serviceability.check beam ls crit (num "psiL" psiL) (num "psiS" psiS)
@@ -211,7 +211,7 @@ let oarDiagram
     guard (fun () ->
         let s = section designation
         let l = num "span" span
-        let beam = { Span = l; EI = numOr "E" Units.E_MPa e * s.Ix }
+        let beam = Beam.simple (l) (numOr "E" Units.E_MPa e * s.Ix)
         let ls = loadsWithSW s l includeSW loads
         let id = str comboId
         // a single case, optionally with a wind direction ("Wu", "Wu Cross"), or a combination ID
@@ -246,7 +246,7 @@ let oarReactions
     guard (fun () ->
         let s = section designation
         let l = num "span" span
-        let beam = { Span = l; EI = 1.0 }
+        let beam = Beam.simple (l) (1.0)
         let ls = loadsWithSW s l includeSW loads
         let combosIn = arg "combos" (fun () -> Inputs.combinations (grid combos))
         // unfactored cases: G, Q, then each wind case per direction (or undivided if no directions are used)
@@ -286,7 +286,7 @@ let oarMaxActions
     guard (fun () ->
         let s = section designation
         let l = num "span" span
-        let beam = { Span = l; EI = 1.0 }
+        let beam = Beam.simple (l) (1.0)
         let ls = loadsWithSW s l includeSW loads
         table
             [ for c in Inputs.combinations (grid combos) do
@@ -372,7 +372,7 @@ let private ctx designation gr span e includeSW loads : BeamCtx =
     { Sec = s
       Grade = grade gr
       E = ee
-      Beam = { Span = l; EI = ee * s.Ix }
+      Beam = Beam.simple (l) (ee * s.Ix)
       Loads = arg "loads" (fun () -> loadsWithSW s l includeSW loads) }
 
 let private segmentChecks (c: BeamCtx) combos restraints kfactors =
@@ -387,7 +387,7 @@ let private segText (r: SegmentCheck) =
     sprintf "%.2f–%.2f%s" (m1 r.X1) (m1 r.X2) (if r.MemberCap.AlphaMOverridden then " *" else "")
 
 [<ExcelFunction(Name = "OAR.ULS",
-                Description = "Spills member bending checks for every segment of every combination: combo | segment m (* = αm override) | ends | Le m | αm | αs | φMb kN.m | M* kN.m | utilisation",
+                Description = "Spills member bending checks for every segment of every combination, both flanges where the moment compresses them: combo | segment m (* = αm override) | flange and ends | Le m | αm | αs | φMb kN.m | M* kN.m | utilisation",
                 Category = Category)>]
 let oarUls
     ([<ExcelArgument(Name = "designation")>] designation: obj)
@@ -407,7 +407,7 @@ let oarUls
                   yield
                       [ box r.Combo
                         box (segText r)
-                        box r.Ends
+                        box ((if r.Flange = Top then "Top " else "Bottom ") + r.Ends)
                         box (m1 r.MemberCap.Le)
                         box r.MemberCap.AlphaM
                         box r.MemberCap.AlphaS
@@ -460,7 +460,7 @@ let oarUlsDetail
                   row "M2*" (box (Units.toKNm r.M2)) "kN·m"
                   row "M3*" (box (Units.toKNm r.M3)) "kN·m"
                   row "M4*" (box (Units.toKNm r.M4)) "kN·m"
-                  row "Mm* (max in segment)" (box (Units.toKNm r.MmSigned)) (sprintf "kN·m at x = %.0f mm" r.XAtMm)
+                  row "M* (max compressing this flange)" (box (Units.toKNm r.MmSigned)) (sprintf "kN·m at x = %.0f mm" r.XAtMm)
                   row "αm, Cl. 5.6.1.1(a)(iii)" (box r.AlphaMFormula) ""
                   row "αm used" (box mc.AlphaM) (if mc.AlphaMOverridden then "override" else "formula")
                   row "Msx" (box (Units.toKNm mc.Ms)) "kN·m"

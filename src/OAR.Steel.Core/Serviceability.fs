@@ -37,7 +37,7 @@ module Serviceability =
           Utilisation = actual / lim }
 
     /// The five standard checks, in sheet order:
-    /// Δg, Δg+ψl.q, Δg+ψs.q, Δq, Δ1kN (1 kN at midspan).
+    /// Δg, Δg+ψl.q, Δg+ψs.q, Δq, Δ1kN (1 kN midway between the supports).
     /// `loads` must already include self-weight if required.
     let check (beam: Beam) (loads: Load list) (criteria: DeflectionCriterion list) (psiL: float) (psiS: float) =
         if List.length criteria <> 5 then failwith "deflection criteria: expected 5 rows"
@@ -48,7 +48,7 @@ module Serviceability =
           result "Δg+ψl·q" beam (combo "G+psiL.Q" [ G, 1.0; Q, psiL ]) crit.[1]
           result "Δg+ψs·q" beam (combo "G+psiS.Q" [ G, 1.0; Q, psiS ]) crit.[2]
           result "Δq" beam (combo "Q" [ Q, 1.0 ]) crit.[3]
-          result "Δ1kN" beam [ Conc(Units.kN 1.0, span / 2.0) ] crit.[4] ]
+          result "Δ1kN" beam [ Conc(Units.kN 1.0, (beam.SupportA + beam.SupportB) / 2.0) ] crit.[4] ]
 
     /// Deflected shapes for plotting at n+1 stations: (x, Δg, Δg+ψl.q, Δg+ψs.q, Δq), mm, downward positive
     let curves (beam: Beam) (loads: Load list) (psiL: float) (psiS: float) (n: int) =

@@ -14,7 +14,7 @@ let tests =
         [ test "Blockpad 310UB40.4 benchmark" {
               let s = Sections.find "310UB40.4"
               let span = 8300.0
-              let beam = { Span = span; EI = 200000.0 * s.Ix }
+              let beam = Beam.simple (span) (200000.0 * s.Ix)
               let loads =
                   [ Analysis.selfWeightLoad s
                     { Case = G; Shape = FullSpan; Magnitude = 5.65 * 0.10; Description = "roof"; Dir = "" }

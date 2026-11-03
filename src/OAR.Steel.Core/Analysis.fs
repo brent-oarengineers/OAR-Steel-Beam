@@ -8,12 +8,37 @@ type BeamLoad =
     | Dist of w: float * a: float * b: float
     | Conc of p: float * x: float
 
-/// Simply supported beam, supports at x = 0 and x = Span.
-type Beam = { Span: float; EI: float }
+/// Beam of total length Span on two simple supports at SupportA < SupportB (anywhere from 0 to Span,
+/// so either end may overhang). A plain simply supported beam has the supports at 0 and Span.
+type Beam =
+    { Span: float
+      EI: float
+      SupportA: float
+      SupportB: float }
 
-/// Statics and elastic deflection of a simply supported beam by superposition.
+module Beam =
+    /// Simply supported: supports at both ends
+    let simple (span: float) (ei: float) : Beam =
+        { Span = span
+          EI = ei
+          SupportA = 0.0
+          SupportB = span }
+
+    /// Supports at xa and xb (overhangs beyond them)
+    let supported (span: float) (ei: float) (xa: float) (xb: float) : Beam =
+        if not (xa >= 0.0 && xb > xa && xb <= span) then
+            failwithf "supports must satisfy 0 <= A < B <= length (got A = %g, B = %g, length %g)" xa xb span
+        { Span = span
+          EI = ei
+          SupportA = xa
+          SupportB = xb }
+
+    /// Distance between the supports
+    let backspan (b: Beam) = b.SupportB - b.SupportA
+
+/// Statics and elastic deflection of a beam on two simple supports (with or without overhangs).
 /// Sign convention: loads and deflection positive downward; sagging moment positive;
-/// shear V(x) = left reaction minus load to the left of x.
+/// shear V(x) = reactions minus load to the left of x. Reactions positive upward.
 module Analysis =
 
     /// Turn input loads into signed actions for a combination (self-weight must already be in the list).
@@ -44,23 +69,27 @@ module Analysis =
                 | Partial(a, b) -> Some(Dist(v, a, b))
                 | Point x -> Some(Conc(v, x)))
 
-    /// Support reactions (left, right), positive upward, N
+    /// Support reactions (A, B), positive upward, N, by moments about each support
     let reactions (beam: Beam) (acts: BeamLoad list) =
-        let span = beam.Span
-        acts
-        |> List.fold
-            (fun (ra, rb) act ->
-                match act with
-                | Conc(p, x) -> ra + p * (span - x) / span, rb + p * x / span
-                | Dist(w, a, b) ->
-                    let total = w * (b - a)
-                    let c = (a + b) / 2.0
-                    ra + total * (span - c) / span, rb + total * c / span)
-            (0.0, 0.0)
+        let xa = beam.SupportA
+        let lab = Beam.backspan beam
+        let total, momA =
+            acts
+            |> List.fold
+                (fun (t, ma) act ->
+                    match act with
+                    | Conc(p, x) -> t + p, ma + p * (x - xa)
+                    | Dist(w, a, b) ->
+                        let f = w * (b - a)
+                        t + f, ma + f * ((a + b) / 2.0 - xa))
+                (0.0, 0.0)
+        let rb = momA / lab
+        total - rb, rb
 
-    /// Shear force at x (N), just to the right of any point load located exactly at x
+    /// Shear force at x (N), just to the right of any point load or support located exactly at x
     let shear (beam: Beam) (acts: BeamLoad list) (x: float) =
-        let ra, _ = reactions beam acts
+        let ra, rb = reactions beam acts
+        let fromSupports = (if beam.SupportA <= x then ra else 0.0) + (if beam.SupportB <= x then rb else 0.0)
         acts
         |> List.fold
             (fun v act ->
@@ -69,11 +98,14 @@ module Analysis =
                 | Dist(w, a, b) ->
                     let e = min x b
                     if e > a then v - w * (e - a) else v)
-            ra
+            fromSupports
 
     /// Bending moment at x (N.mm), sagging positive
     let moment (beam: Beam) (acts: BeamLoad list) (x: float) =
-        let ra, _ = reactions beam acts
+        let ra, rb = reactions beam acts
+        let fromSupports =
+            (if x > beam.SupportA then ra * (x - beam.SupportA) else 0.0)
+            + (if x > beam.SupportB then rb * (x - beam.SupportB) else 0.0)
         acts
         |> List.fold
             (fun m act ->
@@ -82,42 +114,30 @@ module Analysis =
                 | Dist(w, a, b) ->
                     let e = min x b
                     if e > a then m - w * (e - a) * (x - (a + e) / 2.0) else m)
-            (ra * x)
+            fromSupports
 
-    /// Deflection at x due to a point load p at xp (standard closed form)
-    let private pointDeflection (beam: Beam) (p: float) (xp: float) (x: float) =
-        let l = beam.Span
-        let a = xp
-        let b = l - xp
-        if x <= a then
-            p * b * x * (l * l - b * b - x * x) / (6.0 * l * beam.EI)
-        else
-            let xr = l - x
-            p * a * xr * (l * l - a * a - xr * xr) / (6.0 * l * beam.EI)
-
-    // 3-point Gauss-Legendre: exact for polynomials up to degree 5. The point-load deflection is a
-    // cubic in the load position on each side of x, so splitting the load at x makes this exact.
-    let private gauss =
-        [| -sqrt (3.0 / 5.0), 5.0 / 9.0
-           0.0, 8.0 / 9.0
-           sqrt (3.0 / 5.0), 5.0 / 9.0 |]
-
-    let private integrate (f: float -> float) (lo: float) (hi: float) =
-        if hi <= lo then 0.0
-        else
-            let m = (lo + hi) / 2.0
-            let h = (hi - lo) / 2.0
-            gauss |> Array.sumBy (fun (t, wt) -> wt * f (m + h * t)) |> (*) h
-
-    /// Deflection at x (mm), positive downward
-    let deflection (beam: Beam) (acts: BeamLoad list) (x: float) =
+    /// F(x) = double integral of M from 0 (Macaulay brackets), N.mm³. Exact for point loads and UDLs.
+    let private doubleIntegralM (beam: Beam) (ra: float) (rb: float) (acts: BeamLoad list) (x: float) =
+        let mac (c: float) (n: int) = if x > c then (x - c) ** float n else 0.0
+        let fromSupports = ra * mac beam.SupportA 3 / 6.0 + rb * mac beam.SupportB 3 / 6.0
         acts
-        |> List.sumBy (fun act ->
-            match act with
-            | Conc(p, xp) -> pointDeflection beam p xp x
-            | Dist(w, a, b) ->
-                let f s = pointDeflection beam w s x
-                integrate f a (min b x) + integrate f (max a x) b)
+        |> List.fold
+            (fun f act ->
+                match act with
+                | Conc(p, xp) -> f - p * mac xp 3 / 6.0
+                | Dist(w, a, b) -> f - w * (mac a 4 - mac b 4) / 24.0)
+            fromSupports
+
+    /// Deflection at x (mm), positive downward: δ'' = -M/EI with δ = 0 at both supports
+    let deflection (beam: Beam) (acts: BeamLoad list) (x: float) =
+        let ra, rb = reactions beam acts
+        let f = doubleIntegralM beam ra rb acts
+        let xa, xb = beam.SupportA, beam.SupportB
+        let fa, fb = f xa, f xb
+        // δ(x) = (-F(x) + C1 x + C0) / EI, chosen so δ(xa) = δ(xb) = 0
+        let c1 = (fb - fa) / (xb - xa)
+        let c0 = fa - c1 * xa
+        (-(f x) + c1 * x + c0) / beam.EI
 
     /// Location and value of the largest |f(x)| between lo and hi.
     /// Samples the interval, adds load boundary points, then refines with golden-section search.
@@ -155,20 +175,30 @@ module Analysis =
             | Conc(_, x) -> [ x ]
             | Dist(_, a, b) -> [ a; b ])
 
+    /// Load breakpoints plus the support positions (where M and V change form)
+    let breakpointsOn (beam: Beam) (acts: BeamLoad list) =
+        beam.SupportA :: beam.SupportB :: breakpoints acts
+
     /// Maximum deflection (location mm, value mm) for a set of actions
     let maxDeflection (beam: Beam) (acts: BeamLoad list) =
-        maxAbs beam.Span (breakpoints acts) (deflection beam acts)
+        maxAbs beam.Span (breakpointsOn beam acts) (deflection beam acts)
 
     /// Maximum moment (location mm, value N.mm), by absolute value
     let maxMoment (beam: Beam) (acts: BeamLoad list) =
-        maxAbs beam.Span (breakpoints acts) (moment beam acts)
+        maxAbs beam.Span (breakpointsOn beam acts) (moment beam acts)
 
-    /// Largest |V| occurs at a support or either side of a point load
+    /// Largest |V|: V is linear between load points and supports, so it peaks either side of one
     let maxShear (beam: Beam) (acts: BeamLoad list) =
-        let ra, rb = reactions beam acts
+        let xs =
+            (0.0 :: beam.Span :: breakpointsOn beam acts)
+            |> List.filter (fun x -> x >= 0.0 && x <= beam.Span)
+            |> List.distinct
+            |> List.sort
         let candidates =
-            [ 0.0, ra; beam.Span, -rb ]
-            @ (breakpoints acts |> List.collect (fun x -> [ x, shear beam acts (x - 1e-6); x, shear beam acts x ]))
+            xs
+            |> List.collect (fun x ->
+                [ if x > 0.0 then yield x, shear beam acts (x - 1e-6)
+                  if x < beam.Span then yield x, shear beam acts x ])
         candidates |> List.maxBy (fun (_, v) -> abs v)
 
     /// Self-weight load (G, full span) for a section

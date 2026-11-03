@@ -16,7 +16,7 @@ let private dctLoads =
     [ { Case = G; Shape = Point 2000.0; Magnitude = 20000.0; Description = "P1"; Dir = "" }
       { Case = G; Shape = Point 6000.0; Magnitude = 20000.0; Description = "P2"; Dir = "" } ]
 
-let private dctBeam (s: Section) = { Span = 8000.0; EI = 200000.0 * s.Ix }
+let private dctBeam (s: Section) = Beam.simple (8000.0) (200000.0 * s.Ix)
 
 [<Tests>]
 let tests =
@@ -74,7 +74,7 @@ let tests =
           // Le = 11.62 m and αm = 1.166 (Blockpad segment 1).
           test "UDL on a single segment: αm = 1.166 and Le = 11.62 m" {
               let s = Sections.find "310UB40.4"
-              let beam = { Span = 8300.0; EI = 200000.0 * s.Ix }
+              let beam = Beam.simple (8300.0) (200000.0 * s.Ix)
               let loads = [ { Case = G; Shape = FullSpan; Magnitude = 3.272; Description = ""; Dir = "" } ]
               let pts = [ pt 0.0 (Some RF) (Some RF) None; pt 8300.0 (Some RF) (Some RF) None ]
               let r = Uls.checkCombination s 300 200000.0 beam loads pts { k1 with KlTop = 1.4 } gravity |> List.exactlyOne
@@ -85,7 +85,7 @@ let tests =
 
           test "uplift combination uses the bottom flange restraints and kl" {
               let s = Sections.find "310UB40.4"
-              let beam = { Span = 8300.0; EI = 200000.0 * s.Ix }
+              let beam = Beam.simple (8300.0) (200000.0 * s.Ix)
               let loads =
                   [ { Case = G; Shape = FullSpan; Magnitude = 1.0; Description = ""; Dir = "" }
                     { Case = Wu; Shape = FullSpan; Magnitude = 5.0; Description = ""; Dir = "" } ]
@@ -104,18 +104,20 @@ let tests =
               Expect.equal down.Length 3 "top flange: three segments at the purlins"
           }
 
-          test "warning when the critical flange does not match the moment sign" {
+          test "compression flange comes from the moment sign: uplift checks the bottom flange" {
               let s = Sections.find "310UB40.4"
-              let beam = { Span = 8300.0; EI = 200000.0 * s.Ix }
+              let beam = Beam.simple (8300.0) (200000.0 * s.Ix)
               let loads = [ { Case = Wu; Shape = FullSpan; Magnitude = 5.0; Description = ""; Dir = "" } ]
               let pts = [ pt 0.0 (Some RF) (Some RF) None; pt 8300.0 (Some RF) (Some RF) None ]
               let r = Uls.checkCombination s 300 200000.0 beam loads pts k1 (Combination.single Wu) |> List.exactlyOne
-              Expect.stringContains r.Note "hogging" "note"
+              Expect.equal r.Flange Bottom "bottom flange in compression"
+              within 1e-7 (5.0 * 8300.0 ** 2.0 / 8.0) r.Mm "M* = wL²/8"
+              Expect.equal r.Note "" "no reversal"
           }
 
           test "restraint table must include both supports, restrained F or P" {
               let s = Sections.find "310UB40.4"
-              let beam = { Span = 8300.0; EI = 200000.0 * s.Ix }
+              let beam = Beam.simple (8300.0) (200000.0 * s.Ix)
               let loads = [ { Case = G; Shape = FullSpan; Magnitude = 1.0; Description = ""; Dir = "" } ]
               let run pts = Uls.checkCombination s 300 200000.0 beam loads pts k1 gravity |> ignore
               Expect.throws (fun () -> run [ pt 0.0 (Some RF) (Some RF) None ]) "missing right support"
@@ -124,7 +126,7 @@ let tests =
 
           test "shear check and envelope" {
               let s = Sections.find "310UB40.4"
-              let beam = { Span = 8300.0; EI = 200000.0 * s.Ix }
+              let beam = Beam.simple (8300.0) (200000.0 * s.Ix)
               let loads =
                   [ { Case = G; Shape = FullSpan; Magnitude = 2.0; Description = ""; Dir = "" }
                     { Case = Q; Shape = FullSpan; Magnitude = 1.0; Description = ""; Dir = "" } ]
@@ -139,15 +141,16 @@ let tests =
           } 
           test "αm overrides are per flange and must start a segment" {
               let s = Sections.find "310UB40.4"
-              let beam = { Span = 8300.0; EI = 200000.0 * s.Ix }
+              let beam = Beam.simple (8300.0) (200000.0 * s.Ix)
               let loads = [ { Case = G; Shape = FullSpan; Magnitude = 3.0; Description = ""; Dir = "" } ]
               let p0Base = pt 0.0 (Some RF) (Some RF) None
               let p0 = { p0Base with AlphaMTop = Some 1.13 }
               let pts = [ p0; pt 8300.0 (Some RF) (Some RF) None ]
               let top = Uls.checkCombination s 300 200000.0 beam loads pts k1 gravity |> List.exactlyOne
               within 1e-12 1.13 top.MemberCap.AlphaM "top override used"
-              let botCombo = { gravity with CriticalFlange = Bottom }
-              let bot = Uls.checkCombination s 300 200000.0 beam loads pts k1 botCombo |> List.exactlyOne
+              let upLoads = [ { Case = Wu; Shape = FullSpan; Magnitude = 3.0; Description = ""; Dir = "" } ]
+              let bot = Uls.checkCombination s 300 200000.0 beam upLoads pts k1 (Combination.single Wu) |> List.exactlyOne
+              Expect.equal bot.Flange Bottom "uplift: bottom flange"
               Expect.isFalse bot.MemberCap.AlphaMOverridden "bottom flange ignores the top override"
               // override at the right support, or where the flange is unrestrained, is an error rather than silently ignored
               let endBase = pt 8300.0 (Some RF) (Some RF) None
@@ -162,7 +165,7 @@ let tests =
           } 
           test "continuously restrained flange: φMb = φMsx over the whole span" {
               let s = Sections.find "310UB40.4"
-              let beam = { Span = 8300.0; EI = 200000.0 * s.Ix }
+              let beam = Beam.simple (8300.0) (200000.0 * s.Ix)
               let loads =
                   [ { Case = G; Shape = FullSpan; Magnitude = 1.0; Description = ""; Dir = "" }
                     { Case = Wu; Shape = FullSpan; Magnitude = 5.0; Description = ""; Dir = "" } ]

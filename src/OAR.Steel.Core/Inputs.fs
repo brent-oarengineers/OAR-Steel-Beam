@@ -154,37 +154,47 @@ module Inputs =
         elif Array2D.length2 grid >= 10 then loadRows span grid
         else loadsByCase span grid
 
-    /// Combinations table, 8 columns (v0.3: ID | Crit. flange | Combination | G | Q | Wd | Wu | Dir)
-    /// or 9 / 10 columns (v0.2):
-    /// ID | Crit. flange | Combination | G | Q | Wd | Wu | Wid | Wiu | [Dir]
+    /// Combinations table. The critical flange is no longer an input (each segment's compression flange
+    /// is found from the moment sign); a Crit. flange column in older layouts is read but not used.
+    ///   7 columns (v0.3.1): ID | Combination | G | Q | Wd | Wu | Dir
+    ///   8 columns (v0.3.0): ID | Crit. flange | Combination | G | Q | Wd | Wu | Dir
+    ///   9 / 10 columns (v0.2): ID | Crit. flange | Combination | G | Q | Wd | Wu | Wid | Wiu | [Dir]
     let combinations (grid: Cell[,]) : Combination list =
         // a single cell (e.g. FILTER's "No combinations selected") means no combinations
         if Array2D.length1 grid = 1 && Array2D.length2 grid = 1 then
             []
         else
             let ncol = Array2D.length2 grid
-            if ncol < 8 then failwith "combinations: expected 8 columns (ID, flange, description, G, Q, Wd, Wu, Dir)"
-            let caseCols = if ncol = 8 then [ G; Q; Wd; Wu ] else [ G; Q; Wd; Wu; Wid; Wiu ]
-            let dirCol = if ncol = 8 then Some 7 elif ncol >= 10 then Some 9 else None
+            if ncol < 7 then failwith "combinations: expected 7 columns (ID, description, G, Q, Wd, Wu, Dir)"
+            let hasFlange = ncol >= 8
+            let first = if hasFlange then 3 else 2
+            let caseCols = if ncol <= 8 then [ G; Q; Wd; Wu ] else [ G; Q; Wd; Wu; Wid; Wiu ]
+            let dirCol =
+                match ncol with
+                | 7 -> Some 6
+                | 8 -> Some 7
+                | n when n >= 10 -> Some 9
+                | _ -> None
             [ for i in 0 .. Array2D.length1 grid - 1 do
                   let row = i + 1
                   let c j = grid.[i, j]
                   let id = text (c 0)
                   if id <> "" then
                       let flange =
-                          match (text (c 1)).ToUpperInvariant() with
-                          | "TOP" -> Top
-                          | "BOTTOM" -> Bottom
-                          | f -> failwithf "combination row %d: critical flange '%s' must be Top or Bottom" row f
+                          if not hasFlange then Top
+                          else
+                              (match (text (c 1)).ToUpperInvariant() with
+                               | "BOTTOM" -> Bottom
+                               | _ -> Top)
                       let factors =
                           caseCols
-                          |> List.mapi (fun k lc -> lc, (optNum row (LoadCase.name lc) (c (3 + k)) |> Option.defaultValue 0.0))
+                          |> List.mapi (fun k lc -> lc, (optNum row (LoadCase.name lc) (c (first + k)) |> Option.defaultValue 0.0))
                           |> List.filter (fun (_, f) -> f <> 0.0)
                       if factors |> List.exists (fun (_, f) -> f < 0.0) then
                           failwithf "combination row %d: factors must be positive (direction comes from the case)" row
                       let combo: Combination =
                           { Id = id
-                            Description = text (c 2)
+                            Description = text (c (if hasFlange then 2 else 1))
                             CriticalFlange = flange
                             Factors = Map.ofList factors
                             Dir = (match dirCol with Some j -> text (c j) | None -> "") }

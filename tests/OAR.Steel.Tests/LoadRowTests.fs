@@ -5,7 +5,7 @@ open OAR.Steel
 open Helpers
 
 let private span = 8300.0
-let private beam = { Span = span; EI = 200000.0 * 86.4e6 }
+let private beam = Beam.simple (span) (200000.0 * 86.4e6)
 
 let private grid (rows: string list list) =
     let r = rows.Length
