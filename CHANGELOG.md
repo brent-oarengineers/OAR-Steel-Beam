@@ -3,8 +3,10 @@
 Each version that reaches `main` is built, tested and published automatically as a GitHub Release.
 The calc sheet shows the version it was calculated with (title block, under the green bar).
 
+## v0.5.2
+- **Add-in version check:** the template records the add-in version it was built with. If the installed add-in is older, the title block shows a red warning ("Add-in 0.4.1 is older than this template (0.5.2) – update the add-in and restart Excel") and the Design Summary status box shows UPDATE ADD-IN instead of PASS / FAIL, on screen and on the printout. "OAR Steel add-in not loaded" is now red too. OAR.VERSION recalculates on every open, so an old sheet shows the add-in actually in use.
+
 ## v0.5.1
-- **Add-in version check:** the template records the add-in version it was built with. If the installed add-in is older, the title block shows a red warning ("Add-in 0.4.1 is older than this template (0.5.1) – update the add-in and restart Excel") and the Design Summary status box shows UPDATE ADD-IN instead of PASS / FAIL, on screen and on the printout. "OAR Steel add-in not loaded" is now red too. OAR.VERSION recalculates on every open, so an old sheet shows the add-in actually in use.
 - Fix: after printing (and on the next edit), blocks that were only partly hidden – e.g. the unused load rows under the used ones – stayed hidden. Rows are now checked one by one.
 - Both OAR buttons report in the status bar what they did ("12 hidden rows shown", "no rows were hidden") or why they failed (e.g. a protected sheet); the message clears on the next edit.
 - Fix: the deflected-shape and moment-envelope charts were cut short on printouts. The print tidy-up hides unused table rows, and the charts' data sits in the same rows further right, so Excel dropped those points; the charts now plot hidden rows too. (Existing sheets: right-click each chart > Select Data > Hidden and Empty Cells > tick "Show data in hidden rows and columns".)
