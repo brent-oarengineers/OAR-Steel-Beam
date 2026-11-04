@@ -200,7 +200,7 @@ urng = f"I{sum_hdr+1}:I{sum_last}"
 put(f"F{s0+2}", f'=IF(COUNT({urng})=0,"–",MAX({urng}))', font(12, b=True, color=GREEN),
     al=Alignment(horizontal="left", vertical="center", indent=1), nf="0%")
 thin_t = Side(style="thin", color=TAUPE)
-put(f"I{s0+2}", f'=IF(COUNT({urng})=0,"PENDING",IF(MAX({urng})<=1,"PASS","FAIL"))', font(10, b=True, color="8C8C8C"),
+put(f"I{s0+2}", f'=IF(AddinOld,"UPDATE ADD-IN",IF(COUNT({urng})=0,"PENDING",IF(MAX({urng})<=1,"PASS","FAIL")))', font(10, b=True, color="8C8C8C"),
     al=C, border=Border(left=thin_t, top=thin_t, bottom=thin_t))
 ws[f"J{s0+2}"].border = Border(top=thin_t, bottom=thin_t)
 ws[f"K{s0+2}"].border = Border(right=thin_t, top=thin_t, bottom=thin_t)
@@ -220,6 +220,8 @@ ws.conditional_formatting.add(f"I{s0+2}:K{s0+2}", Rule(type="expression", formul
     dxf=DifferentialStyle(font=Font(color=GREEN, bold=True), fill=PatternFill("solid", bgColor="E6ECE9"))))
 ws.conditional_formatting.add(f"I{s0+2}:K{s0+2}", Rule(type="expression", formula=[f'$I${s0+2}="FAIL"'],
     dxf=DifferentialStyle(font=Font(color="C00000", bold=True), fill=PatternFill("solid", bgColor="F6E1E1"))))
+ws.conditional_formatting.add(f"I{s0+2}:K{s0+2}", Rule(type="expression", formula=[f'$I${s0+2}="UPDATE ADD-IN"'],
+    dxf=DifferentialStyle(font=Font(color="FFFFFF", bold=True), fill=PatternFill("solid", bgColor="C55A11"))))
 ws.conditional_formatting.add(f"F{s0+2}", Rule(type="expression", formula=[f'AND(ISNUMBER(F{s0+2}),F{s0+2}>1)'],
     dxf=DifferentialStyle(font=Font(color="C00000", bold=True))))
 
@@ -858,7 +860,26 @@ name("Out_Reactions", f"$B${r+2}")
 lastrow = r + 32
 
 # add-in version on every printed calc
-dyn("B7", '=IFERROR("Calculated with "&OAR.VERSION(),"OAR Steel add-in not loaded")', None, font(7, i=True, color=GREY), L)
+# add-in version check: the template records the add-in version it was built with; an older add-in gets a
+# warning in the title block and UPDATE ADD-IN in the status box (on screen and on the printout)
+import re as _re
+_fsproj = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src", "OAR.Steel.Excel", "OAR.Steel.Excel.fsproj"), encoding="utf-8").read()
+TEMPLATE_VERSION = _re.search(r"<Version>([0-9]+\.[0-9]+\.[0-9]+)</Version>", _fsproj).group(1)
+_maj, _min, _pat = (int(v) for v in TEMPLATE_VERSION.split("."))
+VC = hc(10)
+label(f"{VC}7", "Add-in check: template | add-in | add-in no. | template no. | add-in older?", 7, GREY, i=True)
+put(f"{VC}8", TEMPLATE_VERSION, font(7, color=GREY))
+dyn(f"{VC}9", '=IFERROR(SUBSTITUTE(OAR.VERSION(),"OAR Steel ",""),"")', None, font(7, color=GREY))
+v = f"{VC}9"
+p1 = f'FIND(".",{v})'; p2 = f'FIND(".",{v},{p1}+1)'
+dyn(f"{VC}10", f'=IFERROR(LEFT({v},{p1}-1)*10000+MID({v},{p1}+1,{p2}-{p1}-1)*100+MID({v},{p2}+1,9),0)', "0", font(7, color=GREY))
+put(f"{VC}11", _maj * 10000 + _min * 100 + _pat, font(7, color=GREY))
+dyn(f"{VC}12", f'=AND({v}<>"",{VC}10<{VC}11)', None, font(7, color=GREY))
+name("TemplateVersion", f"${VC}$8"); name("AddinVersion", f"${VC}$9"); name("AddinOld", f"${VC}$12")
+dyn("B7", '=IF(AddinVersion="","OAR Steel add-in not loaded",IF(AddinOld,"⚠ Add-in "&AddinVersion&" is older than this template ("&TemplateVersion&") – update the add-in and restart Excel","Calculated with OAR Steel "&AddinVersion))',
+    None, font(7, i=True, color=GREY), L)
+ws.conditional_formatting.add("B7", Rule(type="expression", formula=['OR(AddinOld,AddinVersion="")'],
+    dxf=DifferentialStyle(font=Font(color="C00000", bold=True, italic=False))))
 
 # ---------------- Summary cells wired to add-in results ----------------
 SLSG_ANCHOR = f"{hc(0)}80"

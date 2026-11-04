@@ -140,7 +140,8 @@ let private withShearOpt (sec: Section) (o: obj) (b: Beam) =
 
 // ---------- functions ----------
 
-[<ExcelFunction(Name = "OAR.VERSION", Description = "OAR Steel add-in version", Category = Category)>]
+// volatile so a saved sheet opened with a different add-in shows the add-in actually in use
+[<ExcelFunction(Name = "OAR.VERSION", Description = "OAR Steel add-in version", Category = Category, IsVolatile = true)>]
 let oarVersion () : obj = box ("OAR Steel " + version)
 
 [<ExcelFunction(Name = "OAR.SECTION",
