@@ -3,6 +3,12 @@
 Each version that reaches `main` is built, tested and published automatically as a GitHub Release.
 The calc sheet shows the version it was calculated with (title block, under the green bar).
 
+## v0.5.1
+- Fix: after printing (and on the next edit), blocks that were only partly hidden – e.g. the unused load rows under the used ones – stayed hidden. Rows are now checked one by one.
+- Both OAR buttons report in the status bar what they did ("12 hidden rows shown", "no rows were hidden") or why they failed (e.g. a protected sheet); the message clears on the next edit.
+- Fix: the deflected-shape and moment-envelope charts were cut short on printouts. The print tidy-up hides unused table rows, and the charts' data sits in the same rows further right, so Excel dropped those points; the charts now plot hidden rows too. (Existing sheets: right-click each chart > Select Data > Hidden and Empty Cells > tick "Show data in hidden rows and columns".)
+- The template is now called **OAR - Steel Beam Design.xlsx** (was Steel Beam Design - Base.xlsx), in the release zip under Calc Templates. Delete the old file from the Calc Templates folder after extracting.
+
 ## v0.5.0 – two-span continuous beams
 - **Support condition "Two-span continuous"**: supports A (x = 0), B (x = span 1) and C (x = span 1 + span 2). Span 2 is entered in the "Overhang (tip) / span 2" cell; the add-in takes `span` as three cells {span 1, overhang, span 2} (the sheet's `Geom` range is now three cells; one- and two-cell ranges still work, so existing sheets are unchanged).
 - **Analysis:** the interior reaction comes from the flexibility method (release B, restore zero deflection there), so reactions, V, M and δ are exact closed forms, as for the simply supported and overhang cases. Checked against 3wL/8 – 10wL/8 – 3wL/8, M_B = −wL²/8, 9wL²/128 at 3L/8, δmax 0.00542 wL⁴/EI, the point-load case (13/32, 11/16, −3/32 P; 23PL³/1536EI) and the three-moment equation for unequal spans.
@@ -12,9 +18,7 @@ The calc sheet shows the version it was calculated with (title block, under the 
 - **Reactions:** A, B and C. The per-case table is now one row per case and wind direction (rows for unused directions are blank and hidden on print), with columns A | B | C. Names: RxnL_ = A, RxnR_ = the right-end support (B, or C on two spans), new RxnB_ = support B.
 - Restraints table: the row after B becomes support C (F, F) on a two-span beam. The combinations note explains the -span1 / -span2 variants.
 - Summary: with equal spans the deflection rows report span 1 (span 2 only when it is worse); long pattern IDs shrink to fit the Combo column.
-- OAR > Show all rows now unhides every hidden row on the sheet (not only the print-tidy blocks). Both OAR buttons report in the status bar what they did (e.g. "12 hidden rows shown", "no rows were hidden") or why they failed (e.g. a protected sheet); the message clears on the next edit. One broken block no longer stops the others coming back after printing. Fix: blocks that were only partly hidden (e.g. the unused load rows under used ones) were not shown again after printing or on the next edit.
-- Fix: the deflected-shape and moment-envelope charts were cut short on printouts. The print tidy-up hides unused table rows, and the charts' data sits in the same rows further right, so Excel dropped those points; the charts now plot hidden rows too.
-- The template is now called **OAR - Steel Beam Design.xlsx** (was Steel Beam Design - Base.xlsx), in the release zip under Calc Templates. Delete the old file from the Calc Templates folder after extracting.
+- OAR > Show all rows unhides every hidden row on the sheet (not only the print-tidy blocks).
 - Not yet: two spans with an overhang, three or more spans (the engine analyses them but pattern loading is set up for two spans only).
 
 ## v0.4.1
