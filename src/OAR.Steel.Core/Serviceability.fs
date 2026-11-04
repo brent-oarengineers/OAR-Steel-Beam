@@ -57,8 +57,13 @@ module Serviceability =
     /// five checks are made for span 1 (L = span 1) then span 2 ("… span 2", L = span 2), with Q on both
     /// spans, span 1 only and span 2 only, and Δ1kN at the middle of each span.
     /// `loads` must include self-weight if required.
-    let check (beam: Beam) (loads: Load list) (criteria: DeflectionCriterion list) (psiL: float) (psiS: float) =
-        if List.length criteria <> 5 then failwith "deflection criteria: expected 5 rows"
+    /// With a sixth criterion, a wind serviceability check follows: "Δws" = windFactor × the deflection under the
+    /// wind loads alone (Wd + Wid down, Wu + Wiu up, each wind direction in use separately), worst of up and down.
+    /// windFactor converts the ultimate wind loads in the table to serviceability (Ws / Wu, e.g. 0.47).
+    let checkWith (beam: Beam) (loads: Load list) (criteria: DeflectionCriterion list) (psiL: float) (psiS: float) (windFactor: float) =
+        if List.length criteria <> 5 && List.length criteria <> 6 then failwith "deflection criteria: expected 5 or 6 rows"
+        if List.length criteria = 6 && not (windFactor > 0.0) then
+            failwith "wind serviceability check: the SLS / ULS wind factor must be a positive number (e.g. 0.47)"
         let crit = List.toArray criteria
         let span = beam.Span
         let overhang = Patterns.hasOverhang beam
@@ -88,6 +93,19 @@ module Serviceability =
               "Δg+ψs·q", patterns [ G, 1.0; Q, psiS ], crit.[2]
               "Δq", patterns [ Q, 1.0 ], crit.[3]
               "Δ1kN", [], crit.[4] ]
+            @ (if crit.Length = 6 then
+                   // wind alone, scaled to serviceability; each direction in use, untagged wind in all of them
+                   let dirs =
+                       WindDir.distinct (loads |> List.filter (fun l -> LoadCase.isWind l.Case) |> List.map (fun l -> l.Dir))
+                   let dirs = if dirs.IsEmpty then [ "" ] else dirs
+                   let wind =
+                       [ for d in dirs do
+                             for cases in [ [ Wd; Wid ]; [ Wu; Wiu ] ] do
+                                 let c = Combination.ofFactors "ws" (cases |> List.map (fun lc -> lc, windFactor))
+                                 yield Analysis.actions span { c with Dir = d } loads ]
+                   [ "Δws", wind, crit.[5] ]
+               else
+                   [])
         let spanRows =
             spans
             |> List.mapi (fun k (a, b) ->
@@ -107,12 +125,18 @@ module Serviceability =
                     tipResult (n + " tip") beam p' c)
             spanRows @ tipRows
 
-    /// The five checks with span and tip combined: the row with the higher utilisation for each case
+    /// Without wind (five criteria)
+    let check (beam: Beam) (loads: Load list) (criteria: DeflectionCriterion list) (psiL: float) (psiS: float) =
+        checkWith beam loads criteria psiL psiS 1.0
+
+    /// One row per check with span and tip (or span 1 and span 2) combined: the row with the higher utilisation.
+    /// Five checks, or six with the wind serviceability check (5, 6, 10 or 12 rows in).
     let governing (results: DeflectionResult list) =
         let arr = List.toArray results
-        if arr.Length <= 5 then results
+        let n = if arr.Length % 6 = 0 then 6 else 5
+        if arr.Length <= n then results
         // the second row (tip, or span 2) only when it is clearly worse, so equal spans report span 1
-        else [ for i in 0..4 -> if arr.[i + 5].Utilisation > arr.[i].Utilisation * (1.0 + 1e-9) + 1e-12 then arr.[i + 5] else arr.[i] ]
+        else [ for i in 0 .. n - 1 -> if arr.[i + n].Utilisation > arr.[i].Utilisation * (1.0 + 1e-9) + 1e-12 then arr.[i + n] else arr.[i] ]
 
     /// Deflected shapes for plotting at n+1 stations: (x, Δg, Δg+ψl.q, Δg+ψs.q, Δq), mm, downward positive
     let curves (beam: Beam) (loads: Load list) (psiL: float) (psiS: float) (n: int) =

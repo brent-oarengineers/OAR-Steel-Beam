@@ -56,7 +56,7 @@ pattern variants and EQ (equilibrium, reactions only) is added; with two spans t
 | `OAR.SECTIONLIST([family])` | spills the designations with complete data for UB, UC, WB or PFC (feeds the Section size dropdown) |
 | `OAR.SECTIONPROPS(size, [grade])` | spills name / value / unit / note, incl. λe flange & web, Ze and class |
 | `OAR.LOADS(loads, span)` | spills how the loads table was read (case, shape, magnitude, a, b, up/down, wind Dir) |
-| `OAR.SLS(size, span, E, includeSW, loads, criteria, psiL, psiS, [shearDefl])` | spills 5 rows: case, Δmax, x at max, limit, L/Δ, utilisation |
+| `OAR.SLS(size, span, E, includeSW, loads, criteria, psiL, psiS, [shearDefl], [mode], [windFactor])` | spills 5 rows (6 with a sixth criteria row = Δws, wind × windFactor; per span / tip; `mode` "governing" = worse of each): case, Δmax, x at max, limit, L/Δ, utilisation |
 | `OAR.DIAGRAM(size, span, E, includeSW, loads, combos, id, [n])` | spills x, V*, M*, δ along the span for a combination ID or single case (G, Q, Wu, Wu Cross…) |
 | `OAR.MAXACTIONS(size, span, includeSW, loads, combos)` | spills per combination: M* max, x, V* max |
 | `OAR.REACTIONS(size, span, includeSW, loads, combos)` | spills reactions for each case (wind per direction, e.g. Wu Cross) and combination |
@@ -164,7 +164,7 @@ a text editor and rebuild; units are as printed in the catalogue.
 - Shear: Aw = d·tw (hot-rolled) or (d−2tf)·tw (WB); αv = (82/λw)² when λw > 82; no shear–bending
   interaction or bearing yet.
 - Deflection is bending only unless "Include shear deformation" is Yes (As = (d − 2tf)·tw, G = 80 000 MPa).
-- SLS: Δg, Δg+ψl·Q, Δg+ψs·Q, ΔQ from G and Q cases only (wind not in SLS); 1 kN at midspan.
+- SLS: Δg, Δg+ψl·Q, Δg+ψs·Q, ΔQ from G and Q cases only; 1 kN at midspan; Δws = SLS factor (e.g. 0.47) × deflection under the wind loads alone, worst of down / up and of each wind direction.
 
 ## Not yet covered
 

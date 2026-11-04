@@ -3,6 +3,13 @@
 Each version that reaches `main` is built, tested and published automatically as a GitHub Release.
 The calc sheet shows the version it was calculated with (title block, under the green bar).
 
+## v0.7.0 – wind serviceability deflection
+- **New check Δws (wind, serviceability)**: a sixth row in the Serviceability Criteria table, default L/150 and a **Factor** of 0.47 (Ws / Wu, the SLS-to-ULS wind conversion; edit it to suit the site). Δws = factor × the deflection under the wind loads in the loads table alone (no G, Q or self-weight): Wd + Wid acting down and Wu + Wiu acting up, the worse of the two shown as a magnitude. With Cross / Long wind directions each direction is checked on its own (untagged wind acts in every direction) and the worst reported, never the sum.
+- Overhangs and two-span beams get Δws tip / Δws span 2 rows as for the other checks (tip L = 2 × overhang). The Design Summary has a new row "Wind – serviceability"; with no wind loads it reads 0 / OK.
+- `OAR.SLS` takes a sixth criteria row and a new last argument `[windFactor]` (after `[mode]`): `OAR.SLS(…, ShearDefl, "", WindSLSFactor)`. Five criteria rows and no factor work as before, so existing sheets are unchanged; six rows need a factor > 0.
+- The (off-print) Load Combination Library heading now lines up with Applied Loads.
+- **Update both** the add-in and the template (an older add-in shows the version warning).
+
 ## v0.6.1
 - **Clear inputs** (new beam): a green button beside the beam-location frame (not printed) and OAR > Clear inputs on the ribbon. After a confirmation it clears the loads table, the intermediate flange restraints and any αm / kl overrides, and resets the beam to a 5.0 m simply supported span; support A / B rows go back to F / F. The loads table's library lookups are restored so picking a library description still fills the row. Section, grade, combinations and deflection criteria are kept. Works on copied tabs (B2, B3 …) and v0.3+ sheets (the ribbon button); it can't be undone.
 

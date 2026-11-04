@@ -9,7 +9,7 @@ open OAR.Steel
 [<Literal>]
 let Category = "OAR Steel"
 
-let private version = "0.6.1"
+let private version = "0.7.0"
 
 // ---------- conversion helpers ----------
 
@@ -220,11 +220,12 @@ let oarSLS
     ([<ExcelArgument(Name = "E", Description = "MPa (default 200000)")>] e: obj)
     ([<ExcelArgument(Name = "includeSW", Description = "Yes/No (default Yes)")>] includeSW: obj)
     ([<ExcelArgument(Name = "loads", Description = "Loads table data range (Type..Dir; older Case..Dir / Case..End layouts also accepted)")>] loads: obj)
-    ([<ExcelArgument(Name = "criteria", Description = "5x2 range: span ratio | max mm")>] criteria: obj)
+    ([<ExcelArgument(Name = "criteria", Description = "5x2 range: span ratio | max mm (6 rows adds the wind serviceability check)")>] criteria: obj)
     ([<ExcelArgument(Name = "psiL")>] psiL: obj)
     ([<ExcelArgument(Name = "psiS")>] psiS: obj)
     ([<ExcelArgument(Name = "[shearDefl]", Description = "Yes = include shear deformation (default No)")>] shearDefl: obj)
-    ([<ExcelArgument(Name = "[mode]", Description = "blank = every row (with an overhang: the 5 span rows then the 5 tip rows); governing = 5 rows, the worse of span and tip")>] mode: obj)
+    ([<ExcelArgument(Name = "[mode]", Description = "blank = every row (with an overhang: the span rows then the tip rows); governing = one row per check, the worse of span and tip")>] mode: obj)
+    ([<ExcelArgument(Name = "[windFactor]", Description = "SLS / ULS wind factor for the 6th (wind) check, e.g. 0.47")>] windFactor: obj)
     : obj =
     guard (fun () ->
         let s = section designation
@@ -233,7 +234,8 @@ let oarSLS
         let beam = beamOf g (numOr "E" Units.E_MPa e * s.Ix) |> withShearOpt s shearDefl
         let ls = loadsWithSW s l includeSW loads
         let crit = Inputs.deflectionCriteria (grid criteria)
-        let all = Serviceability.check beam ls crit (num "psiL" psiL) (num "psiS" psiS)
+        let kw = if isMissing windFactor then 0.0 else num "windFactor" windFactor
+        let all = Serviceability.checkWith beam ls crit (num "psiL" psiL) (num "psiS" psiS) kw
         let res = if (str mode).ToUpperInvariant().StartsWith "GOV" then Serviceability.governing all else all
         table
             [ for r in res ->
