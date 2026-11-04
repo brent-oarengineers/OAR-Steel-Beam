@@ -142,7 +142,7 @@ heading(s0, "Design Summary")
 ws.row_dimensions[s0+2].height = 20
 label(f"B{s0+1}", "Adopted section", 7, GREY)
 ws.merge_cells(f"B{s0+2}:D{s0+2}")
-put(f"B{s0+2}", '=IF(SectionSize="","–",SectionSize&"  Gr "&Grade)',
+put(f"B{s0+2}", '=IF(SectionSize="","–",SectionSize&IF(OR(SectionType="RHS",SectionType="SHS"),"  C"&Grade&"L0","  Gr "&Grade))',
     font(12, b=True, color=GREEN), al=L)
 put(f"B{s0+3}", '=IF(Span2>0,"Spans "&TEXT(Span,"#,##0")&" + "&TEXT(Span2,"#,##0")&" mm","Span "&TEXT(Span,"#,##0")&" mm"&IF(Overhang>0," + "&TEXT(Overhang,"#,##0")&" mm overhang",""))&"  ·  "&Support&IF(IncludeSW="Yes","  ·  incl. self-weight","")&IF(ShearDefl="Yes","  ·  Δ incl. shear deformation","")',
     font(7, color=GREY), al=L)
@@ -267,10 +267,13 @@ for i, (lab, nm, val, nf, unit) in enumerate(rows):
     inp(f"E{rr}", val, nf)
     if unit: label(f"F{rr}", unit, color=GREY)
     name(nm, f"$E${rr}")
-dv_type = DataValidation(type="list", formula1='"UB,UC,WB,PFC"', allow_blank=False)
+dv_type = DataValidation(type="list", formula1='"UB,UC,WB,PFC,RHS,SHS"', allow_blank=False)
 dv_yn = DataValidation(type="list", formula1='"Yes,No"')
 dv_sup = DataValidation(type="list", formula1='"Simply supported,Backspan + overhang,Two-span continuous"')
-dv_grade = DataValidation(type="list", formula1='"250,300,350,400"')
+dv_grade = DataValidation(type="list", formula1='"250,300,350,400,450"')
+dv_grade.promptTitle = "Steel grade"
+dv_grade.prompt = "UB / UC / PFC: 300 typical.  RHS / SHS: 350 = C350L0, 450 = C450L0."
+dv_grade.showInputMessage = True
 for dv in (dv_type, dv_yn, dv_sup, dv_grade): ws.add_data_validation(dv)
 dv_type.add(f"E{r+1}"); dv_grade.add(f"E{r+3}"); dv_sup.add(f"E{r+5}"); dv_yn.add(f"E{r+7}"); dv_yn.add(f"E{r+8}")
 ws[f"E{r+5}"].alignment = L

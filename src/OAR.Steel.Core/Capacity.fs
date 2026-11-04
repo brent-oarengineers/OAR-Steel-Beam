@@ -69,6 +69,8 @@ module Capacity =
         | UB
         | UC
         | PFC -> 9.0, 16.0 // HR: hot-rolled
+        | RHS
+        | SHS -> 30.0, 40.0 // CF: both edges supported (between the webs), uniform compression
 
     /// Table 5.2 limits for a web (both edges supported, compression at one edge, tension at the other)
     let private webLimits = 82.0, 115.0
@@ -76,7 +78,13 @@ module Capacity =
     /// Section moment capacity about the major axis, AS 4100 Cl. 5.2
     let sectionMomentX (s: Section) (grade: int) : SectionMoment =
         let fyf, fyw = Sections.fy s grade
-        let outstand = if s.Family = PFC then s.bf - s.tw else (s.bf - s.tw) / 2.0
+        // flange width: outstand from the web (I-section, PFC), or clear width between the webs (RHS / SHS)
+        let outstand =
+            match s.Family with
+            | PFC -> s.bf - s.tw
+            | RHS
+            | SHS -> s.bf - 2.0 * s.tw
+            | _ -> (s.bf - s.tw) / 2.0
         let lf = outstand / s.tf * sqrt (fyf / 250.0)
         let d1 = s.d - 2.0 * s.tf
         let lw = d1 / s.tw * sqrt (fyw / 250.0)
@@ -92,6 +100,18 @@ module Capacity =
                 (Compact, zc)
             elif gov.Lambda <= gov.LambdaY then
                 (NonCompact, s.Zx + (gov.LambdaY - gov.Lambda) / (gov.LambdaY - gov.LambdaP) * (zc - s.Zx))
+            elif gov.Element = "flange" && Family.isHollow s.Family then
+                // Cl. 5.2.5, effective section: the compression flange (supported by both webs) is effective over
+                // be = b λey/λ; Ze = Ieff / ymax about the shifted neutral axis. Matches the tabulated C450L0 Zex.
+                let t = s.tf
+                let bc = s.bf - 2.0 * t
+                let be = bc * gov.LambdaY / gov.Lambda
+                let dA = (bc - be) * t
+                let y = s.d / 2.0 - t / 2.0
+                let a = s.Ag - dA
+                let shift = dA * y / a
+                let iEff = s.Ix - dA * y * y - (bc - be) * t ** 3.0 / 12.0 - a * shift * shift
+                (Slender, iEff / (s.d / 2.0 + shift))
             elif gov.Element = "flange" then
                 (Slender, s.Zx * (gov.LambdaY / gov.Lambda)) // Cl. 5.2.5(a)
             else
@@ -148,6 +168,8 @@ module Capacity =
         let aw =
             match s.Family with
             | WB -> (s.d - 2.0 * s.tf) * s.tw // welded: web depth only
+            | RHS
+            | SHS -> 2.0 * (s.d - 2.0 * s.tf) * s.tw // two webs, clear depth
             | _ -> s.d * s.tw
         let dp = s.d - 2.0 * s.tf
         let lam = dp / s.tw * sqrt (fyw / 250.0)

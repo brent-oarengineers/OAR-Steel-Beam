@@ -150,7 +150,7 @@ a text editor and rebuild; units are as printed in the catalogue.
   tw, Ag, Zx, Sx, J and fy from the current catalogue.
 - **760UB / 690UB:** yield stress only given for Grade 250. Add Grade 300 values if you use them.
 - **WB, 760UB, 690UB:** no tabulated Iw – calculated as Iy(d−tf)²/4 (flagged in `OAR.SECTIONPROPS`).
-- RHS / SHS / CHS are not loaded yet.
+- RHS / SHS: cold-formed C350L0 / C450L0 (grade 350 / 450), from the OAR closed-section sheet; Iw = 0; slender flanges by effective width. CHS not loaded.
 
 ## 6. Assumptions in v0.1 (check these)
 
@@ -168,4 +168,4 @@ a text editor and rebuild; units are as printed in the catalogue.
 ## Not yet covered
 
 Shear–bending interaction (flagged only), bearing / web crippling, kl automation from load position,
-three or more spans, two spans with an overhang, hollow sections (RHS / SHS planned).
+three or more spans, two spans with an overhang, CHS.

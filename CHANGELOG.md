@@ -3,6 +3,12 @@
 Each version that reaches `main` is built, tested and published automatically as a GitHub Release.
 The calc sheet shows the version it was calculated with (title block, under the green bar).
 
+## v0.6.0 – RHS and SHS
+- **Section types RHS and SHS** (cold-formed, Grades C350L0 = 350 and C450L0 = 450): 89 RHS and 90 SHS sizes from the OAR closed-section sheet (PROPERTIES tab). Mass = Ag × 7850 kg/m³; Iw = 0 (closed section). The Design Summary shows the grade as C350L0 / C450L0, and the grade cell's input message lists the options. Grade 300 etc. on an RHS gives a clear error.
+- **Section capacity (Cl. 5.2):** flange = clear width between the webs (b − 2t)/t with the cold-formed limits λep 30, λey 40; web (d − 2t)/t with 82 / 115. Slender flanges use the effective-width section (compression flange effective over be = b λey/λ, Ze about the shifted neutral axis), which reproduces the catalogue C450L0 Zex for all 20 tabulated slender sizes within 0.5%.
+- **Member capacity (Cl. 5.6):** unchanged method; Mo from Iy and J with Iw = 0. Checked against the closed-section sheet: 75x75x5 SHS C350L0, Le 2.7 m: φMsx 10.584, Mo 198.72, φMbx 10.584 kN·m.
+- **Shear (Cl. 5.11):** both webs, Aw = 2(d − 2t)t, buckling on (d − 2t)/t; the same area for shear deformation in deflections.
+
 ## v0.5.2
 - The kl / kr factor box moves one column left (D–F) with shorter notes, so the notes fit inside the printed page.
 - Fix: the full-span UDL totals under the loads table showed #### from 10 kN/m up; now 2 decimals and shrink to fit.

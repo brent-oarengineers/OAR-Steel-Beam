@@ -61,8 +61,9 @@ module Beam =
     /// Include shear deformation in deflections, with shear stiffness G·As (N)
     let withShear (gas: float) (b: Beam) : Beam = { b with GAs = gas }
 
-    /// Shear area used for I-sections: clear web (d - 2tf)·tw (mm²)
-    let shearArea (s: Section) = (s.d - 2.0 * s.tf) * s.tw
+    /// Shear area for shear deformation: clear web (d - 2tf)·tw for I-sections and PFCs, both webs for RHS / SHS (mm²)
+    let shearArea (s: Section) =
+        if Family.isHollow s.Family then 2.0 * (s.d - 2.0 * s.tf) * s.tw else (s.d - 2.0 * s.tf) * s.tw
 
     /// Distance between the end supports (the whole length between A and B on a continuous beam)
     let backspan (b: Beam) = b.SupportB - b.SupportA
