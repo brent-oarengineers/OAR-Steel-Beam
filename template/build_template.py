@@ -588,22 +588,23 @@ name("OAR_Flex_Restraints", "Restraints_B1[x (mm)]")
 label(f"B{rlast+1}", "αm / kl → overrides for that flange's segment from this row to the next restraint on that flange "
       "(blank: αm by Cl. 5.6.1.1(a)(iii), kl from the factor box below). Flagged * in the output.", 7, GREY, i=True)
 kb = rlast + 3
-for col, txt in zip("EFG", ["Factor", "Top / load ↓", "Bottom / load ↑"]):
-    put(f"{col}{kb}", txt, font(8, b=True), F_HDR, None, C)
+# factor box in D..F with its notes from G, so the notes stay inside the print area (A..K)
+for col, txt in zip("DEF", ["Factor", "Top / load ↓", "Bottom / load ↑"]):
+    put(f"{col}{kb}", txt, font(8, b=True), F_HDR, None, Alignment(horizontal="center", vertical="center", shrink_to_fit=True))
 kf = [("kl", 1.4, 1.0, "kl", "0.00"), ("kr", 1.0, 1.0, "kr", "0.00"), ("Continuous", "No", "No", "Cont", None),
       ("kl free tip", 2.0, 1.0, "klTip", "0.00")]
 for i, (lab, top, bot, nm, nf) in enumerate(kf):
     rr = kb + 1 + i
-    label(f"E{rr}", lab, 9, al=C)
-    inp(f"F{rr}", top, nf); inp(f"G{rr}", bot, nf)
-    name(f"{nm}_Top", f"$F${rr}"); name(f"{nm}_Bot", f"$G${rr}")
+    label(f"D{rr}", lab, 9, al=C)
+    inp(f"E{rr}", top, nf); inp(f"F{rr}", bot, nf)
+    name(f"{nm}_Top", f"$E${rr}"); name(f"{nm}_Bot", f"$F${rr}")
 dv_cont = DataValidation(type="list", formula1='"Yes,No"')
-ws.add_data_validation(dv_cont); dv_cont.add(f"F{kb+3}:G{kb+3}")
-KF_RANGE = f"$F${kb+1}:$G${kb+4}"
-label(f"H{kb+1}", "kl by load on the segment: ↓ on top flange (destabilising) | ↑ uplift, Table 5.6.3(2)", 7, GREY, i=True)
-label(f"H{kb+2}", "kr per flange: top | bottom, Table 5.6.3(3); kt from restraints", 7, GREY, i=True)
-label(f"H{kb+3}", "Yes = flange continuously restrained: φMb = φMsx", 7, GREY, i=True)
-label(f"H{kb+4}", "kl for a cantilever with a free (U) tip: load ↓ | load ↑", 7, GREY, i=True)
+ws.add_data_validation(dv_cont); dv_cont.add(f"E{kb+3}:F{kb+3}")
+KF_RANGE = f"$E${kb+1}:$F${kb+4}"
+label(f"G{kb+1}", "kl by load direction: ↓ top flange | ↑ uplift, Table 5.6.3(2)", 7, GREY, i=True)
+label(f"G{kb+2}", "kr per flange, Table 5.6.3(3); kt from the restraints", 7, GREY, i=True)
+label(f"G{kb+3}", "Yes = flange continuously restrained: φMb = φMsx", 7, GREY, i=True)
+label(f"G{kb+4}", "kl for a free (U) cantilever tip: load ↓ | load ↑", 7, GREY, i=True)
 rlast = kb + 4
 
 # bottom-flange summary row: say so and grey it out when no combination hogs the beam
