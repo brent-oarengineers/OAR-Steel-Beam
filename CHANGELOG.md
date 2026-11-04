@@ -4,6 +4,7 @@ Each version that reaches `main` is built, tested and published automatically as
 The calc sheet shows the version it was calculated with (title block, under the green bar).
 
 ## v0.5.2
+- Fix: the full-span UDL totals under the loads table showed #### from 10 kN/m up; now 2 decimals and shrink to fit.
 - **Add-in version check:** the template records the add-in version it was built with. If the installed add-in is older, the title block shows a red warning ("Add-in 0.4.1 is older than this template (0.5.2) – update the add-in and restart Excel") and the Design Summary status box shows UPDATE ADD-IN instead of PASS / FAIL, on screen and on the printout. "OAR Steel add-in not loaded" is now red too. OAR.VERSION recalculates on every open, so an old sheet shows the add-in actually in use.
 
 ## v0.5.1

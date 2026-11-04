@@ -408,7 +408,9 @@ for case, col in CASE_COLS.items():
     put(f"{col}{sr}", case, font(8, b=True), F_HDR, B_IN, C)
     tot = (f'=SUMPRODUCT(IFERROR((Loads_B1[Type]="UDL")*Loads_B1[{case}]'
            f'*IF(ISNUMBER(Loads_B1[Trib (m | m²)]),Loads_B1[Trib (m | m²)],1),0))')
-    out(f"{col}{sr+1}", ArrayFormula(f"{col}{sr+1}", tot), '0.000 "kN/m"')
+    # 2 dp and shrink-to-fit: 3 dp overflowed the column (####) from 10 kN/m up
+    out(f"{col}{sr+1}", ArrayFormula(f"{col}{sr+1}", tot), '0.00 "kN/m"')
+    ws[f"{col}{sr+1}"].alignment = Alignment(horizontal="center", vertical="center", shrink_to_fit=True)
     name(f"w_{case}", f"${col}${sr+1}")
 
 HX = 26  # column Z: start of the add-in helper area
