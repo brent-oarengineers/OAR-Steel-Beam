@@ -26,6 +26,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- confirmation box for OAR > Clear inputs -->
+    <Reference Include="System.Windows.Forms" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\OAR.Steel.Core\OAR.Steel.Core.fsproj" />
   </ItemGroup>
 
