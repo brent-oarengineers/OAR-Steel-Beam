@@ -3,6 +3,11 @@
 Each version that reaches `main` is built, tested and published automatically as a GitHub Release.
 The calc sheet shows the version it was calculated with (title block, under the green bar).
 
+## v0.7.1
+- **Δws on the deflected-shape chart**: a dashed blue Δws curve (wind loads alone × the SLS factor) for the governing pattern, down or up and worst wind direction; uplift plots upward. With no wind loads it lies on zero.
+- `OAR.DEFLECTIONS` takes a last argument `[windFactor]`; with it, a sixth column Δws. Without it the spill is the same five columns as before.
+- Update both the add-in and the template.
+
 ## v0.7.0 – wind serviceability deflection
 - **New check Δws (wind, serviceability)**: a sixth row in the Serviceability Criteria table, default L/150 and a **Factor** of 0.47 (Ws / Wu, the SLS-to-ULS wind conversion; edit it to suit the site). Δws = factor × the deflection under the wind loads in the loads table alone (no G, Q or self-weight): Wd + Wid acting down and Wu + Wiu acting up, the worse of the two shown as a magnitude. With Cross / Long wind directions each direction is checked on its own (untagged wind acts in every direction) and the worst reported, never the sum.
 - Overhangs and two-span beams get Δws tip / Δws span 2 rows as for the other checks (tip L = 2 × overhang). The Design Summary has a new row "Wind – serviceability"; with no wind loads it reads 0 / OK.

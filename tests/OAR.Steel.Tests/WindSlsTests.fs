@@ -58,6 +58,17 @@ let tests =
               Expect.equal two.[11].Name "Δws span 2" "two spans"
           }
 
+          test "plot curve: governing wind pattern, uplift negative, peak = Δws" {
+              let loads = [ ld G FullSpan 1.0 ""; ld Wd FullSpan 1.0 ""; ld Wu FullSpan 3.0 "" ]
+              let c = Serviceability.windCurve beam loads 0.47 60
+              Expect.equal c.Length 61 "61 stations"
+              let _, mid = c.[30]
+              within 1e-9 (-0.47 * udl 3.0) mid "uplift governs, plotted negative (up)"
+              let w = Serviceability.checkWith beam loads crit6 0.4 0.7 0.47 |> List.last
+              within 1e-9 w.Actual (c |> List.map (snd >> abs) |> List.max) "peak = Δws"
+              Expect.isTrue (Serviceability.windCurve beam [ ld G FullSpan 1.0 "" ] 0.47 10 |> List.forall (fun (_, d) -> d = 0.0)) "no wind: flat"
+          }
+
           test "six criteria need a positive wind factor" {
               Expect.throws (fun () -> Serviceability.checkWith beam [] crit6 0.4 0.7 0.0 |> ignore) "factor required"
           } ]

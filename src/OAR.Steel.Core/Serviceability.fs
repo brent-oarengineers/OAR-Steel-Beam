@@ -150,3 +150,21 @@ module Serviceability =
               let x = span * float i / float n
               let d a = Analysis.deflection beam a x
               yield (x, d g, d gl, d gs, d q) ]
+
+    /// Wind serviceability deflected shape for plotting at n+1 stations: (x, Δws), mm, downward positive (uplift
+    /// negative). windFactor × the wind loads alone, for the governing pattern: of down (Wd + Wid) and up (Wu + Wiu)
+    /// in each wind direction in use, the one with the largest deflection anywhere on the beam.
+    let windCurve (beam: Beam) (loads: Load list) (windFactor: float) (n: int) =
+        let span = beam.Span
+        let dirs = WindDir.distinct (loads |> List.filter (fun l -> LoadCase.isWind l.Case) |> List.map (fun l -> l.Dir))
+        let dirs = if dirs.IsEmpty then [ "" ] else dirs
+        let xs = [ for i in 0..n -> span * float i / float n ]
+        let shapes =
+            [ for d in dirs do
+                  for cases in [ [ Wd; Wid ]; [ Wu; Wiu ] ] do
+                      let c = Combination.ofFactors "ws" (cases |> List.map (fun lc -> lc, windFactor))
+                      let a = Analysis.actions span { c with Dir = d } loads
+                      let worst = Analysis.maxAbsOn 0.0 span (Analysis.breakpointsOn beam a) (Analysis.deflection beam a) |> snd |> abs
+                      yield worst, a ]
+        let _, a = shapes |> List.maxBy fst
+        [ for x in xs -> x, Analysis.deflection beam a x ]
