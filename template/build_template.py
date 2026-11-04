@@ -1,5 +1,5 @@
 # Builds the OAR steel beam calc sheet template (openpyxl).
-# Usage: python template/build_template.py "template/Steel Beam Design - Base.xlsx" template/assets/oar-logo.png
+# Usage: python template/build_template.py "template/OAR - Steel Beam Design.xlsx" template/assets/oar-logo.png
 
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
@@ -695,6 +695,9 @@ def chart(title, xcol, ycols, first_row, ytitle, reverse, colors, w=17.6, h=5.6,
     """Scatter chart over a fixed block: x in xcol, series in ycols, data rows first_row .. first_row + NPTS.
     Series names are literal (not cell references) so Excel never regroups the series."""
     ch_ = ScatterChart()
+    # plot the chart data even when its rows are hidden: the print tidy-up hides unused table rows, and the
+    # chart blocks share those row numbers (off to the right), so with Excel's default the curves lost points
+    ch_.visible_cells_only = False
     ch_.title = None
     ch_.style = 2
     ch_.height = h; ch_.width = w

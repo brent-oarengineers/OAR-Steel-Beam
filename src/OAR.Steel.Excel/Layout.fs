@@ -52,18 +52,35 @@ module Layout =
         for rng in flexRanges ws do
             // one block failing (e.g. a name left pointing at #REF!) must not stop the others coming back
             try
-                let rows = rng.EntireRow
-                let allShown =
-                    match rows.Hidden with
-                    | :? bool as h -> not h
-                    | _ -> false // mixed
-                if not allShown then rows.Hidden <- box false
+                // check row by row: Hidden on a multi-row range does not reliably report a mix of hidden
+                // and shown rows, which left partly hidden blocks hidden. Only touch the sheet when a row
+                // is actually hidden, because setting Hidden clears Excel's undo list (this runs on every edit).
+                let anyHidden =
+                    (rng.Rows :> Collections.IEnumerable)
+                    |> Seq.cast<obj>
+                    |> Seq.exists (fun o ->
+                        match (o :?> Range).EntireRow.Hidden with
+                        | :? bool as h -> h
+                        | _ -> false)
+                if anyHidden then rng.EntireRow.Hidden <- box false
             with _ ->
                 ()
 
-    /// Show every hidden row in the sheet's used range (OAR > Show all rows), whatever hid it
+    /// Hidden rows in the sheet's used range
+    let hiddenRowCount (ws: Worksheet) =
+        let mutable n = 0
+        for o in (ws.UsedRange.Rows :> Collections.IEnumerable) do
+            match (o :?> Range).EntireRow.Hidden with
+            | :? bool as h when h -> n <- n + 1
+            | _ -> ()
+        n
+
+    /// Show every hidden row in the sheet's used range (OAR > Show all rows), whatever hid it.
+    /// Returns how many rows were hidden before.
     let showAllRows (ws: Worksheet) =
+        let n = hiddenRowCount ws
         ws.UsedRange.EntireRow.Hidden <- box false
+        n
 
     let private worksheets (wb: Workbook) =
         [ for o in (wb.Worksheets :> Collections.IEnumerable) do
@@ -84,23 +101,48 @@ module Layout =
     let private app () =
         ExcelDnaUtil.Application :?> Application
 
+    // the ribbon buttons always say what they did in the status bar, so a button that seems to do
+    // nothing can be told apart from one that never ran; the message clears on the next edit
+    let mutable private statusSet = false
+
+    let private status (a: Application) (msg: string) =
+        a.StatusBar <- box ("OAR: " + msg)
+        statusSet <- true
+
+    let clearStatus () =
+        if statusSet then
+            statusSet <- false
+            try
+                (app ()).StatusBar <- box false
+            with _ ->
+                ()
+
+    let private onActiveWorksheet (what: string) (f: Worksheet -> string) =
+        let a = app ()
+        try
+            match a.ActiveSheet with
+            | :? Worksheet as ws ->
+                try
+                    status a (f ws)
+                with e ->
+                    // say why instead of failing silently (most often a protected sheet)
+                    let why = if ws.ProtectContents then "the sheet is protected – unprotect it first" else e.Message
+                    status a (what + " failed: " + why)
+            | _ -> status a (what + ": the active sheet is not a worksheet")
+        with e ->
+            status a (what + " failed: " + e.Message)
+
     let tidyActiveSheet () =
-        match app().ActiveSheet with
-        | :? Worksheet as ws -> safely (fun () -> tidySheet ws)
-        | _ -> ()
+        onActiveWorksheet "Tidy for print" (fun ws ->
+            let before = hiddenRowCount ws
+            tidySheet ws
+            sprintf "Tidy for print – %d unused rows hidden" (hiddenRowCount ws - before))
 
     let restoreActiveSheet () =
-        let a = app ()
-        match a.ActiveSheet with
-        | :? Worksheet as ws ->
-            try
-                showAllRows ws
-                a.StatusBar <- box false
-            with e ->
-                // say why instead of failing silently (most often a protected sheet)
-                let why = if ws.ProtectContents then "the sheet is protected – unprotect it first" else e.Message
-                a.StatusBar <- box ("OAR Show all rows: " + why)
-        | _ -> ()
+        onActiveWorksheet "Show all rows" (fun ws ->
+            let n = showAllRows ws
+            if n = 0 then "Show all rows – no rows were hidden on this sheet"
+            else sprintf "Show all rows – %d hidden rows shown" n)
 
     // keep the Application object alive so its event connections are not collected
     let mutable private hooked: Application = null
@@ -116,6 +158,7 @@ module Layout =
         safely (fun () -> ExcelAsyncUtil.QueueAsMacro(ExcelAction(fun () -> restoreWorkbook wb)))
 
     let private onSheetChange (sh: obj) =
+        clearStatus ()
         match sh with
         | :? Worksheet as ws -> safely (fun () -> restoreSheet ws)
         | _ -> ()
