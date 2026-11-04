@@ -9,7 +9,7 @@ open OAR.Steel
 [<Literal>]
 let Category = "OAR Steel"
 
-let private version = "0.4.1"
+let private version = "0.5.0"
 
 // ---------- conversion helpers ----------
 
@@ -94,25 +94,41 @@ let private loadsWithSW (sec: Section) (span: float) (includeSW: obj) (loads: ob
     let sw = if isMissing includeSW then true else Inputs.yesNo (toCell includeSW)
     if sw then Analysis.selfWeightLoad sec :: ls else ls
 
-/// The span argument: one cell (simply supported span) or two cells {backspan, overhang}.
-/// With an overhang the supports are at 0 and the backspan, and the beam runs on to the tip.
-let private geometry (o: obj) : float * float =
+/// Beam geometry from the sheet: span (or backspan, or span 1), overhang beyond B, and span 2 (B–C) of a
+/// two-span continuous beam. Overhang and span 2 are zero when not used, and never both non-zero.
+type private Geom =
+    { Span1: float
+      Overhang: float
+      Span2: float }
+
+/// The span argument: one cell (simply supported span), two cells {backspan, overhang}, or three cells
+/// {span 1, overhang, span 2}. With an overhang the supports are at 0 and the backspan, and the beam runs on
+/// to the tip; with span 2 the beam is continuous over B and runs on to support C.
+let private geometry (o: obj) : Geom =
     let one (v: obj) = num "span" v
+    let opt name (v: obj) = if isMissing v then 0.0 else num name v
     let g =
         match o with
         | :? (obj[,]) as a ->
             (match a |> Seq.cast<obj> |> Seq.toList with
-             | [ v ] -> one v, 0.0
-             | [ v1; v2 ] -> one v1, (if isMissing v2 then 0.0 else num "overhang" v2)
-             | _ -> failwith "span: give one cell (span) or two cells (backspan, overhang)")
-        | v -> one v, 0.0
-    let lb, ov = g
-    if lb <= 0.0 then failwith "span must be positive"
-    if ov < 0.0 then failwith "overhang must be zero or positive"
+             | [ v ] -> { Span1 = one v; Overhang = 0.0; Span2 = 0.0 }
+             | [ v1; v2 ] -> { Span1 = one v1; Overhang = opt "overhang" v2; Span2 = 0.0 }
+             | [ v1; v2; v3 ] -> { Span1 = one v1; Overhang = opt "overhang" v2; Span2 = opt "span 2" v3 }
+             | _ -> failwith "span: give one cell (span), two cells (backspan, overhang) or three (span 1, overhang, span 2)")
+        | v -> { Span1 = one v; Overhang = 0.0; Span2 = 0.0 }
+    if g.Span1 <= 0.0 then failwith "span must be positive"
+    if g.Overhang < 0.0 then failwith "overhang must be zero or positive"
+    if g.Span2 < 0.0 then failwith "span 2 must be zero or positive"
+    if g.Overhang > 0.0 && g.Span2 > 0.0 then
+        failwith "two spans with an overhang aren't supported yet: set the overhang or span 2 to zero"
     g
 
-let private beamOf ((lb, ov): float * float) (ei: float) =
-    if ov > 0.0 then Beam.supported (lb + ov) ei 0.0 lb else Beam.simple lb ei
+let private totalLength (g: Geom) = g.Span1 + g.Overhang + g.Span2
+
+let private beamOf (g: Geom) (ei: float) =
+    if g.Span2 > 0.0 then Beam.continuous (g.Span1 + g.Span2) ei [ g.Span1 ]
+    elif g.Overhang > 0.0 then Beam.supported (g.Span1 + g.Overhang) ei 0.0 g.Span1
+    else Beam.simple g.Span1 ei
 
 /// Strength combinations from the combos range, with pattern variants when the beam has an overhang
 let private strengthCombos (beam: Beam) (combos: obj) =
@@ -199,7 +215,7 @@ let oarSectionProps
                 Category = Category)>]
 let oarSLS
     ([<ExcelArgument(Name = "designation")>] designation: obj)
-    ([<ExcelArgument(Name = "span", Description = "mm: one cell (span), or two cells (backspan, overhang)")>] span: obj)
+    ([<ExcelArgument(Name = "span", Description = "mm: one cell (span), two cells (backspan, overhang), or three (span 1, overhang, span 2)")>] span: obj)
     ([<ExcelArgument(Name = "E", Description = "MPa (default 200000)")>] e: obj)
     ([<ExcelArgument(Name = "includeSW", Description = "Yes/No (default Yes)")>] includeSW: obj)
     ([<ExcelArgument(Name = "loads", Description = "Loads table data range (Type..Dir; older Case..Dir / Case..End layouts also accepted)")>] loads: obj)
@@ -212,7 +228,7 @@ let oarSLS
     guard (fun () ->
         let s = section designation
         let g = geometry span
-        let l = fst g + snd g
+        let l = totalLength g
         let beam = beamOf g (numOr "E" Units.E_MPa e * s.Ix) |> withShearOpt s shearDefl
         let ls = loadsWithSW s l includeSW loads
         let crit = Inputs.deflectionCriteria (grid criteria)
@@ -232,7 +248,7 @@ let oarSLS
                 Category = Category)>]
 let oarDiagram
     ([<ExcelArgument(Name = "designation")>] designation: obj)
-    ([<ExcelArgument(Name = "span", Description = "mm: one cell (span), or two cells (backspan, overhang)")>] span: obj)
+    ([<ExcelArgument(Name = "span", Description = "mm: one cell (span), two cells (backspan, overhang), or three (span 1, overhang, span 2)")>] span: obj)
     ([<ExcelArgument(Name = "E", Description = "MPa (default 200000)")>] e: obj)
     ([<ExcelArgument(Name = "includeSW")>] includeSW: obj)
     ([<ExcelArgument(Name = "loads")>] loads: obj)
@@ -244,7 +260,7 @@ let oarDiagram
     guard (fun () ->
         let s = section designation
         let g = geometry span
-        let l = fst g + snd g
+        let l = totalLength g
         let beam = beamOf g (numOr "E" Units.E_MPa e * s.Ix) |> withShearOpt s shearDefl
         let ls = loadsWithSW s l includeSW loads
         let id = str comboId
@@ -272,11 +288,11 @@ let oarDiagram
         table (header :: rows))
 
 [<ExcelFunction(Name = "OAR.REACTIONS",
-                Description = "Spills support reactions at A and B (kN, + up) for each case (wind per direction, e.g. Wu Cross), each combination (with overhang patterns -span / -cant) and EQ (equilibrium): ID | A | B",
+                Description = "Spills support reactions (kN, + up) for each case (wind per direction, e.g. Wu Cross), each combination (with pattern variants) and EQ (equilibrium): ID | A | B, plus C for two spans",
                 Category = Category)>]
 let oarReactions
     ([<ExcelArgument(Name = "designation")>] designation: obj)
-    ([<ExcelArgument(Name = "span", Description = "mm: one cell (span), or two cells (backspan, overhang)")>] span: obj)
+    ([<ExcelArgument(Name = "span", Description = "mm: one cell (span), two cells (backspan, overhang), or three (span 1, overhang, span 2)")>] span: obj)
     ([<ExcelArgument(Name = "includeSW")>] includeSW: obj)
     ([<ExcelArgument(Name = "loads")>] loads: obj)
     ([<ExcelArgument(Name = "combos")>] combos: obj)
@@ -284,7 +300,7 @@ let oarReactions
     guard (fun () ->
         let s = section designation
         let g = geometry span
-        let l = fst g + snd g
+        let l = totalLength g
         let beam = beamOf g (1.0)
         let ls = loadsWithSW s l includeSW loads
         let combosIn = strengthCombos beam combos @ Patterns.equilibrium beam
@@ -309,15 +325,15 @@ let oarReactions
         let cs = caseRows @ combosIn
         table
             [ for c in cs do
-                  let ra, rb = Analysis.reactions beam (Analysis.actions l c ls)
-                  yield [ box c.Id; box (Units.toKN ra); box (Units.toKN rb) ] ])
+                  let rs = Analysis.supportReactions beam (Analysis.actions l c ls)
+                  yield box c.Id :: (rs |> List.map (fun (_, r) -> box (Units.toKN r))) ])
 
 [<ExcelFunction(Name = "OAR.MAXACTIONS",
                 Description = "Spills design actions for each combination: ID | M* max kN.m | at x mm | V* max kN",
                 Category = Category)>]
 let oarMaxActions
     ([<ExcelArgument(Name = "designation")>] designation: obj)
-    ([<ExcelArgument(Name = "span", Description = "mm: one cell (span), or two cells (backspan, overhang)")>] span: obj)
+    ([<ExcelArgument(Name = "span", Description = "mm: one cell (span), two cells (backspan, overhang), or three (span 1, overhang, span 2)")>] span: obj)
     ([<ExcelArgument(Name = "includeSW")>] includeSW: obj)
     ([<ExcelArgument(Name = "loads")>] loads: obj)
     ([<ExcelArgument(Name = "combos")>] combos: obj)
@@ -325,7 +341,7 @@ let oarMaxActions
     guard (fun () ->
         let s = section designation
         let g = geometry span
-        let l = fst g + snd g
+        let l = totalLength g
         let beam = beamOf g (1.0)
         let ls = loadsWithSW s l includeSW loads
         table
@@ -380,11 +396,11 @@ let oarMbDetail
                 Category = Category)>]
 let oarLoads
     ([<ExcelArgument(Name = "loads")>] loads: obj)
-    ([<ExcelArgument(Name = "span", Description = "mm: one cell (span), or two cells (backspan, overhang)")>] span: obj)
+    ([<ExcelArgument(Name = "span", Description = "mm: one cell (span), two cells (backspan, overhang), or three (span 1, overhang, span 2)")>] span: obj)
     : obj =
     guard (fun () ->
         let g = geometry span
-        let l = fst g + snd g
+        let l = totalLength g
         let ls = Inputs.loads l (grid loads)
         if ls.IsEmpty then box "no loads"
         else
@@ -409,7 +425,7 @@ type private BeamCtx =
 let private ctx designation gr span e includeSW loads : BeamCtx =
     let s = section designation
     let g = geometry span
-    let l = fst g + snd g
+    let l = totalLength g
     let ee = numOr "E" Units.E_MPa e
     { Sec = s
       Grade = grade gr
@@ -434,7 +450,7 @@ let private segText (r: SegmentCheck) =
 let oarUls
     ([<ExcelArgument(Name = "designation")>] designation: obj)
     ([<ExcelArgument(Name = "grade")>] gr: obj)
-    ([<ExcelArgument(Name = "span", Description = "mm: one cell (span), or two cells (backspan, overhang)")>] span: obj)
+    ([<ExcelArgument(Name = "span", Description = "mm: one cell (span), two cells (backspan, overhang), or three (span 1, overhang, span 2)")>] span: obj)
     ([<ExcelArgument(Name = "E", Description = "MPa")>] e: obj)
     ([<ExcelArgument(Name = "includeSW")>] includeSW: obj)
     ([<ExcelArgument(Name = "loads")>] loads: obj)
@@ -631,7 +647,7 @@ let oarSectionList ([<ExcelArgument(Name = "[family]", Description = "UB, UC, WB
                 Category = Category)>]
 let oarLoadDiagram
     ([<ExcelArgument(Name = "designation")>] designation: obj)
-    ([<ExcelArgument(Name = "span", Description = "mm: one cell (span), or two cells (backspan, overhang)")>] span: obj)
+    ([<ExcelArgument(Name = "span", Description = "mm: one cell (span), two cells (backspan, overhang), or three (span 1, overhang, span 2)")>] span: obj)
     ([<ExcelArgument(Name = "includeSW")>] includeSW: obj)
     ([<ExcelArgument(Name = "loads")>] loads: obj)
     ([<ExcelArgument(Name = "[kind]", Description = "line (default) or point")>] kind: obj)
@@ -639,7 +655,7 @@ let oarLoadDiagram
     guard (fun () ->
         let s = section designation
         let g = geometry span
-        let l = fst g + snd g
+        let l = totalLength g
         let ls = arg "loads" (fun () -> loadsWithSW s l includeSW loads)
         let na = box ExcelError.ExcelErrorNA
         let pad (n: int) (width: int) (rows: obj list list) =

@@ -35,13 +35,13 @@ module Serviceability =
           SpanRatio = (if actual > 0.0 then length / actual else infinity)
           Utilisation = actual / lim }
 
-    /// Worst deflection between the supports over a set of load patterns; L = backspan
-    let private spanResult name (beam: Beam) (patterns: BeamLoad list list) crit =
+    /// Worst deflection within one span (a to b) over a set of load patterns; L = that span
+    let private spanResult name (beam: Beam) (a: float, b: float) (patterns: BeamLoad list list) crit =
         let best =
             patterns
-            |> List.map (fun acts -> Analysis.maxAbsOn beam.SupportA beam.SupportB (Analysis.breakpointsOn beam acts) (Analysis.deflection beam acts))
+            |> List.map (fun acts -> Analysis.maxAbsOn a b (Analysis.breakpointsOn beam acts) (Analysis.deflection beam acts))
             |> List.maxBy (fun (_, d) -> abs d)
-        make name (fst best) (snd best) (Beam.backspan beam) crit
+        make name (fst best) (snd best) (b - a) crit
 
     /// Worst tip deflection of a right-hand overhang over a set of load patterns; limit length = 2 × overhang
     let private tipResult name (beam: Beam) (patterns: BeamLoad list list) crit =
@@ -53,17 +53,27 @@ module Serviceability =
     /// Δg, Δg+ψl.q, Δg+ψs.q, Δq, Δ1kN (1 kN midway between the supports).
     /// With an overhang each case is checked between the supports (L = backspan) and at the tip
     /// (L = 2 × overhang), with Q on the whole beam, the backspan only and the overhang only; the
-    /// tip rows follow as "… tip" and Δ1kN tip has 1 kN at the tip. `loads` must include self-weight if required.
+    /// tip rows follow as "… tip" and Δ1kN tip has 1 kN at the tip. On a two-span continuous beam the
+    /// five checks are made for span 1 (L = span 1) then span 2 ("… span 2", L = span 2), with Q on both
+    /// spans, span 1 only and span 2 only, and Δ1kN at the middle of each span.
+    /// `loads` must include self-weight if required.
     let check (beam: Beam) (loads: Load list) (criteria: DeflectionCriterion list) (psiL: float) (psiS: float) =
         if List.length criteria <> 5 then failwith "deflection criteria: expected 5 rows"
         let crit = List.toArray criteria
         let span = beam.Span
         let overhang = Patterns.hasOverhang beam
+        let spans = Beam.spans beam
         // Q patterns (whole beam; with an overhang also backspan only and overhang only)
         let patterns (factors: (LoadCase * float) list) =
             let c = Combination.ofFactors "sls" factors
             let all = Analysis.actions span c loads
-            if not overhang || Combination.factor c Q = 0.0 then
+            if Combination.factor c Q = 0.0 then
+                [ all ]
+            elif spans.Length > 1 then
+                let noQ = (Map.ofList factors).Remove Q
+                all
+                :: (spans |> List.map (fun (a, b) -> Analysis.actions span { c with Outside = Some { A = a; B = b; Factors = noQ } } loads))
+            elif not overhang then
                 [ all ]
             else
                 let full = Map.ofList factors
@@ -77,8 +87,16 @@ module Serviceability =
               "Δg+ψl·q", patterns [ G, 1.0; Q, psiL ], crit.[1]
               "Δg+ψs·q", patterns [ G, 1.0; Q, psiS ], crit.[2]
               "Δq", patterns [ Q, 1.0 ], crit.[3]
-              "Δ1kN", [ [ Conc(Units.kN 1.0, (beam.SupportA + beam.SupportB) / 2.0) ] ], crit.[4] ]
-        let spanRows = cases |> List.map (fun (n, p, c) -> spanResult n beam p c)
+              "Δ1kN", [], crit.[4] ]
+        let spanRows =
+            spans
+            |> List.mapi (fun k (a, b) ->
+                let suffix = if k = 0 then "" else sprintf " span %d" (k + 1)
+                cases
+                |> List.map (fun (n, p, c) ->
+                    let p' = if n = "Δ1kN" then [ [ Conc(Units.kN 1.0, (a + b) / 2.0) ] ] else p
+                    spanResult (n + suffix) beam (a, b) p' c))
+            |> List.concat
         if not overhang then
             spanRows
         else
@@ -93,7 +111,8 @@ module Serviceability =
     let governing (results: DeflectionResult list) =
         let arr = List.toArray results
         if arr.Length <= 5 then results
-        else [ for i in 0..4 -> if arr.[i + 5].Utilisation > arr.[i].Utilisation then arr.[i + 5] else arr.[i] ]
+        // the second row (tip, or span 2) only when it is clearly worse, so equal spans report span 1
+        else [ for i in 0..4 -> if arr.[i + 5].Utilisation > arr.[i].Utilisation * (1.0 + 1e-9) + 1e-12 then arr.[i + 5] else arr.[i] ]
 
     /// Deflected shapes for plotting at n+1 stations: (x, Δg, Δg+ψl.q, Δg+ψs.q, Δq), mm, downward positive
     let curves (beam: Beam) (loads: Load list) (psiL: float) (psiS: float) (n: int) =
