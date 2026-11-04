@@ -163,6 +163,7 @@ sum_rows = [
     ("dfl", "Δg+ψs·q", "Short term", "Res_Ds", 2),
     ("dfl", "Δq", "Live load only", "Res_Dq", 3),
     ("dfl", "Δ1kN", "1 kN at midspan", "Res_D1", 4),
+    ("dfl", "Δws", "Wind – serviceability", "Res_Dw", 5),
     ("grp", "Strength"),
     ("str", "M* / φMbx", "Bending – top flange (sagging)", "Res_Mdn", "Res_phiMdn", "kN·m"),
     ("str", "M* / φMbx", "Bending – bottom flange (hogging)", "Res_Mup", "Res_phiMup", "kN·m"),
@@ -308,6 +309,7 @@ sls = [
     ("Δg+ψs·q", "Short term (ψs)", 300, 30, 0.7),
     ("Δq", "Live load only", 250, 30, None),
     ("Δ1kN", "1 kN point load at midspan", 1000, 1.5, None),
+    ("Δws", "Wind, SLS (Ws = factor × Wu)", 150, None, 0.47),
 ]
 for i, (case, desc, ratio, lim, psi) in enumerate(sls):
     rr = hdr + 1 + i
@@ -317,20 +319,22 @@ for i, (case, desc, ratio, lim, psi) in enumerate(sls):
     inp(f"E{rr}", ratio, "0")
     inp(f"F{rr}", lim, "0.0")
     if psi is not None:
-        inp(f"G{rr}", psi, "0.0")
+        inp(f"G{rr}", psi, "0.00" if case == "Δws" else "0.0")
     else:
         put(f"G{rr}", "–", font(9, color=GREY), border=B_IN, al=C)
-name("DeflCriteria", f"$B${hdr+1}:$G${hdr+5}")
+name("DeflCriteria", f"$B${hdr+1}:$G${hdr+6}")
 SLS_DEFL_ROWS = defl_rows
-name("PsiL", f"$G${hdr+2}"); name("PsiS", f"$G${hdr+3}")
+name("PsiL", f"$G${hdr+2}"); name("PsiS", f"$G${hdr+3}"); name("WindSLSFactor", f"$G${hdr+6}")
 label(f"H{hdr+1}", "Limit = lesser of L/ratio and max;  blank max = ratio only", 7, GREY)
 label(f"H{hdr+2}", "Overhang tip: L = 2 × overhang", 7, GREY)
 label(f"H{hdr+3}", "Two spans: L = each span", 7, GREY)
+label(f"H{hdr+6}", "Wind loads alone (Wd/Wu + internal) × factor;  worst direction", 7, GREY)
 
 # ---------------- Loads ----------------
-r = r + 8
+r = r + 9
 ws.row_breaks.append(Break(id=r - 1))
 heading(r, "Applied Loads")
+LOADS_HEAD = r
 label(f"B{r+1}", "One row per load position.  With a Trib, case values are pressures (kPa) and Load = trib × value;  "
       "blank Trib = direct kN/m (Point: kN).", 7, GREY, i=True)
 label(f"B{r+2}", "UDL: start/end blank = full span.  Point: trib in m², start = position.  Values positive: Wd acts down, Wu up.  "
@@ -476,7 +480,7 @@ dv_desc.add(f"D{first}:D{last}")
 LIB_COLS = "MNOPQRSTUV"
 for col, w in zip(LIB_COLS, [8, 7, 8, 9, 26, 6.5, 6.5, 6.5, 6.5, 7]):
     ws.column_dimensions[col].width = w
-lr = 43
+lr = LOADS_HEAD          # level with Applied Loads
 ws.row_dimensions[lr].height = 20
 put(f"M{lr}", "Load Combination Library  (not printed)", font(10, b=True, color=GREEN), al=Alignment(vertical="bottom"))
 for col in LIB_COLS:
@@ -623,7 +627,7 @@ from openpyxl.chart.axis import ChartLines
 from openpyxl.chart.shapes import GraphicalProperties
 from openpyxl.drawing.line import LineProperties
 from openpyxl.chart.layout import Layout, ManualLayout
-CRIT_RANGE = f"$E${hdr+1}:$F${hdr+5}"
+CRIT_RANGE = f"$E${hdr+1}:$F${hdr+6}"
 LOADS = "Loads_B1[[Type]:[Dir]]"
 COMBOS = f"_xlfn.ANCHORARRAY({COMBO_ANCHOR})"
 ARGS_ULS = f"SectionSize,Grade,Geom,E_mod,IncludeSW,{LOADS},{COMBOS},Restraints_B1[#Data],{KF_RANGE}"
@@ -762,13 +766,14 @@ ws.row_breaks.append(Break(id=r - 1))
 heading(r, "Serviceability Checks")
 out_header(r + 1, "BCDEFG", ["Case", "Δ max (mm)", "at x (mm)", "Limit (mm)", "L / Δ", "Utilisation"])
 SLS_ANCHOR = f"B{r+2}"
-dyn(SLS_ANCHOR, f"=OAR.SLS(SectionSize,Geom,E_mod,IncludeSW,{LOADS},{CRIT_RANGE},PsiL,PsiS,ShearDefl)")
-spill_format(r + 2, r + 11, "BCDEFG", [None, "0.00", "#,##0", "0.00", '"L/"0', "0%"], util_col="G")
-name("OAR_Flex_SLS", f"$B${r+2}:$B${r+11}")
+dyn(SLS_ANCHOR, f"=OAR.SLS(SectionSize,Geom,E_mod,IncludeSW,{LOADS},{CRIT_RANGE},PsiL,PsiS,ShearDefl,"",WindSLSFactor)")
+spill_format(r + 2, r + 13, "BCDEFG", [None, "0.00", "#,##0", "0.00", '"L/"0', "0%"], util_col="G")
+name("OAR_Flex_SLS", f"$B${r+2}:$B${r+13}")
 label(f"H{r+2}", "Δ1kN: 1 kN at midspan (tip),", 7, GREY); label(f"H{r+3}", "beam alone", 7, GREY)
 label(f"H{r+4}", "Overhang: span rows then tip rows.", 7, GREY); label(f"H{r+5}", "Two spans: span 1 then span 2.", 7, GREY)
 label(f"H{r+6}", "Q also patterned (part of the beam only)", 7, GREY)
-r = r + 5
+label(f"H{r+7}", "Δws: wind alone × SLS factor", 7, GREY)
+r = r + 7
 label(f"B{r+8}", "Deflected shapes (mm, plotted downward;  x in m)", 8, GREEN, b=True)
 ws.add_chart(chart("", DEF_BLOCK, [DEF_BLOCK + 1, DEF_BLOCK + 2, DEF_BLOCK + 3, DEF_BLOCK + 4], 13, "δ (mm)", True,
                    [GREEN, "8FA89C", TAUPE, "595959"], h=5.4, names=["Δg", "Δg+ψl·q", "Δg+ψs·q", "Δq"]), f"B{r+9}")
@@ -890,9 +895,9 @@ ws.conditional_formatting.add("B7", Rule(type="expression", formula=['OR(AddinOl
 # ---------------- Summary cells wired to add-in results ----------------
 SLSG_ANCHOR = f"{hc(0)}80"
 label(f"{hc(0)}79", "Serviceability, worse of span / tip (OAR.SLS governing)", 7, GREY, i=True)
-dyn(SLSG_ANCHOR, f"=OAR.SLS(SectionSize,Geom,E_mod,IncludeSW,{LOADS},{CRIT_RANGE},PsiL,PsiS,ShearDefl,\"governing\")")
+dyn(SLSG_ANCHOR, f"=OAR.SLS(SectionSize,Geom,E_mod,IncludeSW,{LOADS},{CRIT_RANGE},PsiL,PsiS,ShearDefl,\"governing\",WindSLSFactor)")
 SG = f"_xlfn.ANCHORARRAY({SLSG_ANCHOR})"
-sls_map = {"Res_Dg": 1, "Res_Dl": 2, "Res_Ds": 3, "Res_Dq": 4, "Res_D1": 5}
+sls_map = {"Res_Dg": 1, "Res_Dl": 2, "Res_Ds": 3, "Res_Dq": 4, "Res_D1": 5, "Res_Dw": 6}
 for nm, k in sls_map.items():
     cell = names[nm].replace("$", "")
     dyn(cell, f"=INDEX({SG},{k},2)", "0.00").fill = F_OUT

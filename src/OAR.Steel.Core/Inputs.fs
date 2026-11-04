@@ -214,9 +214,10 @@ module Inputs =
 
     /// Deflection criteria, 5 rows x 2 columns: Span ratio | Max (mm, blank = ratio only)
     let deflectionCriteria (grid: Cell[,]) : DeflectionCriterion list =
-        if Array2D.length1 grid <> 5 || Array2D.length2 grid < 2 then
-            failwith "deflection criteria: expected 5 rows x 2 columns (ratio, max mm)"
-        [ for i in 0..4 do
+        let rows = Array2D.length1 grid
+        if (rows <> 5 && rows <> 6) || Array2D.length2 grid < 2 then
+            failwith "deflection criteria: expected 5 or 6 rows (6th = wind serviceability) x 2 columns (ratio, max mm)"
+        [ for i in 0 .. rows - 1 do
               let ratio =
                   match optNum (i + 1) "ratio" grid.[i, 0] with
                   | Some r when r > 0.0 -> r
