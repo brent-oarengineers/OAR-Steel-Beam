@@ -9,7 +9,7 @@ open OAR.Steel
 [<Literal>]
 let Category = "OAR Steel"
 
-let private version = "0.7.0"
+let private version = "0.7.1"
 
 // ---------- conversion helpers ----------
 
@@ -612,7 +612,7 @@ let oarEnvelope
         table ([ box "x (m)"; box "M* max"; box "M* min"; box "V* max"; box "V* min" ] :: rows))
 
 [<ExcelFunction(Name = "OAR.DEFLECTIONS",
-                Description = "Spills deflected shapes for charts: x m | Δg | Δg+ψl·q | Δg+ψs·q | Δq (mm, down +)",
+                Description = "Spills deflected shapes for charts: x m | Δg | Δg+ψl·q | Δg+ψs·q | Δq [| Δws] (mm, down +)",
                 Category = Category)>]
 let oarDeflections
     ([<ExcelArgument(Name = "designation")>] designation: obj)
@@ -624,14 +624,23 @@ let oarDeflections
     ([<ExcelArgument(Name = "psiS")>] psiS: obj)
     ([<ExcelArgument(Name = "[points]", Description = "intervals (default 60)")>] points: obj)
     ([<ExcelArgument(Name = "[shearDefl]", Description = "Yes = include shear deformation (default No)")>] shearDefl: obj)
+    ([<ExcelArgument(Name = "[windFactor]", Description = "SLS / ULS wind factor: adds a Δws column (wind alone × factor, governing pattern)")>] windFactor: obj)
     : obj =
     guard (fun () ->
         let c = ctx designation (box 300.0) span e includeSW loads
         let n = max 2 (int (numOr "points" 60.0 points))
+        let beam = withShearOpt c.Sec shearDefl c.Beam
         let rows =
-            Serviceability.curves (withShearOpt c.Sec shearDefl c.Beam) c.Loads (num "psiL" psiL) (num "psiS" psiS) n
+            Serviceability.curves beam c.Loads (num "psiL" psiL) (num "psiS" psiS) n
             |> List.map (fun (x, a, b, d, q) -> [ box (m1 x); box a; box b; box d; box q ])
-        table ([ box "x (m)"; box "Δg"; box "Δg+ψl·q"; box "Δg+ψs·q"; box "Δq" ] :: rows))
+        let head = [ box "x (m)"; box "Δg"; box "Δg+ψl·q"; box "Δg+ψs·q"; box "Δq" ]
+        if isMissing windFactor then
+            table (head :: rows)
+        else
+            let kw = num "windFactor" windFactor
+            if not (kw > 0.0) then failwith "windFactor must be a positive number (e.g. 0.47)"
+            let w = Serviceability.windCurve beam c.Loads kw n
+            table ((head @ [ box "Δws" ]) :: List.map2 (fun r (_, d: float) -> r @ [ box d ]) rows w))
 
 [<ExcelFunction(Name = "OAR.SECTIONLIST",
                 Description = "Spills the designations with complete data for a family (UB, UC, WB, PFC, RHS, SHS), largest first; blank = all",

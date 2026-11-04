@@ -701,7 +701,7 @@ NPTS = 60
 label(f"{hc(0)}12", "Envelope (OAR.ENVELOPE)", 7, GREY, i=True)
 label(f"{hc(6)}12", "Deflected shapes (OAR.DEFLECTIONS)", 7, GREY, i=True)
 dyn(ENV_ANCHOR, f"=OAR.ENVELOPE(SectionSize,Geom,IncludeSW,{LOADS},{COMBOS},{NPTS})")
-dyn(DEF_ANCHOR, f"=OAR.DEFLECTIONS(SectionSize,Geom,E_mod,IncludeSW,{LOADS},PsiL,PsiS,{NPTS},ShearDefl)")
+dyn(DEF_ANCHOR, f"=OAR.DEFLECTIONS(SectionSize,Geom,E_mod,IncludeSW,{LOADS},PsiL,PsiS,{NPTS},ShearDefl,WindSLSFactor)")
 
 def chart(title, xcol, ycols, first_row, ytitle, reverse, colors, w=17.6, h=5.6, names=None):
     """Scatter chart over a fixed block: x in xcol, series in ycols, data rows first_row .. first_row + NPTS.
@@ -751,9 +751,9 @@ def mirror(anchor, src_cols, dest_col):
             cell = f"{gcl(dest_col + j)}{13 + i}"
             dyn(cell, f"=IFERROR(INDEX(_xlfn.ANCHORARRAY({anchor}),{i + 2},{sc}),NA())", "0.000")
             ws[cell].font = font(7, color=GREY)
-DEF_BLOCK = CB            # AT..AX: x, Δg, Δg+ψl·q, Δg+ψs·q, Δq
+DEF_BLOCK = CB            # x, Δg, Δg+ψl·q, Δg+ψs·q, Δq, Δws
 ENV_BLOCK = CB + 6        # AZ..BB: x, M* max, M* min
-mirror(DEF_ANCHOR, [1, 2, 3, 4, 5], DEF_BLOCK)
+mirror(DEF_ANCHOR, [1, 2, 3, 4, 5, 6], DEF_BLOCK)
 mirror(ENV_ANCHOR, [1, 2, 3], ENV_BLOCK)
 for i in range(9):
     ws.column_dimensions[gcl(CB + i)].width = 7
@@ -774,9 +774,11 @@ label(f"H{r+4}", "Overhang: span rows then tip rows.", 7, GREY); label(f"H{r+5}"
 label(f"H{r+6}", "Q also patterned (part of the beam only)", 7, GREY)
 label(f"H{r+7}", "Δws: wind alone × SLS factor", 7, GREY)
 r = r + 7
-label(f"B{r+8}", "Deflected shapes (mm, plotted downward;  x in m)", 8, GREEN, b=True)
-ws.add_chart(chart("", DEF_BLOCK, [DEF_BLOCK + 1, DEF_BLOCK + 2, DEF_BLOCK + 3, DEF_BLOCK + 4], 13, "δ (mm)", True,
-                   [GREEN, "8FA89C", TAUPE, "595959"], h=5.4, names=["Δg", "Δg+ψl·q", "Δg+ψs·q", "Δq"]), f"B{r+9}")
+label(f"B{r+8}", "Deflected shapes (mm, plotted downward;  x in m;  Δws = wind × SLS factor, governing direction, uplift plotted up)", 8, GREEN, b=True)
+_dch = chart("", DEF_BLOCK, [DEF_BLOCK + 1, DEF_BLOCK + 2, DEF_BLOCK + 3, DEF_BLOCK + 4, DEF_BLOCK + 5], 13, "δ (mm)", True,
+             [GREEN, "8FA89C", TAUPE, "595959", "2F6EBA"], h=5.4, names=["Δg", "Δg+ψl·q", "Δg+ψs·q", "Δq", "Δws"])
+_dch.series[4].graphicalProperties.line.dashStyle = "dash"   # wind: dashed blue
+ws.add_chart(_dch, f"B{r+9}")
 r = r + 21
 
 # ULS bending
