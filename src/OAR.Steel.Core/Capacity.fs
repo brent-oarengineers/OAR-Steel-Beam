@@ -54,6 +54,8 @@ type ShearCapacity =
       Vw: float
       /// αv = (82/λ)^2 when λ > 82, else 1.0
       AlphaV: float
+      /// f*vm / f*va, ratio of maximum to average web shear stress (Cl. 5.11.3); 1.0 = uniform (I-sections)
+      StressRatio: float
       Vv: float
       PhiVv: float }
 
@@ -69,6 +71,8 @@ module Capacity =
         | UB
         | UC
         | PFC -> 9.0, 16.0 // HR: hot-rolled
+        | RHS
+        | SHS -> 30.0, 40.0 // CF: both edges supported (between the webs), uniform compression
 
     /// Table 5.2 limits for a web (both edges supported, compression at one edge, tension at the other)
     let private webLimits = 82.0, 115.0
@@ -76,7 +80,13 @@ module Capacity =
     /// Section moment capacity about the major axis, AS 4100 Cl. 5.2
     let sectionMomentX (s: Section) (grade: int) : SectionMoment =
         let fyf, fyw = Sections.fy s grade
-        let outstand = if s.Family = PFC then s.bf - s.tw else (s.bf - s.tw) / 2.0
+        // flange width: outstand from the web (I-section, PFC), or clear width between the webs (RHS / SHS)
+        let outstand =
+            match s.Family with
+            | PFC -> s.bf - s.tw
+            | RHS
+            | SHS -> s.bf - 2.0 * s.tw
+            | _ -> (s.bf - s.tw) / 2.0
         let lf = outstand / s.tf * sqrt (fyf / 250.0)
         let d1 = s.d - 2.0 * s.tf
         let lw = d1 / s.tw * sqrt (fyw / 250.0)
@@ -92,6 +102,18 @@ module Capacity =
                 (Compact, zc)
             elif gov.Lambda <= gov.LambdaY then
                 (NonCompact, s.Zx + (gov.LambdaY - gov.Lambda) / (gov.LambdaY - gov.LambdaP) * (zc - s.Zx))
+            elif gov.Element = "flange" && Family.isHollow s.Family then
+                // Cl. 5.2.5, effective section: the compression flange (supported by both webs) is effective over
+                // be = b λey/λ; Ze = Ieff / ymax about the shifted neutral axis. Matches the tabulated C450L0 Zex.
+                let t = s.tf
+                let bc = s.bf - 2.0 * t
+                let be = bc * gov.LambdaY / gov.Lambda
+                let dA = (bc - be) * t
+                let y = s.d / 2.0 - t / 2.0
+                let a = s.Ag - dA
+                let shift = dA * y / a
+                let iEff = s.Ix - dA * y * y - (bc - be) * t ** 3.0 / 12.0 - a * shift * shift
+                (Slender, iEff / (s.d / 2.0 + shift))
             elif gov.Element = "flange" then
                 (Slender, s.Zx * (gov.LambdaY / gov.Lambda)) // Cl. 5.2.5(a)
             else
@@ -141,6 +163,17 @@ module Capacity =
           PhiMb = phi * mb
           PhiMs = sm.PhiMs }
 
+    /// Segment length with full lateral restraint for an RHS / SHS, AS 4100 Cl. 5.3.2.4(b):
+    /// l / ry <= (1800 + 1500 βm)(b / d)(250 / fy), taken with βm = -1 (the most conservative case, as in the ATM DCT).
+    /// None for open sections.
+    let fullLateralRestraintLength (s: Section) (grade: int) : float option =
+        if Family.isHollow s.Family then
+            let fyf, _ = Sections.fy s grade
+            let ry = sqrt (s.Iy / s.Ag)
+            Some(ry * (1800.0 - 1500.0) * (s.bf / s.d) * (250.0 / fyf))
+        else
+            None
+
     /// Shear capacity of an unstiffened web, AS 4100 Cl. 5.11.2, 5.11.3 and 5.11.5.1.
     /// Aw = d tw for hot-rolled sections; web slenderness uses the clear depth dp = d - 2tf.
     let shear (s: Section) (grade: int) : ShearCapacity =
@@ -148,16 +181,33 @@ module Capacity =
         let aw =
             match s.Family with
             | WB -> (s.d - 2.0 * s.tf) * s.tw // welded: web depth only
+            | RHS
+            | SHS -> 2.0 * (s.d - 2.0 * s.tf) * s.tw // two webs, clear depth
             | _ -> s.d * s.tw
         let dp = s.d - 2.0 * s.tf
         let lam = dp / s.tw * sqrt (fyw / 250.0)
         let vw = 0.6 * fyw * aw
         let av = if lam <= 82.0 then 1.0 else (82.0 / lam) ** 2.0
-        let vv = av * vw
+        let vu = av * vw
+        // RHS / SHS webs carry a non-uniform shear stress (Cl. 5.11.3): Vv = 2 Vu / (0.9 + f*vm/f*va) <= Vu, with the
+        // stress ratio from the elastic shear flow of the thin-walled (centreline) section, f*vm = V Q / (2 I t) at the
+        // neutral axis and f*va = V / (2 dm t). Reproduces the ATM DCT φVv for every RHS / SHS within 0.6%.
+        let ratio =
+            if Family.isHollow s.Family then
+                let t = s.tw
+                let dm = s.d - t
+                let bm = s.bf - t
+                let i = t * dm ** 3.0 / 6.0 + bm * t * dm ** 2.0 / 2.0
+                let q = bm * t * dm / 2.0 + t * dm ** 2.0 / 4.0
+                q * dm / i
+            else
+                1.0
+        let vv = if ratio > 1.0 then min vu (2.0 * vu / (0.9 + ratio)) else vu
         { Aw = aw
           Fyw = fyw
           Lambda = lam
           Vw = vw
           AlphaV = av
+          StressRatio = ratio
           Vv = vv
           PhiVv = phi * vv }

@@ -10,6 +10,9 @@ type Family =
     | UC
     | WB
     | PFC
+    /// cold-formed rectangular / square hollow sections (C350L0, C450L0)
+    | RHS
+    | SHS
 
 /// Section properties in base units (mm, mm2, mm3, mm4, mm6, kg/m).
 type Section =
@@ -32,7 +35,13 @@ type Section =
       /// grade -> (fy flange, fy web) in MPa
       Fy: Map<int, float * float>
       /// tabulated phiMsx for Grade 300 (kN.m), kept only so tests can check the Ze calculation
-      PhiMsxTab300: float option }
+      PhiMsxTab300: float option
+      /// tabulated effective section modulus Zex for C450L0 (mm3), RHS / SHS only, kept for tests
+      ZexTab450: float option }
+
+module Family =
+    /// Rectangular or square hollow section (closed, cold-formed)
+    let isHollow f = (f = RHS || f = SHS)
 
 module Sections =
 
@@ -52,6 +61,8 @@ module Sections =
         | "UC" -> UC
         | "WB" -> WB
         | "PFC" -> PFC
+        | "RHS" -> RHS
+        | "SHS" -> SHS
         | f -> failwithf "sections.csv: unknown family '%s'" f
 
     /// Normalise a designation so "310 UB 40.4" and "310ub40.4" both match "310UB40.4".
@@ -99,7 +110,7 @@ module Sections =
                 | _ -> missing
 
             let grades =
-                [ 250; 300; 350; 400 ]
+                [ 250; 300; 350; 400; 450 ]
                 |> List.choose (fun g ->
                     match get (sprintf "fyf%d" g), get (sprintf "fyw%d" g) with
                     | Some f, Some w -> Some(g, (f, w))
@@ -117,6 +128,7 @@ module Sections =
                 let iw, calc =
                     match iwTab with
                     | Some x -> x, false
+                    | None when Family.isHollow fam -> 0.0, false // closed section: warping negligible
                     | None -> iwDoublySymmetric iy (v "d") (v "tf"), true
 
                 complete.Add(
@@ -136,7 +148,8 @@ module Sections =
                       Iw = iw
                       IwCalculated = calc
                       Fy = grades
-                      PhiMsxTab300 = get "phiMsx300_tab" }
+                      PhiMsxTab300 = get "phiMsx300_tab"
+                      ZexTab450 = (if r.ContainsKey "Zex450_tab" then get "Zex450_tab" |> Option.map (fun z -> z * 1.0e3) else None) }
                 )
 
         List.ofSeq complete, (incomplete |> Seq.map (fun kv -> kv.Key, kv.Value) |> Map.ofSeq)

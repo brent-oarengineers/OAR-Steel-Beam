@@ -19,6 +19,7 @@
     <Compile Include="OverhangTests.fs" />
     <Compile Include="Stage3Tests.fs" />
     <Compile Include="TwoSpanTests.fs" />
+    <Compile Include="RhsTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 

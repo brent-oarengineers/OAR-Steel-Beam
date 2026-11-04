@@ -9,7 +9,7 @@ open OAR.Steel
 [<Literal>]
 let Category = "OAR Steel"
 
-let private version = "0.5.1"
+let private version = "0.6.0"
 
 // ---------- conversion helpers ----------
 
@@ -140,7 +140,8 @@ let private withShearOpt (sec: Section) (o: obj) (b: Beam) =
 
 // ---------- functions ----------
 
-[<ExcelFunction(Name = "OAR.VERSION", Description = "OAR Steel add-in version", Category = Category)>]
+// volatile so a saved sheet opened with a different add-in shows the add-in actually in use
+[<ExcelFunction(Name = "OAR.VERSION", Description = "OAR Steel add-in version", Category = Category, IsVolatile = true)>]
 let oarVersion () : obj = box ("OAR Steel " + version)
 
 [<ExcelFunction(Name = "OAR.SECTION",
@@ -201,14 +202,14 @@ let oarSectionProps
               row "Sx" (s.Sx / 1e3) "×10³ mm³" ""
               row "Iy" (s.Iy / 1e6) "×10⁶ mm⁴" ""
               row "J" (s.J / 1e3) "×10³ mm⁴" ""
-              row "Iw" (s.Iw / 1e9) "×10⁹ mm⁶" (if s.IwCalculated then "calculated Iy(d-tf)²/4" else "")
-              row "fyf" fyf "MPa" (sprintf "Grade %d" g)
-              row "fyw" fyw "MPa" (sprintf "Grade %d" g)
+              row "Iw" (s.Iw / 1e9) "×10⁹ mm⁶" (if s.IwCalculated then "calculated Iy(d-tf)²/4" elif Family.isHollow s.Family then "closed section: 0" else "")
+              row "fyf" fyf "MPa" (if Family.isHollow s.Family then sprintf "C%dL0" g else sprintf "Grade %d" g)
+              row "fyw" fyw "MPa" (if Family.isHollow s.Family then sprintf "C%dL0" g else sprintf "Grade %d" g)
               row "λe flange" sm.Flange.Lambda "" (sprintf "λep %g, λey %g" sm.Flange.LambdaP sm.Flange.LambdaY)
               row "λe web" sm.Web.Lambda "" (sprintf "λep %g, λey %g" sm.Web.LambdaP sm.Web.LambdaY)
-              row "Ze" (sm.Ze / 1e3) "×10³ mm³" (sprintf "%A, governed by %s" sm.Class sm.Governing)
+              row "Ze" (sm.Ze / 1e3) "×10³ mm³" (sprintf "%A, governed by %s%s" sm.Class sm.Governing (if Family.isHollow s.Family && sm.Class = Slender && sm.Governing = "flange" then " (effective width)" else ""))
               row "φMsx" (Units.toKNm sm.PhiMs) "kN·m" "AS 4100 Cl. 5.2"
-              row "φVv" (Units.toKN sv.PhiVv) "kN" (sprintf "Aw %.0f mm², λw %.1f, αv %.3f" sv.Aw sv.Lambda sv.AlphaV) ])
+              row "φVv" (Units.toKN sv.PhiVv) "kN" (sprintf "Aw %.0f mm², λw %.1f, αv %.3f%s" sv.Aw sv.Lambda sv.AlphaV (if sv.StressRatio > 1.0 then sprintf ", f*vm/f*va %.3f (Cl. 5.11.3)" sv.StressRatio else "")) ])
 
 [<ExcelFunction(Name = "OAR.SLS",
                 Description = "Spills deflection checks: case | Δ max mm | at x mm | limit mm | L/Δ | utilisation (5 rows; 10 with an overhang: span then tip)",
@@ -631,9 +632,9 @@ let oarDeflections
         table ([ box "x (m)"; box "Δg"; box "Δg+ψl·q"; box "Δg+ψs·q"; box "Δq" ] :: rows))
 
 [<ExcelFunction(Name = "OAR.SECTIONLIST",
-                Description = "Spills the designations with complete data for a family (UB, UC, WB, PFC), largest first; blank = all",
+                Description = "Spills the designations with complete data for a family (UB, UC, WB, PFC, RHS, SHS), largest first; blank = all",
                 Category = Category)>]
-let oarSectionList ([<ExcelArgument(Name = "[family]", Description = "UB, UC, WB or PFC")>] family: obj) : obj =
+let oarSectionList ([<ExcelArgument(Name = "[family]", Description = "UB, UC, WB, PFC, RHS or SHS")>] family: obj) : obj =
     guard (fun () ->
         let f = (str family).ToUpperInvariant()
         let list =

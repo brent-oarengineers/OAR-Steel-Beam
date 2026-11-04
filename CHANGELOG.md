@@ -3,6 +3,19 @@
 Each version that reaches `main` is built, tested and published automatically as a GitHub Release.
 The calc sheet shows the version it was calculated with (title block, under the green bar).
 
+## v0.6.0 – RHS and SHS
+- **Section types RHS and SHS** (cold-formed, Grades C350L0 = 350 and C450L0 = 450): 89 RHS and 90 SHS sizes from the OAR closed-section sheet (PROPERTIES tab). Mass = Ag × 7850 kg/m³; Iw = 0 (closed section). The Design Summary shows the grade as C350L0 / C450L0, and the grade cell's input message lists the options. Grade 300 etc. on an RHS gives a clear error.
+- **Section capacity (Cl. 5.2):** flange = clear width between the webs (b − 2t)/t with the cold-formed limits λep 30, λey 40; web (d − 2t)/t with 82 / 115. Slender flanges use the effective-width section (compression flange effective over be = b λey/λ, Ze about the shifted neutral axis), which reproduces the catalogue C450L0 Zex for all 20 tabulated slender sizes within 0.5%.
+- **Member capacity (Cl. 5.6):** unchanged method; Mo from Iy and J with Iw = 0. Checked against the closed-section sheet: 75x75x5 SHS C350L0, Le 2.7 m: φMsx 10.584, Mo 198.72, φMbx 10.584 kN·m.
+- **Shear (Cl. 5.11):** both webs, Aw = 2(d − 2t)t, buckling on (d − 2t)/t, and the non-uniform shear stress of Cl. 5.11.3: Vv = 2Vu/(0.9 + f*vm/f*va) ≤ Vu, with the stress ratio from the elastic shear flow of the centreline section (about 1.1–1.25). The same Aw is used for shear deformation in deflections.
+- **Full lateral restraint (Cl. 5.3.2.4):** an RHS / SHS segment no longer than ry(1800 + 1500βm)(b/d)(250/fy), taken with βm = −1, has φMb = φMsx (noted on the segment).
+- **Checked against the ATM Design Capacity Tables for Structural Steel Hollow Sections (Aug 2013):** φMsx for all 203 x-axis rows (C350L0 and C450L0, RHS and SHS) within 1%; φVv within 0.6%; φMb (Table 5.3, αm = 1) for 969 values within 1.5% (968 within 1%); FLR lengths equal. Spot values are in the tests.
+
+## v0.5.2
+- The kl / kr factor box moves one column left (D–F) with shorter notes, so the notes fit inside the printed page.
+- Fix: the full-span UDL totals under the loads table showed #### from 10 kN/m up; now 2 decimals and shrink to fit.
+- **Add-in version check:** the template records the add-in version it was built with. If the installed add-in is older, the title block shows a red warning ("Add-in 0.4.1 is older than this template (0.5.2) – update the add-in and restart Excel") and the Design Summary status box shows UPDATE ADD-IN instead of PASS / FAIL, on screen and on the printout. "OAR Steel add-in not loaded" is now red too. OAR.VERSION recalculates on every open, so an old sheet shows the add-in actually in use.
+
 ## v0.5.1
 - Fix: after printing (and on the next edit), blocks that were only partly hidden – e.g. the unused load rows under the used ones – stayed hidden. Rows are now checked one by one.
 - Both OAR buttons report in the status bar what they did ("12 hidden rows shown", "no rows were hidden") or why they failed (e.g. a protected sheet); the message clears on the next edit.

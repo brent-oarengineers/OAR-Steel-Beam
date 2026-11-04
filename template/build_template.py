@@ -142,7 +142,7 @@ heading(s0, "Design Summary")
 ws.row_dimensions[s0+2].height = 20
 label(f"B{s0+1}", "Adopted section", 7, GREY)
 ws.merge_cells(f"B{s0+2}:D{s0+2}")
-put(f"B{s0+2}", '=IF(SectionSize="","–",SectionSize&"  Gr "&Grade)',
+put(f"B{s0+2}", '=IF(SectionSize="","–",SectionSize&IF(OR(SectionType="RHS",SectionType="SHS"),"  C"&Grade&"L0","  Gr "&Grade))',
     font(12, b=True, color=GREEN), al=L)
 put(f"B{s0+3}", '=IF(Span2>0,"Spans "&TEXT(Span,"#,##0")&" + "&TEXT(Span2,"#,##0")&" mm","Span "&TEXT(Span,"#,##0")&" mm"&IF(Overhang>0," + "&TEXT(Overhang,"#,##0")&" mm overhang",""))&"  ·  "&Support&IF(IncludeSW="Yes","  ·  incl. self-weight","")&IF(ShearDefl="Yes","  ·  Δ incl. shear deformation","")',
     font(7, color=GREY), al=L)
@@ -200,7 +200,7 @@ urng = f"I{sum_hdr+1}:I{sum_last}"
 put(f"F{s0+2}", f'=IF(COUNT({urng})=0,"–",MAX({urng}))', font(12, b=True, color=GREEN),
     al=Alignment(horizontal="left", vertical="center", indent=1), nf="0%")
 thin_t = Side(style="thin", color=TAUPE)
-put(f"I{s0+2}", f'=IF(COUNT({urng})=0,"PENDING",IF(MAX({urng})<=1,"PASS","FAIL"))', font(10, b=True, color="8C8C8C"),
+put(f"I{s0+2}", f'=IF(AddinOld,"UPDATE ADD-IN",IF(COUNT({urng})=0,"PENDING",IF(MAX({urng})<=1,"PASS","FAIL")))', font(10, b=True, color="8C8C8C"),
     al=C, border=Border(left=thin_t, top=thin_t, bottom=thin_t))
 ws[f"J{s0+2}"].border = Border(top=thin_t, bottom=thin_t)
 ws[f"K{s0+2}"].border = Border(right=thin_t, top=thin_t, bottom=thin_t)
@@ -220,6 +220,8 @@ ws.conditional_formatting.add(f"I{s0+2}:K{s0+2}", Rule(type="expression", formul
     dxf=DifferentialStyle(font=Font(color=GREEN, bold=True), fill=PatternFill("solid", bgColor="E6ECE9"))))
 ws.conditional_formatting.add(f"I{s0+2}:K{s0+2}", Rule(type="expression", formula=[f'$I${s0+2}="FAIL"'],
     dxf=DifferentialStyle(font=Font(color="C00000", bold=True), fill=PatternFill("solid", bgColor="F6E1E1"))))
+ws.conditional_formatting.add(f"I{s0+2}:K{s0+2}", Rule(type="expression", formula=[f'$I${s0+2}="UPDATE ADD-IN"'],
+    dxf=DifferentialStyle(font=Font(color="FFFFFF", bold=True), fill=PatternFill("solid", bgColor="C55A11"))))
 ws.conditional_formatting.add(f"F{s0+2}", Rule(type="expression", formula=[f'AND(ISNUMBER(F{s0+2}),F{s0+2}>1)'],
     dxf=DifferentialStyle(font=Font(color="C00000", bold=True))))
 
@@ -265,10 +267,13 @@ for i, (lab, nm, val, nf, unit) in enumerate(rows):
     inp(f"E{rr}", val, nf)
     if unit: label(f"F{rr}", unit, color=GREY)
     name(nm, f"$E${rr}")
-dv_type = DataValidation(type="list", formula1='"UB,UC,WB,PFC"', allow_blank=False)
+dv_type = DataValidation(type="list", formula1='"UB,UC,WB,PFC,RHS,SHS"', allow_blank=False)
 dv_yn = DataValidation(type="list", formula1='"Yes,No"')
 dv_sup = DataValidation(type="list", formula1='"Simply supported,Backspan + overhang,Two-span continuous"')
-dv_grade = DataValidation(type="list", formula1='"250,300,350,400"')
+dv_grade = DataValidation(type="list", formula1='"250,300,350,400,450"')
+dv_grade.promptTitle = "Steel grade"
+dv_grade.prompt = "UB / UC / PFC: 300 typical.  RHS / SHS: 350 = C350L0, 450 = C450L0."
+dv_grade.showInputMessage = True
 for dv in (dv_type, dv_yn, dv_sup, dv_grade): ws.add_data_validation(dv)
 dv_type.add(f"E{r+1}"); dv_grade.add(f"E{r+3}"); dv_sup.add(f"E{r+5}"); dv_yn.add(f"E{r+7}"); dv_yn.add(f"E{r+8}")
 ws[f"E{r+5}"].alignment = L
@@ -406,7 +411,9 @@ for case, col in CASE_COLS.items():
     put(f"{col}{sr}", case, font(8, b=True), F_HDR, B_IN, C)
     tot = (f'=SUMPRODUCT(IFERROR((Loads_B1[Type]="UDL")*Loads_B1[{case}]'
            f'*IF(ISNUMBER(Loads_B1[Trib (m | m²)]),Loads_B1[Trib (m | m²)],1),0))')
-    out(f"{col}{sr+1}", ArrayFormula(f"{col}{sr+1}", tot), '0.000 "kN/m"')
+    # 2 dp and shrink-to-fit: 3 dp overflowed the column (####) from 10 kN/m up
+    out(f"{col}{sr+1}", ArrayFormula(f"{col}{sr+1}", tot), '0.00 "kN/m"')
+    ws[f"{col}{sr+1}"].alignment = Alignment(horizontal="center", vertical="center", shrink_to_fit=True)
     name(f"w_{case}", f"${col}${sr+1}")
 
 HX = 26  # column Z: start of the add-in helper area
@@ -584,22 +591,23 @@ name("OAR_Flex_Restraints", "Restraints_B1[x (mm)]")
 label(f"B{rlast+1}", "αm / kl → overrides for that flange's segment from this row to the next restraint on that flange "
       "(blank: αm by Cl. 5.6.1.1(a)(iii), kl from the factor box below). Flagged * in the output.", 7, GREY, i=True)
 kb = rlast + 3
-for col, txt in zip("EFG", ["Factor", "Top / load ↓", "Bottom / load ↑"]):
-    put(f"{col}{kb}", txt, font(8, b=True), F_HDR, None, C)
+# factor box in D..F with its notes from G, so the notes stay inside the print area (A..K)
+for col, txt in zip("DEF", ["Factor", "Top / load ↓", "Bottom / load ↑"]):
+    put(f"{col}{kb}", txt, font(8, b=True), F_HDR, None, Alignment(horizontal="center", vertical="center", shrink_to_fit=True))
 kf = [("kl", 1.4, 1.0, "kl", "0.00"), ("kr", 1.0, 1.0, "kr", "0.00"), ("Continuous", "No", "No", "Cont", None),
       ("kl free tip", 2.0, 1.0, "klTip", "0.00")]
 for i, (lab, top, bot, nm, nf) in enumerate(kf):
     rr = kb + 1 + i
-    label(f"E{rr}", lab, 9, al=C)
-    inp(f"F{rr}", top, nf); inp(f"G{rr}", bot, nf)
-    name(f"{nm}_Top", f"$F${rr}"); name(f"{nm}_Bot", f"$G${rr}")
+    label(f"D{rr}", lab, 9, al=C)
+    inp(f"E{rr}", top, nf); inp(f"F{rr}", bot, nf)
+    name(f"{nm}_Top", f"$E${rr}"); name(f"{nm}_Bot", f"$F${rr}")
 dv_cont = DataValidation(type="list", formula1='"Yes,No"')
-ws.add_data_validation(dv_cont); dv_cont.add(f"F{kb+3}:G{kb+3}")
-KF_RANGE = f"$F${kb+1}:$G${kb+4}"
-label(f"H{kb+1}", "kl by load on the segment: ↓ on top flange (destabilising) | ↑ uplift, Table 5.6.3(2)", 7, GREY, i=True)
-label(f"H{kb+2}", "kr per flange: top | bottom, Table 5.6.3(3); kt from restraints", 7, GREY, i=True)
-label(f"H{kb+3}", "Yes = flange continuously restrained: φMb = φMsx", 7, GREY, i=True)
-label(f"H{kb+4}", "kl for a cantilever with a free (U) tip: load ↓ | load ↑", 7, GREY, i=True)
+ws.add_data_validation(dv_cont); dv_cont.add(f"E{kb+3}:F{kb+3}")
+KF_RANGE = f"$E${kb+1}:$F${kb+4}"
+label(f"G{kb+1}", "kl by load direction: ↓ top flange | ↑ uplift, Table 5.6.3(2)", 7, GREY, i=True)
+label(f"G{kb+2}", "kr per flange, Table 5.6.3(3); kt from the restraints", 7, GREY, i=True)
+label(f"G{kb+3}", "Yes = flange continuously restrained: φMb = φMsx", 7, GREY, i=True)
+label(f"G{kb+4}", "kl for a free (U) cantilever tip: load ↓ | load ↑", 7, GREY, i=True)
 rlast = kb + 4
 
 # bottom-flange summary row: say so and grey it out when no combination hogs the beam
@@ -858,7 +866,26 @@ name("Out_Reactions", f"$B${r+2}")
 lastrow = r + 32
 
 # add-in version on every printed calc
-dyn("B7", '=IFERROR("Calculated with "&OAR.VERSION(),"OAR Steel add-in not loaded")', None, font(7, i=True, color=GREY), L)
+# add-in version check: the template records the add-in version it was built with; an older add-in gets a
+# warning in the title block and UPDATE ADD-IN in the status box (on screen and on the printout)
+import re as _re
+_fsproj = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src", "OAR.Steel.Excel", "OAR.Steel.Excel.fsproj"), encoding="utf-8").read()
+TEMPLATE_VERSION = _re.search(r"<Version>([0-9]+\.[0-9]+\.[0-9]+)</Version>", _fsproj).group(1)
+_maj, _min, _pat = (int(v) for v in TEMPLATE_VERSION.split("."))
+VC = hc(10)
+label(f"{VC}7", "Add-in check: template | add-in | add-in no. | template no. | add-in older?", 7, GREY, i=True)
+put(f"{VC}8", TEMPLATE_VERSION, font(7, color=GREY))
+dyn(f"{VC}9", '=IFERROR(SUBSTITUTE(OAR.VERSION(),"OAR Steel ",""),"")', None, font(7, color=GREY))
+v = f"{VC}9"
+p1 = f'FIND(".",{v})'; p2 = f'FIND(".",{v},{p1}+1)'
+dyn(f"{VC}10", f'=IFERROR(LEFT({v},{p1}-1)*10000+MID({v},{p1}+1,{p2}-{p1}-1)*100+MID({v},{p2}+1,9),0)', "0", font(7, color=GREY))
+put(f"{VC}11", _maj * 10000 + _min * 100 + _pat, font(7, color=GREY))
+dyn(f"{VC}12", f'=AND({v}<>"",{VC}10<{VC}11)', None, font(7, color=GREY))
+name("TemplateVersion", f"${VC}$8"); name("AddinVersion", f"${VC}$9"); name("AddinOld", f"${VC}$12")
+dyn("B7", '=IF(AddinVersion="","OAR Steel add-in not loaded",IF(AddinOld,"⚠ Add-in "&AddinVersion&" is older than this template ("&TemplateVersion&") – update the add-in and restart Excel","Calculated with OAR Steel "&AddinVersion))',
+    None, font(7, i=True, color=GREY), L)
+ws.conditional_formatting.add("B7", Rule(type="expression", formula=['OR(AddinOld,AddinVersion="")'],
+    dxf=DifferentialStyle(font=Font(color="C00000", bold=True, italic=False))))
 
 # ---------------- Summary cells wired to add-in results ----------------
 SLSG_ANCHOR = f"{hc(0)}80"

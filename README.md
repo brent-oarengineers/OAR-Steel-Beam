@@ -134,6 +134,7 @@ row whose key cell shows nothing; the next edit on that sheet unhides them. The 
 | Space Gass B2 | C2 overhang FU (kl 2.0, Le 4.0, αm 1.25, φMb 150.78) and backspan FF (φMb 123.09) | 0.05% |
 | RFEM B2 LTB | C1 4–6 m, C2 2–4 m (Run A) and C2 0–6 m bottom flange (Run B): kl, Le, Mo, αs, Mb | 0.1% |
 | RFEM B2 | backspan + overhang, C1–C5: reactions and M at B to 0.01; tip and backspan δ (with shear deformation, Az 22.51 cm²) to 0.05 mm | 0.01 kN / 0.05 mm |
+| ATM DCT hollow sections (2013) | RHS / SHS C350L0 and C450L0: φMsx 203 rows, φVv, φMb 969 values (Table 5.3), FLR | 1% (φMb 1.5%) |
 | Shear defl. | wL²/8GAs midspan; tip load Pa(L+a)/(L·GAs) | 1e-9 |
 | Overhang | tip point load and full-length UDL closed forms (reactions, M at B, tip and backspan deflection), mirror case, per-flange segments with reversal | 1e-9 |
 
@@ -150,7 +151,7 @@ a text editor and rebuild; units are as printed in the catalogue.
   tw, Ag, Zx, Sx, J and fy from the current catalogue.
 - **760UB / 690UB:** yield stress only given for Grade 250. Add Grade 300 values if you use them.
 - **WB, 760UB, 690UB:** no tabulated Iw – calculated as Iy(d−tf)²/4 (flagged in `OAR.SECTIONPROPS`).
-- RHS / SHS / CHS are not loaded yet.
+- RHS / SHS: cold-formed C350L0 / C450L0 (grade 350 / 450), from the OAR closed-section sheet; Iw = 0; slender flanges by effective width. CHS not loaded.
 
 ## 6. Assumptions in v0.1 (check these)
 
@@ -168,4 +169,4 @@ a text editor and rebuild; units are as printed in the catalogue.
 ## Not yet covered
 
 Shear–bending interaction (flagged only), bearing / web crippling, kl automation from load position,
-three or more spans, two spans with an overhang, hollow sections (RHS / SHS planned).
+three or more spans, two spans with an overhang, CHS.
