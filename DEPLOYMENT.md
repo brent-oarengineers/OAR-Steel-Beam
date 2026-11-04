@@ -12,7 +12,7 @@
    Its folders match the server:
    - `Add-Ins\OAR Steel\` – add-ins (64/32-bit), install script, changelog, release notes
    - `Add-Ins\OAR Steel\Releases\v0.2.7\` – archive copy of this version's add-ins
-   - `Calc Templates\Steel Beam Design - Base.xlsx` – the calc template
+   - `Calc Templates\OAR - Steel Beam Design.xlsx` – the calc template
 
 Staff pick up the new add-in at their next login.
 

@@ -1,5 +1,5 @@
 # Builds the OAR steel beam calc sheet template (openpyxl).
-# Usage: python template/build_template.py "template/Steel Beam Design - Base.xlsx" template/assets/oar-logo.png
+# Usage: python template/build_template.py "template/OAR - Steel Beam Design.xlsx" template/assets/oar-logo.png
 
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
