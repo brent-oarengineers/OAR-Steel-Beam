@@ -52,12 +52,17 @@ module Layout =
         for rng in flexRanges ws do
             // one block failing (e.g. a name left pointing at #REF!) must not stop the others coming back
             try
-                let rows = rng.EntireRow
-                let allShown =
-                    match rows.Hidden with
-                    | :? bool as h -> not h
-                    | _ -> false // mixed
-                if not allShown then rows.Hidden <- box false
+                // check row by row: Hidden on a multi-row range does not reliably report a mix of hidden
+                // and shown rows, which left partly hidden blocks hidden. Only touch the sheet when a row
+                // is actually hidden, because setting Hidden clears Excel's undo list (this runs on every edit).
+                let anyHidden =
+                    (rng.Rows :> Collections.IEnumerable)
+                    |> Seq.cast<obj>
+                    |> Seq.exists (fun o ->
+                        match (o :?> Range).EntireRow.Hidden with
+                        | :? bool as h -> h
+                        | _ -> false)
+                if anyHidden then rng.EntireRow.Hidden <- box false
             with _ ->
                 ()
 
