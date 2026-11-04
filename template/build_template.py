@@ -946,6 +946,17 @@ METADATA = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
     'coerce="1" cellMeta="1"/></metadataTypes><futureMetadata name="XLDAPR" count="1"><bk><extLst>'
     '<ext uri="{bdbb8cdc-fa1e-496e-a857-3c3f30c029c3}"><xda:dynamicArrayProperties fDynamic="1" fCollapsed="0"/>'
     '</ext></extLst></bk></futureMetadata><cellMetadata count="1"><bk><rc t="1" v="0"/></bk></cellMetadata></metadata>')
+CLEAR_BUTTON = (
+    '<oneCellAnchor><from><col>12</col><colOff>0</colOff><row>1</row><rowOff>0</rowOff></from>'
+    '<ext cx="1980000" cy="396000"/>'
+    '<sp macro="OAR.ClearInputs" textlink="" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'
+    '<nvSpPr><cNvPr id="50" name="Clear inputs" descr="Clear the loads and intermediate restraints and reset to a 5 m simply supported beam (OAR add-in)"/><cNvSpPr/></nvSpPr>'
+    '<spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="1980000" cy="396000"/></a:xfrm><a:prstGeom prst="roundRect"><a:avLst/></a:prstGeom>'
+    '<a:solidFill><a:srgbClr val="465A52"/></a:solidFill><a:ln w="6350"><a:solidFill><a:srgbClr val="465A52"/></a:solidFill></a:ln></spPr>'
+    '<txBody><a:bodyPr vertOverflow="clip" horzOverflow="clip" rtlCol="0" anchor="ctr"/><a:lstStyle/>'
+    '<a:p><a:pPr algn="ctr"/><a:r><a:rPr lang="en-AU" sz="900" b="1"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill>'
+    '<a:latin typeface="Arial"/></a:rPr><a:t>Clear inputs – new beam</a:t></a:r></a:p></txBody></sp>'
+    '<clientData fPrintsWithSheet="0"/></oneCellAnchor>')
 tmp = OUT + ".tmp"
 with zipfile.ZipFile(OUT) as zin, zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zout:
     for item in zin.infolist():
@@ -954,6 +965,9 @@ with zipfile.ZipFile(OUT) as zin, zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED
             txt = data.decode("utf-8")
             txt = re.sub(r'<c r="([A-Z]+[0-9]+)"((?:(?!>).)*)><f t="array"', lambda m: f'<c r="{m.group(1)}"{m.group(2)} cm="1"><f t="array"', txt)
             data = txt.encode("utf-8")
+        elif item.filename == "xl/drawings/drawing1.xml":
+            # "Clear inputs" button beside the beam-location frame (M2, not printed); runs the add-in command
+            data = data.decode("utf-8").replace("</wsDr>", CLEAR_BUTTON + "</wsDr>").encode("utf-8")
         elif item.filename == "[Content_Types].xml":
             data = data.decode("utf-8").replace("</Types>",
                 '<Override PartName="/xl/metadata.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheetMetadata+xml"/></Types>').encode("utf-8")

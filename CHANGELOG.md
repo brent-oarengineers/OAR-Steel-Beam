@@ -3,6 +3,9 @@
 Each version that reaches `main` is built, tested and published automatically as a GitHub Release.
 The calc sheet shows the version it was calculated with (title block, under the green bar).
 
+## v0.6.1
+- **Clear inputs** (new beam): a green button beside the beam-location frame (not printed) and OAR > Clear inputs on the ribbon. After a confirmation it clears the loads table, the intermediate flange restraints and any αm / kl overrides, and resets the beam to a 5.0 m simply supported span; support A / B rows go back to F / F. The loads table's library lookups are restored so picking a library description still fills the row. Section, grade, combinations and deflection criteria are kept. Works on copied tabs (B2, B3 …) and v0.3+ sheets (the ribbon button); it can't be undone.
+
 ## v0.6.0 – RHS and SHS
 - **Section types RHS and SHS** (cold-formed, Grades C350L0 = 350 and C450L0 = 450): 89 RHS and 90 SHS sizes from the OAR closed-section sheet (PROPERTIES tab). Mass = Ag × 7850 kg/m³; Iw = 0 (closed section). The Design Summary shows the grade as C350L0 / C450L0, and the grade cell's input message lists the options. Grade 300 etc. on an RHS gives a clear error.
 - **Section capacity (Cl. 5.2):** flange = clear width between the webs (b − 2t)/t with the cold-formed limits λep 30, λey 40; web (d − 2t)/t with 82 / 115. Slender flanges use the effective-width section (compression flange effective over be = b λey/λ, Ze about the shifted neutral axis), which reproduces the catalogue C450L0 Zex for all 20 tabulated slender sizes within 0.5%.

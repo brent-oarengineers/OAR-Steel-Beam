@@ -144,6 +144,104 @@ module Layout =
             if n = 0 then "Show all rows – no rows were hidden on this sheet"
             else sprintf "Show all rows – %d hidden rows shown" n)
 
+    // ---------- Clear inputs (start a fresh beam on this sheet) ----------
+
+    let private listObjects (ws: Worksheet) =
+        [ for o in (ws.ListObjects :> Collections.IEnumerable) -> o :?> ListObject ]
+
+    /// The sheet's table whose name starts with the prefix (copied tabs rename Loads_B1 to Loads_B13 etc.)
+    let private table (ws: Worksheet) (prefix: string) =
+        listObjects ws |> List.tryFind (fun lo -> lo.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+
+    let private column (lo: ListObject) (header: string) : Range option =
+        [ for o in (lo.ListColumns :> Collections.IEnumerable) -> o :?> ListColumn ]
+        |> List.tryFind (fun c -> c.Name.Trim() = header)
+        |> Option.bind (fun c -> if isNull c.DataBodyRange then None else Some c.DataBodyRange)
+
+    let private formulaText (c: Range) =
+        match c.Formula with
+        | :? string as s -> s
+        | _ -> ""
+
+    let private hasName (ws: Worksheet) (n: string) =
+        [ for o in (ws.Names :> Collections.IEnumerable) -> (o :?> Name).Name ]
+        |> List.exists (fun full -> full.EndsWith("!" + n, StringComparison.OrdinalIgnoreCase) || full = n)
+
+    /// Reset the active steel beam sheet: no loads, supports only in the restraints table (no intermediate restraints,
+    /// no αm / kl overrides), 5.0 m simply supported. Section, grade, combinations and criteria are kept.
+    let clearInputs (ws: Worksheet) =
+        // geometry
+        ws.Range("Span", Type.Missing).Value2 <- box 5000.0
+        ws.Range("Support", Type.Missing).Value2 <- box "Simply supported"
+        if hasName ws "OverhangIn" then ws.Range("OverhangIn", Type.Missing).Value2 <- box 0.0
+        // loads: every row blank; the case columns get the library lookup back, so typing a library description fills them
+        match table ws "Loads_" with
+        | Some lo when not (isNull lo.DataBodyRange) ->
+            lo.DataBodyRange.ClearContents() |> ignore
+            match table ws "LoadLib_" with
+            | Some lib ->
+                for case in [ "G"; "Q"; "Wd"; "Wu" ] do
+                    match column lo case with
+                    | Some col ->
+                        let m = sprintf "MATCH(%s[[#This Row],[Description]],%s[Description],0)" lo.Name lib.Name
+                        col.Formula <-
+                            box (sprintf "=IFERROR(IF(INDEX(%s[%s],%s)=\"\",\"\",INDEX(%s[%s],%s)),\"\")" lib.Name case m lib.Name case m)
+                    | None -> ()
+            | None -> ()
+        | _ -> ()
+        // restraints: keep support A, support B and the tip / support C row; clear everything else
+        match table ws "Restraints_" with
+        | Some lo when not (isNull lo.DataBodyRange) ->
+            let body = lo.DataBodyRange
+            let headers = [ for o in (lo.ListColumns :> Collections.IEnumerable) -> (o :?> ListColumn).Name.Trim() ]
+            let col (h: string) = headers |> List.tryFindIndex (fun x -> x = h) |> Option.map (fun i -> i + 1)
+            let set (row: int) (h: string) (v: obj) =
+                match col h with
+                | Some c -> (body.Cells.[row, c] :?> Range).Value2 <- v
+                | None -> ()
+            let overrides = headers |> List.filter (fun h -> h.StartsWith "αm" || h.StartsWith "kl")
+            let tipCodes = if hasName ws "Span2" then "=IF(Overhang>0,\"U\",IF(Span2>0,\"F\",\"\"))" else "=IF(Overhang>0,\"U\",\"\")"
+            for r in 1 .. body.Rows.Count do
+                let x = formulaText (body.Cells.[r, 1] :?> Range)
+                if x = "=0" then
+                    set r "Ref" (box "A"); set r "Restraint provided by" (box "Left support – cleat")
+                    set r "Top flange" (box "F"); set r "Bottom fl." (box "F")
+                    for h in overrides do set r h null
+                elif x = "=Span" then
+                    set r "Ref" (box "B"); set r "Restraint provided by" (box "Support – cleat")
+                    set r "Top flange" (box "F"); set r "Bottom fl." (box "F")
+                    for h in overrides do set r h null
+                elif x.StartsWith("=IF(Overhang", StringComparison.OrdinalIgnoreCase) then
+                    for h in [ "Top flange"; "Bottom fl." ] do
+                        match col h with
+                        | Some c -> (body.Cells.[r, c] :?> Range).Formula <- box tipCodes
+                        | None -> ()
+                    for h in overrides do set r h null
+                else
+                    ws.Range(body.Cells.[r, 1], body.Cells.[r, body.Columns.Count]).ClearContents() |> ignore
+        | _ -> ()
+
+    let clearActiveSheetInputs () =
+        let a = app ()
+        match a.ActiveSheet with
+        | :? Worksheet as ws when hasName ws "Span" && (table ws "Loads_" |> Option.bind (fun lo -> column lo "G")).IsSome ->
+            let msg =
+                sprintf "Start a fresh beam on sheet '%s'?\n\nThis clears the loads table and the intermediate flange restraints (and any αm / kl overrides), and resets the beam to a 5.0 m simply supported span. Section, grade, combinations and deflection criteria are kept.\n\nThis can't be undone." ws.Name
+            let answer =
+                System.Windows.Forms.MessageBox.Show(msg, "OAR Steel – Clear inputs", System.Windows.Forms.MessageBoxButtons.OKCancel, System.Windows.Forms.MessageBoxIcon.Warning)
+            if answer = System.Windows.Forms.DialogResult.OK then
+                try
+                    clearInputs ws
+                    status a "Clear inputs – loads and intermediate restraints cleared; 5.0 m simply supported"
+                with e ->
+                    let why = if ws.ProtectContents then "the sheet is protected – unprotect it first" else e.Message
+                    status a ("Clear inputs failed: " + why)
+        | _ -> status a "Clear inputs: the active sheet is not an OAR steel beam sheet (v0.3 or later)"
+
+    /// Macro behind the on-sheet "Clear inputs" button (and available as a command)
+    [<ExcelCommand(Name = "OAR.ClearInputs", Description = "Clear the loads and intermediate restraints and reset to a 5 m simply supported beam")>]
+    let clearInputsCommand () = clearActiveSheetInputs ()
+
     // keep the Application object alive so its event connections are not collected
     let mutable private hooked: Application = null
 
@@ -192,6 +290,9 @@ type Ribbon() =
                   screentip="Hide unused rows in the combination, load, restraint and result tables on this sheet. Printing does this automatically and shows the rows again afterwards." />
           <button id="oarShowAll" label="Show all rows" onAction="OnShowAll"
                   screentip="Unhide every hidden row on this sheet." />
+          <separator id="oarSep1" />
+          <button id="oarClear" label="Clear inputs" onAction="OnClear"
+                  screentip="Start a fresh beam: clear the loads and intermediate restraints and reset to a 5 m simply supported span (asks first)." />
         </group>
       </tab>
     </tabs>
@@ -200,3 +301,4 @@ type Ribbon() =
 
     member _.OnTidy(_control: IRibbonControl) = Layout.tidyActiveSheet ()
     member _.OnShowAll(_control: IRibbonControl) = Layout.restoreActiveSheet ()
+    member _.OnClear(_control: IRibbonControl) = Layout.clearActiveSheetInputs ()
