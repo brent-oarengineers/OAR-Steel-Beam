@@ -381,10 +381,19 @@ module Uls =
                                   | Some v -> v, true, "override"
                                   | None -> klAuto, false, klBasisAuto
                               let le = Capacity.effectiveLength ktv klUsed kr len
-                              let cap = Capacity.memberMoment s grade e le am overridden
+                              let cap0 = Capacity.memberMoment s grade e le am overridden
+                              // RHS / SHS segment short enough for full lateral restraint (Cl. 5.3.2.4): φMb = φMsx
+                              let flr =
+                                  match Capacity.fullLateralRestraintLength s grade with
+                                  | Some lim when not cantilever && len <= lim -> Some lim
+                                  | _ -> None
+                              let cap = if flr.IsSome then { cap0 with PhiMb = cap0.PhiMs } else cap0
                               let join (a: string) (b: string) = if a = "" then b elif b = "" then a else a + "; " + b
                               let note =
-                                  [ (if cantilever && not overridden then sprintf "free tip: αm = %.2f from %s" am amBasis else "")
+                                  [ (match flr with
+                                     | Some lim -> sprintf "full lateral restraint, Cl. 5.3.2.4 (l ≤ %.2f m): φMb = φMsx" (lim / 1000.0)
+                                     | None -> "")
+                                    (if cantilever && not overridden then sprintf "free tip: αm = %.2f from %s" am amBasis else "")
                                     (if overridden then "" else mixedNote)
                                     (if klOverridden then sprintf "kl = %.2f from the restraints table" klUsed else "")
                                     (if reverses then "moment reverses in this segment (αm from the whole segment)" else "") ]

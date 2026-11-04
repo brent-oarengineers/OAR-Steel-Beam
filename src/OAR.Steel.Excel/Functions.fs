@@ -209,7 +209,7 @@ let oarSectionProps
               row "λe web" sm.Web.Lambda "" (sprintf "λep %g, λey %g" sm.Web.LambdaP sm.Web.LambdaY)
               row "Ze" (sm.Ze / 1e3) "×10³ mm³" (sprintf "%A, governed by %s%s" sm.Class sm.Governing (if Family.isHollow s.Family && sm.Class = Slender && sm.Governing = "flange" then " (effective width)" else ""))
               row "φMsx" (Units.toKNm sm.PhiMs) "kN·m" "AS 4100 Cl. 5.2"
-              row "φVv" (Units.toKN sv.PhiVv) "kN" (sprintf "Aw %.0f mm², λw %.1f, αv %.3f" sv.Aw sv.Lambda sv.AlphaV) ])
+              row "φVv" (Units.toKN sv.PhiVv) "kN" (sprintf "Aw %.0f mm², λw %.1f, αv %.3f%s" sv.Aw sv.Lambda sv.AlphaV (if sv.StressRatio > 1.0 then sprintf ", f*vm/f*va %.3f (Cl. 5.11.3)" sv.StressRatio else "")) ])
 
 [<ExcelFunction(Name = "OAR.SLS",
                 Description = "Spills deflection checks: case | Δ max mm | at x mm | limit mm | L/Δ | utilisation (5 rows; 10 with an overhang: span then tip)",

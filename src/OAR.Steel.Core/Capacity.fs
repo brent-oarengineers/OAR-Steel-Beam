@@ -54,6 +54,8 @@ type ShearCapacity =
       Vw: float
       /// αv = (82/λ)^2 when λ > 82, else 1.0
       AlphaV: float
+      /// f*vm / f*va, ratio of maximum to average web shear stress (Cl. 5.11.3); 1.0 = uniform (I-sections)
+      StressRatio: float
       Vv: float
       PhiVv: float }
 
@@ -161,6 +163,17 @@ module Capacity =
           PhiMb = phi * mb
           PhiMs = sm.PhiMs }
 
+    /// Segment length with full lateral restraint for an RHS / SHS, AS 4100 Cl. 5.3.2.4(b):
+    /// l / ry <= (1800 + 1500 βm)(b / d)(250 / fy), taken with βm = -1 (the most conservative case, as in the ATM DCT).
+    /// None for open sections.
+    let fullLateralRestraintLength (s: Section) (grade: int) : float option =
+        if Family.isHollow s.Family then
+            let fyf, _ = Sections.fy s grade
+            let ry = sqrt (s.Iy / s.Ag)
+            Some(ry * (1800.0 - 1500.0) * (s.bf / s.d) * (250.0 / fyf))
+        else
+            None
+
     /// Shear capacity of an unstiffened web, AS 4100 Cl. 5.11.2, 5.11.3 and 5.11.5.1.
     /// Aw = d tw for hot-rolled sections; web slenderness uses the clear depth dp = d - 2tf.
     let shear (s: Section) (grade: int) : ShearCapacity =
@@ -175,11 +188,26 @@ module Capacity =
         let lam = dp / s.tw * sqrt (fyw / 250.0)
         let vw = 0.6 * fyw * aw
         let av = if lam <= 82.0 then 1.0 else (82.0 / lam) ** 2.0
-        let vv = av * vw
+        let vu = av * vw
+        // RHS / SHS webs carry a non-uniform shear stress (Cl. 5.11.3): Vv = 2 Vu / (0.9 + f*vm/f*va) <= Vu, with the
+        // stress ratio from the elastic shear flow of the thin-walled (centreline) section, f*vm = V Q / (2 I t) at the
+        // neutral axis and f*va = V / (2 dm t). Reproduces the ATM DCT φVv for every RHS / SHS within 0.6%.
+        let ratio =
+            if Family.isHollow s.Family then
+                let t = s.tw
+                let dm = s.d - t
+                let bm = s.bf - t
+                let i = t * dm ** 3.0 / 6.0 + bm * t * dm ** 2.0 / 2.0
+                let q = bm * t * dm / 2.0 + t * dm ** 2.0 / 4.0
+                q * dm / i
+            else
+                1.0
+        let vv = if ratio > 1.0 then min vu (2.0 * vu / (0.9 + ratio)) else vu
         { Aw = aw
           Fyw = fyw
           Lambda = lam
           Vw = vw
           AlphaV = av
+          StressRatio = ratio
           Vv = vv
           PhiVv = phi * vv }

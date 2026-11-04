@@ -134,6 +134,7 @@ row whose key cell shows nothing; the next edit on that sheet unhides them. The 
 | Space Gass B2 | C2 overhang FU (kl 2.0, Le 4.0, αm 1.25, φMb 150.78) and backspan FF (φMb 123.09) | 0.05% |
 | RFEM B2 LTB | C1 4–6 m, C2 2–4 m (Run A) and C2 0–6 m bottom flange (Run B): kl, Le, Mo, αs, Mb | 0.1% |
 | RFEM B2 | backspan + overhang, C1–C5: reactions and M at B to 0.01; tip and backspan δ (with shear deformation, Az 22.51 cm²) to 0.05 mm | 0.01 kN / 0.05 mm |
+| ATM DCT hollow sections (2013) | RHS / SHS C350L0 and C450L0: φMsx 203 rows, φVv, φMb 969 values (Table 5.3), FLR | 1% (φMb 1.5%) |
 | Shear defl. | wL²/8GAs midspan; tip load Pa(L+a)/(L·GAs) | 1e-9 |
 | Overhang | tip point load and full-length UDL closed forms (reactions, M at B, tip and backspan deflection), mirror case, per-flange segments with reversal | 1e-9 |
 
