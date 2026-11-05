@@ -337,7 +337,7 @@ heading(r, "Applied Loads")
 LOADS_HEAD = r
 label(f"B{r+1}", "One row per load position.  With a Trib, case values are pressures (kPa) and Load = trib × value;  "
       "blank Trib = direct kN/m (Point: kN).", 7, GREY, i=True)
-label(f"B{r+2}", "UDL: start/end blank = full span.  Point: trib in m², start = position.  Values positive: Wd acts down, Wu up.  "
+label(f"B{r+2}", "UDL: start/end blank = full span.  Point: trib in m², start = position.  Positive: G, Q, Wd down, Wu up;  negative = the other way (e.g. a tie-down).  "
       "Internal pressure: −cpi in Wd, +cpi in Wu (own row).", 7, GREY, i=True)
 label(f"B{r+3}", "Dir (wind values only): Cross / Long = acts only in that direction's combinations;  blank = every direction.", 7, GREY, i=True)
 th = r + 4

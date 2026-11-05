@@ -61,7 +61,6 @@ module Inputs =
                       | Some _, None -> 0.0 // trib with no pressure contributes nothing
                       | None, Some _ -> failwithf "row %d: pressure given without a trib width/area" row
                   let mag = fromTrib + direct
-                  if mag < 0.0 then failwithf "row %d: load is negative; enter magnitudes positive and use the case for direction" row
                   let start = optNum row "Start" (c 6)
                   let finish = optNum row "End" (c 7)
                   let kind = (text (c 1)).ToUpperInvariant()
@@ -118,6 +117,8 @@ module Inputs =
     /// With a Trib, case values are pressures (kPa) and the load is trib x value; without one they are
     /// direct (kN/m, or kN for Point). Internal wind pressure goes in Wd (-cpi) or Wu (+cpi).
     /// Dir tags the row's wind values only. Each non-zero case value becomes one Load.
+    /// Values are positive in the case direction (G, Q, Wd down; Wu up); a negative value acts the other way,
+    /// e.g. a tie-down reaction from a cantilever, or a reaction linked from a beam where it is reversed.
     let loadRows (span: float) (grid: Cell[,]) : Load list =
         if Array2D.length2 grid < 10 then failwith "loads: expected 10 columns (Type..Dir)"
         let cases = [ G; Q; Wd; Wu ]
@@ -134,8 +135,6 @@ module Inputs =
                   let shape = shapeOf span row kind (optNum row "Start" (c 7)) (optNum row "End" (c 8))
                   let dir = text (c 9)
                   for lc, v in given do
-                      if v < 0.0 then
-                          failwithf "row %d: %s is negative; enter magnitudes positive (Wd acts down, Wu acts up)" row (LoadCase.name lc)
                       let mag = (match trib with Some t -> t * v | None -> v)
                       if mag <> 0.0 then
                           let load: Load =

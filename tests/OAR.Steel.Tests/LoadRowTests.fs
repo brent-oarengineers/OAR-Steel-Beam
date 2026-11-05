@@ -68,7 +68,6 @@ let tests =
 
           test "errors name the row" {
               let bad rows = Expect.throws (fun () -> Inputs.loadRows span (grid rows) |> ignore) "should fail"
-              bad [ [ "UDL"; ""; ""; "-1"; ""; ""; ""; ""; ""; "" ] ]
               bad [ [ "PUDL"; ""; ""; "1"; ""; ""; ""; "5000"; "1000"; "" ] ]
               bad [ [ "Point"; ""; ""; "1"; ""; ""; ""; ""; ""; "" ] ]
               bad [ [ "Strip"; ""; ""; "1"; ""; ""; ""; ""; ""; "" ] ]
@@ -147,4 +146,22 @@ let tests =
               near 1e-12 0.4 (Combination.factor cs.[0] Q) "ψc"
               near 1e-12 1.0 (Combination.factor cs.[1] Wu) "Wu"
               Expect.equal cs.[1].CriticalFlange Bottom "flange"
+          }
+
+          test "negative values act the other way (tie-down reaction): no error, reversed reaction" {
+              // 3.8 m beam: floor UDL 2.1 m trib and an upward point load from a cantilever tie-down at 600 mm
+              let L = 3800.0
+              let b = Beam.simple L (200000.0 * 8.0e6)
+              let ls =
+                  Inputs.loadRows
+                      L
+                      (grid
+                          [ [ "UDL"; "2.10"; "floor"; "0.60"; "1.50"; "1.00"; "1.46"; ""; ""; "" ]
+                            [ "Point"; ""; "B7 reaction"; "-3.10"; "-1.35"; "7.91"; ""; "600"; ""; "" ] ])
+              let g = ls |> List.filter (fun l -> l.Case = G)
+              Expect.equal g.Length 2 "G UDL and G point"
+              near 1e-9 -3100.0 (g |> List.find (fun l -> l.Shape = Point 600.0)).Magnitude "G point -3.10 kN (up)"
+              let ra, _ = Analysis.reactions b (Analysis.actions L (Combination.ofFactors "g" [ G, 1.0 ]) ls)
+              // RA = w L / 2 - P (L - a) / L
+              near 1e-6 (1.26 * L / 2.0 - 3100.0 * (L - 600.0) / L) ra "RA reduced by the upward point load"
           } ]

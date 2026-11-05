@@ -3,6 +3,11 @@
 Each version that reaches `main` is built, tested and published automatically as a GitHub Release.
 The calc sheet shows the version it was calculated with (title block, under the green bar).
 
+## v0.7.2
+- **Negative load values are allowed**: a negative G, Q, Wd or Wu acts the other way (positive = G, Q, Wd down, Wu up), e.g. an upward dead and live reaction where a cantilever beam is tied down. Previously any negative value stopped the whole sheet with #REF!. Reactions linked from another beam can now be negative too.
+- Each case is still factored as a whole (1.35G, 1.2G, 0.9G …), so an upward G point load takes the same factor as the downward G UDL in each combination.
+- Template note under Applied Loads updated. Updating the add-in alone fixes existing sheets.
+
 ## v0.7.1
 - **Δws on the deflected-shape chart**: a dashed blue Δws curve (wind loads alone × the SLS factor) for the governing pattern, down or up and worst wind direction; uplift plots upward. With no wind loads it lies on zero.
 - `OAR.DEFLECTIONS` takes a last argument `[windFactor]`; with it, a sixth column Δws. Without it the spill is the same five columns as before.
