@@ -147,8 +147,7 @@ output can be compared line by line.
 `src/OAR.Steel.Core/Data/sections.csv` was extracted from the old calc workbook. Edit it in Excel or
 a text editor and rebuild; units are as printed in the catalogue.
 
-- **UCs:** only 310UC158 has a full row, and it has no yield stresses, so **no UCs work yet**. Fill
-  tw, Ag, Zx, Sx, J and fy from the current catalogue.
+- **UCs:** all 13 from Table 3.1-4(A), Grade 300 only (fy 320 for t < 11 mm, 300 for 11–17, 280 over 17).
 - **760UB / 690UB:** yield stress only given for Grade 250. Add Grade 300 values if you use them.
 - **WB, 760UB, 690UB:** no tabulated Iw – calculated as Iy(d−tf)²/4 (flagged in `OAR.SECTIONPROPS`).
 - RHS / SHS: cold-formed C350L0 / C450L0 (grade 350 / 450), from the OAR closed-section sheet; Iw = 0; slender flanges by effective width. CHS not loaded.
