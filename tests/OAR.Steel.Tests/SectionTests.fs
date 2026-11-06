@@ -39,6 +39,24 @@ let tests =
               Expect.isTrue (missing.ContainsKey "999UC1") "flagged incomplete"
           }
 
+          // Table 3.1-4(B), Grade 300: fyf, fyw, compactness, Zex (10^3 mm3)
+          test "UC Grade 300 section capacity properties match Table 3.1-4(B)" {
+              let tab =
+                  [ "310UC158", 280., 300., Compact, 2680.; "310UC137", 280., 300., Compact, 2300.
+                    "310UC118", 280., 300., Compact, 1960.; "310UC96.8", 300., 320., NonCompact, 1560.
+                    "250UC89.5", 280., 320., Compact, 1230.; "250UC72.9", 300., 320., NonCompact, 986.
+                    "200UC59.5", 300., 320., Compact, 656.; "200UC52.2", 300., 320., Compact, 570.
+                    "200UC46.2", 300., 320., NonCompact, 494.; "150UC37.2", 300., 320., Compact, 310.
+                    "150UC30.0", 320., 320., Compact, 250.; "150UC23.4", 320., 320., NonCompact, 176.
+                    "100UC14.8", 320., 320., Compact, 74.4 ]
+              for d, ff, fw, cls, ze in tab do
+                  let s = Sections.find d
+                  Expect.equal (Sections.fy s 300) (ff, fw) (d + " fy")
+                  let sm = Capacity.sectionMomentX s 300
+                  Expect.equal sm.Class cls (d + " compactness")
+                  within 0.006 (ze * 1e3) sm.Ze (d + " Zex")
+          }
+
           test "all 13 UCs load (Table 3.1-4(A)), Grade 300" {
               let ucs = Sections.all () |> List.filter (fun s -> s.Family = UC)
               Expect.equal ucs.Length 13 "13 UCs"
