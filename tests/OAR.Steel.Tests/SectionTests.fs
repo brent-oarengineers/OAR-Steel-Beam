@@ -33,9 +33,18 @@ let tests =
           }
 
           test "incomplete sections give a clear error" {
-              match Sections.tryFind "310UC137" with
-              | Ok _ -> failtest "310UC137 should be flagged incomplete in the current data"
-              | Error e -> Expect.stringContains e "incomplete" "message"
+              let head = "Designation,Family,Mass,d,bf,tf,tw,Ag,Ix_e6,Zx_e3,Sx_e3,Iy_e6,J_e3,Iw_e9,fyf250,fyw250,fyf300,fyw300,fyf350,fyw350,fyf400,fyw400,phiMsx300_tab,fyf450,fyw450,Zex450_tab"
+              let ok, missing = Sections.parse (head + "\n999UC1,UC,1,100,100,10,,,1,,,1,,1,,,,,,,,,,,,")
+              Expect.isEmpty ok "nothing complete"
+              Expect.isTrue (missing.ContainsKey "999UC1") "flagged incomplete"
+          }
+
+          test "all 13 UCs load (Table 3.1-4(A)), Grade 300" {
+              let ucs = Sections.all () |> List.filter (fun s -> s.Family = UC)
+              Expect.equal ucs.Length 13 "13 UCs"
+              let s = Sections.find "200UC46.2"
+              Expect.equal (Sections.fy s 300) (300.0, 320.0) "tf = 11.0 is in the 300 MPa band, tw 7.3 in 320"
+              within 1e-12 2860.0e9 (Sections.find "310UC158").Iw "tabulated Iw"
           }
 
           test "unknown section gives a clear error" {

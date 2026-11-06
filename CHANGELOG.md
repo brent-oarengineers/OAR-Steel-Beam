@@ -3,6 +3,12 @@
 Each version that reaches `main` is built, tested and published automatically as a GitHub Release.
 The calc sheet shows the version it was calculated with (title block, under the green bar).
 
+## v0.7.3 – universal columns
+- **UCs now work**: all 13 UC sections (310UC158 to 100UC14.8) completed from Table 3.1-4(A) (tw, Ag, Zx, Sx, J), Grade 300 (fy 320 MPa for t < 11 mm, 300 for 11–17 mm, 280 over 17 mm, flange and web separately). Previously only mass, d, bf, tf, Ix, Iy and Iw were in the data, so no UC could be selected.
+- Designations follow the current table: 310UC96.8, 250UC72.9, 200UC52.2, 200UC46.2, 150UC37.2, 150UC30.0, 150UC23.4, 100UC14.8 (were 310UC97, 250UC73 …). 250UC72.9 Iy corrected to 38.6 (was 38.8).
+- Check: φMsx matches the tabulated Grade 300 values within 0.35% for all 13 (three non-compact: 310UC96.8, 250UC72.9, 150UC23.4).
+- Add-in update only; the Section size dropdown picks the UCs up automatically.
+
 ## v0.7.2
 - **Negative load values are allowed**: a negative G, Q, Wd or Wu acts the other way (positive = G, Q, Wd down, Wu up), e.g. an upward dead and live reaction where a cantilever beam is tied down. Previously any negative value stopped the whole sheet with #REF!. Reactions linked from another beam can now be negative too.
 - Each case is still factored as a whole (1.35G, 1.2G, 0.9G …), so an upward G point load takes the same factor as the downward G UDL in each combination.
