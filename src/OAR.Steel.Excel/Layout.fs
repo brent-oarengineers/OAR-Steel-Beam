@@ -238,6 +238,21 @@ module Layout =
                     status a ("Clear inputs failed: " + why)
         | _ -> status a "Clear inputs: the active sheet is not an OAR steel beam sheet (v0.3 or later)"
 
+    /// OAR > Review loads: the load / reaction / diagram window for the active beam sheet
+    let reviewActiveSheet () =
+        let a = app ()
+        try
+            match a.ActiveSheet with
+            | :? Worksheet as ws ->
+                ReviewWindow.show a.Hwnd ws
+                status a "Review loads – window opened (Refresh from sheet re-reads the inputs)"
+            | _ -> status a "Review loads: the active sheet is not a worksheet"
+        with e ->
+            status a ("Review loads failed: " + e.Message)
+
+    [<ExcelCommand(Name = "OAR.ReviewLoads", Description = "Open the load review window for the active steel beam sheet")>]
+    let reviewLoadsCommand () = reviewActiveSheet ()
+
     /// Macro behind the on-sheet "Clear inputs" button (and available as a command)
     [<ExcelCommand(Name = "OAR.ClearInputs", Description = "Clear the loads and intermediate restraints and reset to a 5 m simply supported beam")>]
     let clearInputsCommand () = clearActiveSheetInputs ()
@@ -290,6 +305,8 @@ type Ribbon() =
                   screentip="Hide unused rows in the combination, load, restraint and result tables on this sheet. Printing does this automatically and shows the rows again afterwards." />
           <button id="oarShowAll" label="Show all rows" onAction="OnShowAll"
                   screentip="Unhide every hidden row on this sheet." />
+          <button id="oarReview" label="Review loads" onAction="OnReview"
+                  screentip="Draw the beam with the loads of any load case or factored combination, the support reactions, and the shear, moment and deflection diagrams." />
           <separator id="oarSep1" />
           <button id="oarClear" label="Clear inputs" onAction="OnClear"
                   screentip="Start a fresh beam: clear the loads and intermediate restraints and reset to a 5 m simply supported span (asks first)." />
@@ -302,3 +319,4 @@ type Ribbon() =
     member _.OnTidy(_control: IRibbonControl) = Layout.tidyActiveSheet ()
     member _.OnShowAll(_control: IRibbonControl) = Layout.restoreActiveSheet ()
     member _.OnClear(_control: IRibbonControl) = Layout.clearActiveSheetInputs ()
+    member _.OnReview(_control: IRibbonControl) = Layout.reviewActiveSheet ()
