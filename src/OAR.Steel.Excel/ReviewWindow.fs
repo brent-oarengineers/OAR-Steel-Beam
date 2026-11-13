@@ -497,16 +497,44 @@ type private ReviewForm(load: unit -> ReviewData, pageInfo: unit -> PageInfo) as
                 g.DrawString("Can't draw this: " + problem, font, brush, area))
         this.Shown.Add(fun _ -> reload ())
 
+    /// Read the sheet again and redraw (keeps the selected case and the tick boxes)
+    member _.Reload() = reload ()
+
 module ReviewWindow =
 
-    let mutable private current: Form = null
+    let mutable private current: ReviewForm option = None
+    let mutable private pending = false
+
+    let private openForm () =
+        match current with
+        | Some f when not f.IsDisposed -> Some f
+        | _ -> None
+
+    /// Called by the add-in after any cell is edited: if the window is open it re-reads the sheet and
+    /// redraws. The refresh is queued so it runs once Excel has recalculated (several edits in a row,
+    /// e.g. a paste, give one refresh), and it never takes the focus away from the sheet.
+    let sheetChanged () =
+        if (openForm ()).IsSome && not pending then
+            pending <- true
+            try
+                ExcelAsyncUtil.QueueAsMacro(
+                    ExcelAction(fun () ->
+                        pending <- false
+                        match openForm () with
+                        | Some f -> f.Reload()
+                        | None -> ())
+                )
+            with _ ->
+                pending <- false
 
     /// Open (or bring forward and refresh) the review window for a sheet. The window stays open beside
-    /// Excel; Refresh from sheet reads the inputs again.
+    /// Excel and follows edits to the workbook (see sheetChanged); Refresh from sheet does the same by hand.
     let show (excelHwnd: int) (ws: Microsoft.Office.Interop.Excel.Worksheet) =
-        if not (isNull current) && not current.IsDisposed then current.Close()
+        match openForm () with
+        | Some f -> f.Close()
+        | None -> ()
         let form = new ReviewForm((fun () -> SheetInputs.read ws), (fun () -> SheetInputs.pageInfo ws))
-        current <- form :> Form
+        current <- Some form
         let owner =
             { new IWin32Window with
                 member _.Handle = IntPtr excelHwnd }

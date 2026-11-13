@@ -272,6 +272,8 @@ module Layout =
 
     let private onSheetChange (sh: obj) =
         clearStatus ()
+        // an open Review loads window follows the edit (any sheet: a linked reaction may sit on another tab)
+        safely ReviewWindow.sheetChanged
         match sh with
         | :? Worksheet as ws -> safely (fun () -> restoreSheet ws)
         | _ -> ()

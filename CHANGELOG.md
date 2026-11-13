@@ -3,6 +3,11 @@
 Each version that reaches `main` is built, tested and published automatically as a GitHub Release.
 The calc sheet shows the version it was calculated with (title block, under the green bar).
 
+## v0.8.2 – Review loads follows the sheet
+- The Review loads window now **refreshes by itself** when a cell is edited: change a load, span, section, combination tick or factor and the picture redraws, keeping the selected case and tick boxes. It waits for Excel to recalculate first, a paste of several cells gives one refresh, and the sheet keeps the focus so you can keep typing.
+- Edits on other tabs count too (e.g. a reaction linked from another beam). **Refresh from sheet** stays for anything that changes without an edit.
+- Add-in update only.
+
 ## v0.8.1 – print the Review loads window
 - **Save PDF** and **Print…** buttons in the Review loads window. They put what is showing (the selected case or combination and the ticked parts: loads, reactions, shear, moment, deflection) on one A4 landscape page with a header (OAR, job no., project, beam ref, date, by) taken from the sheet.
 - Save PDF writes the file directly (through Windows' "Microsoft Print to PDF"), offers the workbook's folder and a name like `B1 ULS6 - loads and analysis.pdf`, then opens it. Print… goes through the normal print dialog.
