@@ -9,7 +9,7 @@ open OAR.Steel
 [<Literal>]
 let Category = "OAR Steel"
 
-let private version = "0.8.0"
+let private version = "0.8.1"
 
 // ---------- conversion helpers ----------
 
