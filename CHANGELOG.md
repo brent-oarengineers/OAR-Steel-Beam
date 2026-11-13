@@ -3,6 +3,11 @@
 Each version that reaches `main` is built, tested and published automatically as a GitHub Release.
 The calc sheet shows the version it was calculated with (title block, under the green bar).
 
+## v0.8.3 – Review loads follows the active tab
+- With the Review loads window open, switching to another steel beam tab (or another workbook with one in front) points the window at that beam and redraws. The selected case is kept when the new beam has it (e.g. ULS2), otherwise the first one is shown.
+- Tabs that aren't beam sheets are ignored: the window keeps showing the last beam.
+- Add-in update only.
+
 ## v0.8.2 – Review loads follows the sheet
 - The Review loads window now **refreshes by itself** when a cell is edited: change a load, span, section, combination tick or factor and the picture redraws, keeping the selected case and tick boxes. It waits for Excel to recalculate first, a paste of several cells gives one refresh, and the sheet keeps the focus so you can keep typing.
 - Edits on other tabs count too (e.g. a reaction linked from another beam). **Refresh from sheet** stays for anything that changes without an edit.
