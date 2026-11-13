@@ -3,6 +3,17 @@
 Each version that reaches `main` is built, tested and published automatically as a GitHub Release.
 The calc sheet shows the version it was calculated with (title block, under the green bar).
 
+## v0.8.0 – Review loads window
+- **New ribbon button OAR > Review loads**: opens a window that draws the active beam to scale with its supports and, for whatever is picked in the list on the left:
+  - **Loads** – UDLs as shaded blocks and point loads as arrows, each labelled with its description and value. For a combination the factor is shown (e.g. `1.4 × 70.0 = 98.0 kN/m`). Downward loads sit above the beam, upward loads (uplift, negative values) below it. Self-weight is included when it is switched on.
+  - **Reactions** – an arrow and value at each support; a support in tension is red and marked hold-down. The header gives the total load and the sum of the reactions.
+  - **Shear, moment and deflection** diagrams under the beam on the same x-axis, with the peak values and where they occur.
+  - Tick boxes turn each of the five parts on or off. Moving the mouse along the beam gives x, V, M and δ at that point.
+- The list has the unfactored **load cases** (wind per direction when Cross / Long are used), the **serviceability** cases (G + ψl·Q, G + ψs·Q, wind × SLS factor) and every active **combination** including its pattern variants (-span, -cant, -span1 …) and EQ, plus an **Envelope** of the strength combinations (max and min, as on the sheet chart).
+- Deflection under a factored strength combination is drawn but labelled as not a serviceability value.
+- The window uses the same engine and the same sheet inputs as the worksheet functions, so its values match the printed calc. It stays open beside Excel; **Refresh from sheet** re-reads the inputs after an edit.
+- Add-in update only: no template change, and it works on existing sheets from v0.3.6 on. Nothing changes on the printout.
+
 ## v0.7.3 – universal columns
 - **UCs now work**: all 13 UC sections (310UC158 to 100UC14.8) completed from Table 3.1-4(A) (tw, Ag, Zx, Sx, J), Grade 300 (fy 320 MPa for t < 11 mm, 300 for 11–17 mm, 280 over 17 mm, flange and web separately). Previously only mass, d, bf, tf, Ix, Iy and Iw were in the data, so no UC could be selected.
 - Designations follow the current table: 310UC96.8, 250UC72.9, 200UC52.2, 200UC46.2, 150UC37.2, 150UC30.0, 150UC23.4, 100UC14.8 (were 310UC97, 250UC73 …). 250UC72.9 Iy corrected to 38.6 (was 38.8).

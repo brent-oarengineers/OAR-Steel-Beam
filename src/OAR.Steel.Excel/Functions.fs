@@ -9,7 +9,7 @@ open OAR.Steel
 [<Literal>]
 let Category = "OAR Steel"
 
-let private version = "0.7.3"
+let private version = "0.8.0"
 
 // ---------- conversion helpers ----------
 
@@ -686,3 +686,35 @@ let oarLoadDiagram
                 |> List.map (fun (x, ws) -> box (m1 x) :: (ws |> List.map box))
             let header = box "x (m)" :: (LoadCase.all |> List.map (LoadCase.name >> box))
             table (header :: pad 80 7 rows))
+
+// ---------- load review window ----------
+
+/// Everything the OAR > Review loads window needs, from the same sheet values the worksheet functions take
+/// (so the window shows exactly what the sheet calculates). Raises a readable error if an input is bad.
+let reviewData
+    (beamRef: string)
+    (designation: obj)
+    (span: obj)
+    (e: obj)
+    (includeSW: obj)
+    (loads: obj)
+    (combos: obj)
+    (psiL: obj)
+    (psiS: obj)
+    (shearDefl: obj)
+    (windFactor: obj)
+    : ReviewData =
+    let c = ctx designation (box 300.0) span e includeSW loads
+    let g = geometry span
+    let beam = withShearOpt c.Sec shearDefl c.Beam
+    let cs = strengthCombos beam combos @ Patterns.equilibrium beam
+    let mm (v: float) = v.ToString("#,0", Globalization.CultureInfo.InvariantCulture)
+    let geomText =
+        if g.Span2 > 0.0 then sprintf "spans %s + %s mm" (mm g.Span1) (mm g.Span2)
+        elif g.Overhang > 0.0 then sprintf "backspan %s + overhang %s mm" (mm g.Span1) (mm g.Overhang)
+        else sprintf "span %s mm" (mm g.Span1)
+    let kw = if isMissing windFactor then 0.0 else numOr "windFactor" 0.0 windFactor
+    { Title = String.Join(" · ", [ beamRef.Trim(); c.Sec.Designation; geomText ] |> List.filter (fun s -> s <> ""))
+      Beam = beam
+      Loads = c.Loads
+      Items = Review.items c.Loads cs (numOr "psiL" 0.4 psiL) (numOr "psiS" 0.7 psiS) kw }

@@ -106,6 +106,18 @@ row whose key cell shows nothing; the next edit on that sheet unhides them. The 
 *Tidy for print* (to preview) and *Show all rows*. To make another block collapse, add a name
 `OAR_Flex_<anything>` (scope: the sheet) over its key column.
 
+## 3b. Review loads window
+
+**OAR > Review loads** opens a window for the active beam sheet: the beam drawn to scale with the loads of
+any load case, serviceability case or factored combination (pick it in the list on the left), the support
+reactions, and the shear, moment and deflection diagrams, each switched on or off with a tick box. Moving
+the mouse along the beam shows x, V, M and δ at that point. *Envelope* gives the max and min over the
+active strength combinations. The window reads the same sheet inputs as the worksheet functions (through
+the names `SectionSize`, `Geom`, `E_mod`, `IncludeSW`, `PsiL`, `PsiS`, `ShearDefl`, `WindSLSFactor`,
+`OAR_Flex_Loads` and `OAR_Flex_Combos`), so it needs no template change; *Refresh from sheet* re-reads
+them. The picture is built in the core library (`Review.scene`, plain lines / polygons / text, testable
+without Excel; `Review.svg` writes it as SVG) and the add-in only paints it.
+
 ## 4. What is checked, and against what
 
 `dotnet run --project tests/OAR.Steel.Tests` checks:
