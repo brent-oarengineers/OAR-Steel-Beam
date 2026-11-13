@@ -3,6 +3,11 @@
 Each version that reaches `main` is built, tested and published automatically as a GitHub Release.
 The calc sheet shows the version it was calculated with (title block, under the green bar).
 
+## v0.8.1 – print the Review loads window
+- **Save PDF** and **Print…** buttons in the Review loads window. They put what is showing (the selected case or combination and the ticked parts: loads, reactions, shear, moment, deflection) on one A4 landscape page with a header (OAR, job no., project, beam ref, date, by) taken from the sheet.
+- Save PDF writes the file directly (through Windows' "Microsoft Print to PDF"), offers the workbook's folder and a name like `B1 ULS6 - loads and analysis.pdf`, then opens it. Print… goes through the normal print dialog.
+- The page is drawn as vectors, not a screenshot, so it stays sharp. Add-in update only.
+
 ## v0.8.0 – Review loads window
 - **New ribbon button OAR > Review loads**: opens a window that draws the active beam to scale with its supports and, for whatever is picked in the list on the left:
   - **Loads** – UDLs as shaded blocks and point loads as arrows, each labelled with its description and value. For a combination the factor is shown (e.g. `1.4 × 70.0 = 98.0 kN/m`). Downward loads sit above the beam, upward loads (uplift, negative values) below it. Self-weight is included when it is switched on.

@@ -12,6 +12,15 @@ open System.Windows.Forms
 open ExcelDna.Integration
 open OAR.Steel
 
+/// What goes in the header of a printed review page, and where a PDF is saved by default
+type PageInfo =
+    { Job: string
+      Project: string
+      By: string
+      Date: string
+      BeamRef: string
+      Folder: string }
+
 /// Reading the inputs of a steel beam sheet through the Excel object model
 module private SheetInputs =
 
@@ -97,6 +106,32 @@ module private SheetInputs =
                     // no spill (older Excel): the block's rows, eight columns ID to Dir; blank rows are ignored
                     norm (ws.Range(anchor, flex.Cells.[flex.Rows.Count, 8]).Value2)
 
+    /// Job details from the sheet header (blank where the sheet has none), for the printed page
+    let pageInfo (ws: XlSheet) : PageInfo =
+        let safe (f: unit -> string) =
+            try
+                f ()
+            with _ ->
+                ""
+        // PROJECT and BY sit under JOB No. in the header block (rows +1 and +3)
+        let under (rows: int) =
+            safe (fun () ->
+                match tryRange ws "JobNo" with
+                | Some r -> text (norm (ws.Cells.[r.Row + rows, r.Column] :?> XlRange).Value2)
+                | None -> "")
+        let project = (under 1).Trim()
+        { Job = safe (fun () -> (text (value ws "JobNo")).Trim())
+          Project = (if project.StartsWith("Project name", StringComparison.OrdinalIgnoreCase) then "" else project)
+          By = (under 3).Trim()
+          Date =
+            safe (fun () ->
+                match value ws "CalcDate" with
+                | :? float as d when d > 1.0 -> DateTime.FromOADate(d).ToString("dd/MM/yyyy")
+                | :? string as t -> t.Trim()
+                | _ -> "")
+          BeamRef = safe (fun () -> (text (value ws "BeamRef")).Trim())
+          Folder = safe (fun () -> (ws.Parent :?> Microsoft.Office.Interop.Excel.Workbook).Path) }
+
     /// Read the sheet and solve nothing yet: the beam, loads and the list of cases / combinations to review
     let read (ws: XlSheet) : ReviewData =
         let size = value ws "SectionSize"
@@ -178,7 +213,78 @@ module private Painter =
                 fmt.FormatFlags <- fmt.FormatFlags ||| StringFormatFlags.NoWrap ||| StringFormatFlags.NoClip
                 g.DrawString(t, font, brush, PointF(float32 x, float32 y), fmt)
 
-type private ReviewForm(load: unit -> ReviewData) as this =
+/// Printing the picture (to a printer, or straight to a PDF file through Windows' PDF printer)
+module private Printer =
+
+    let pdfPrinter = "Microsoft Print to PDF"
+
+    let hasPdfPrinter () =
+        try
+            [ for p in Printing.PrinterSettings.InstalledPrinters -> string p ] |> List.exists (fun p -> p = pdfPrinter)
+        with _ ->
+            false
+
+    /// A4 landscape, 12 mm margins, on whichever printer the document is set to
+    let setPage (doc: Printing.PrintDocument) =
+        let a4 =
+            [ for o in doc.PrinterSettings.PaperSizes -> box o ]
+            |> List.tryPick (fun o ->
+                match o with
+                | :? Printing.PaperSize as sz when sz.Kind = Printing.PaperKind.A4 -> Some sz
+                | _ -> None)
+        match a4 with
+        | Some sz -> doc.DefaultPageSettings.PaperSize <- sz
+        | None -> ()
+        doc.DefaultPageSettings.Landscape <- true
+        doc.DefaultPageSettings.Margins <- Printing.Margins(47, 47, 47, 47)
+
+    /// One page: job header, the picture scaled to the page width, footer.
+    /// `makeScene width height` builds the picture for a drawing area of that shape.
+    let page (info: PageInfo) (makeScene: float -> float -> Scene) (e: Printing.PrintPageEventArgs) =
+        let g = e.Graphics
+        let m = e.MarginBounds
+        let left, top, width, height = float32 m.Left, float32 m.Top, float32 m.Width, float32 m.Height
+        use bold = new Font("Segoe UI", 10.0f, FontStyle.Bold)
+        use small = new Font("Segoe UI", 8.0f)
+        use dark = new SolidBrush(Color.FromArgb(34, 34, 34))
+        use grey = new SolidBrush(Color.FromArgb(110, 110, 110))
+        use rule = new Pen(Color.FromArgb(70, 90, 82), 1.5f)
+        use far = new StringFormat(Alignment = StringAlignment.Far)
+        // header: firm and job on the left, date and initials on the right (units are 1/100 inch)
+        g.DrawString("OAR Consulting Engineers Pty Ltd", bold, dark, left, top)
+        let job =
+            [ (if info.Job = "" then "" else "Job " + info.Job); info.Project; info.BeamRef ]
+            |> List.filter (fun t -> t <> "")
+        g.DrawString(String.Join("   ·   ", job), small, grey, left, top + 18.0f)
+        let right = RectangleF(left, top, width, 34.0f)
+        g.DrawString("Loads and analysis", bold, dark, right, far)
+        let stamp = [ info.Date; (if info.By = "" then "" else "By " + info.By) ] |> List.filter (fun t -> t <> "")
+        g.DrawString(String.Join("   ·   ", stamp), small, grey, RectangleF(left, top + 18.0f, width, 16.0f), far)
+        g.DrawLine(rule, left, top + 38.0f, left + width, top + 38.0f)
+        // footer
+        let version = Reflection.Assembly.GetExecutingAssembly().GetName().Version.ToString(3)
+        g.DrawString(sprintf "OAR Steel %s  ·  same engine and inputs as the calculation sheet" version, small, grey, left, top + height - 12.0f)
+        g.DrawString(DateTime.Now.ToString("dd/MM/yyyy HH:mm"), small, grey, RectangleF(left, top + height - 12.0f, width, 14.0f), far)
+        // the picture: drawn 1,050 logical pixels wide, scaled to the space between header and footer
+        let areaTop, areaHeight = top + 44.0f, height - 44.0f - 18.0f
+        let logicalWidth = 1050.0
+        let k = float width / logicalWidth
+        let scene = makeScene logicalWidth (float areaHeight / k)
+        let state = g.Save()
+        g.TranslateTransform(left, areaTop)
+        g.ScaleTransform(float32 k, float32 k)
+        Painter.draw g scene
+        g.Restore state
+        e.HasMorePages <- false
+
+    let document (title: string) (info: PageInfo) (makeScene: float -> float -> Scene) =
+        let doc = new Printing.PrintDocument()
+        doc.DocumentName <- title
+        doc.PrintController <- new Printing.StandardPrintController()
+        doc.PrintPage.Add(fun e -> page info makeScene e)
+        doc
+
+type private ReviewForm(load: unit -> ReviewData, pageInfo: unit -> PageInfo) as this =
     inherit Form()
 
     let groups = [ "Load cases"; "Serviceability"; "Combinations" ]
@@ -193,6 +299,8 @@ type private ReviewForm(load: unit -> ReviewData) as this =
     let cbMoment = check "Moment"
     let cbDeflection = check "Deflection"
     let refresh = new Button(Text = "Refresh from sheet", AutoSize = true, Margin = Padding(12, 0, 0, 0))
+    let savePdf = new Button(Text = "Save PDF", AutoSize = true, Margin = Padding(6, 0, 0, 0))
+    let print = new Button(Text = "Print…", AutoSize = true, Margin = Padding(6, 0, 0, 0))
     let status =
         new Label(Dock = DockStyle.Bottom, Height = 26, TextAlign = ContentAlignment.MiddleLeft, Padding = Padding(10, 0, 0, 0),
                   BackColor = Color.FromArgb(244, 244, 244))
@@ -243,6 +351,44 @@ type private ReviewForm(load: unit -> ReviewData) as this =
         hover <- nan
         status.Text <- hint
         redraw ()
+
+    /// Print what is showing (the selected case and the ticked parts) on one A4 landscape page:
+    /// to a PDF file when `toPdf`, otherwise through the print dialog
+    let output (toPdf: bool) =
+        match data, solution with
+        | Some d, Some sol ->
+            try
+                let info = pageInfo ()
+                let v = view ()
+                let title = sprintf "%s %s - loads and analysis" (if info.BeamRef = "" then "Beam" else info.BeamRef) sol.Item.Id
+                use doc = Printer.document title info (fun w h -> Review.scene d sol v w h)
+                if toPdf && Printer.hasPdfPrinter () then
+                    let clean = String(title |> Seq.map (fun c -> if Array.contains c (IO.Path.GetInvalidFileNameChars()) then '-' else c) |> Seq.toArray)
+                    use dialog = new SaveFileDialog(Title = "Save loads and analysis as PDF", Filter = "PDF (*.pdf)|*.pdf", FileName = clean + ".pdf", OverwritePrompt = true)
+                    if info.Folder <> "" && IO.Directory.Exists info.Folder then dialog.InitialDirectory <- info.Folder
+                    if dialog.ShowDialog(this) = DialogResult.OK then
+                        doc.PrinterSettings.PrinterName <- Printer.pdfPrinter
+                        doc.PrinterSettings.PrintToFile <- true
+                        doc.PrinterSettings.PrintFileName <- dialog.FileName
+                        Printer.setPage doc
+                        doc.Print()
+                        status.Text <- "Saved " + dialog.FileName
+                        try
+                            Diagnostics.Process.Start(dialog.FileName) |> ignore
+                        with _ ->
+                            ()
+                else
+                    if toPdf then
+                        MessageBox.Show(this, "The 'Microsoft Print to PDF' printer isn't installed on this computer, so pick a printer (or another PDF printer) instead.", "OAR Steel – Review loads") |> ignore
+                    use dialog = new PrintDialog(Document = doc, UseEXDialog = true, AllowSomePages = false)
+                    Printer.setPage doc
+                    if dialog.ShowDialog(this) = DialogResult.OK then
+                        Printer.setPage doc
+                        doc.Print()
+                        status.Text <- "Sent to " + doc.PrinterSettings.PrinterName
+            with e ->
+                MessageBox.Show(this, "Couldn't print: " + e.Message, "OAR Steel – Review loads", MessageBoxButtons.OK, MessageBoxIcon.Warning) |> ignore
+        | _ -> ()
 
     /// Read the sheet again and fill the list, keeping the selected case if it is still there
     let reload () =
@@ -298,7 +444,7 @@ type private ReviewForm(load: unit -> ReviewData) as this =
         this.BackColor <- Color.White
         status.Text <- hint
         top.Controls.AddRange([| cbLoads :> Control; cbReactions :> Control; cbShear :> Control; cbMoment :> Control
-                                 cbDeflection :> Control; refresh :> Control |])
+                                 cbDeflection :> Control; refresh :> Control; savePdf :> Control; print :> Control |])
         this.Controls.Add canvas
         this.Controls.Add top
         this.Controls.Add status
@@ -313,6 +459,8 @@ type private ReviewForm(load: unit -> ReviewData) as this =
         for cb in [ cbLoads; cbReactions; cbShear; cbMoment; cbDeflection ] do
             cb.CheckedChanged.Add(fun _ -> redraw ())
         refresh.Click.Add(fun _ -> reload ())
+        savePdf.Click.Add(fun _ -> output true)
+        print.Click.Add(fun _ -> output false)
         canvas.Resize.Add(fun _ -> redraw ())
         canvas.MouseLeave.Add(fun _ ->
             hover <- nan
@@ -357,7 +505,7 @@ module ReviewWindow =
     /// Excel; Refresh from sheet reads the inputs again.
     let show (excelHwnd: int) (ws: Microsoft.Office.Interop.Excel.Worksheet) =
         if not (isNull current) && not current.IsDisposed then current.Close()
-        let form = new ReviewForm(fun () -> SheetInputs.read ws)
+        let form = new ReviewForm((fun () -> SheetInputs.read ws), (fun () -> SheetInputs.pageInfo ws))
         current <- form :> Form
         let owner =
             { new IWin32Window with
