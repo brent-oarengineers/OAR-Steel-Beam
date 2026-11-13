@@ -3,9 +3,10 @@
 Each version that reaches `main` is built, tested and published automatically as a GitHub Release.
 The calc sheet shows the version it was calculated with (title block, under the green bar).
 
-## v0.8.3 – Review loads follows the active tab
+## v0.8.3 – Review loads follows the active tab; flange restraints strip
 - With the Review loads window open, switching to another steel beam tab (or another workbook with one in front) points the window at that beam and redraws. The selected case is kept when the new beam has it (e.g. ULS2), otherwise the first one is shown.
 - Tabs that aren't beam sheets are ignored: the window keeps showing the last beam.
+- **Flange restraints strip** in the window (tick box *Restraints*, also printed): a beam line with the restraint code entered for each point, above the line for the top flange and below it for the bottom flange – e.g. F above and below at the supports, L above only at purlins, U at a free cantilever tip. A C (continuous) is drawn as a band to the next restraint, and a flange set to Continuous in the factor box as a band over the whole beam. It shows the table as entered, as a check on the input; a mistake in the table is reported in the strip.
 - Add-in update only.
 
 ## v0.8.2 – Review loads follows the sheet

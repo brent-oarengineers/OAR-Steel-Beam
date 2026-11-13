@@ -5,7 +5,11 @@ open OAR.Steel
 open Helpers
 
 let private ld case shape mag desc : Load = { Case = case; Shape = shape; Magnitude = mag; Description = desc; Dir = "" }
-let private all = { Loads = true; Reactions = true; Shear = true; Moment = true; Deflection = true }
+let private all = { Loads = true; Reactions = true; Shear = true; Moment = true; Deflection = true; Restraints = true }
+let private data title beam loads items : ReviewData =
+    { Title = title; Beam = beam; Loads = loads; Items = items; Restraints = []; ContinuousTop = false; ContinuousBottom = false; RestraintsNote = "" }
+let private rp x top bottom : RestraintPoint =
+    { X = x; Ref = ""; Top = top; Bottom = bottom; AlphaMTop = None; AlphaMBottom = None; KlOverrideTop = None; KlOverrideBottom = None }
 let private texts (s: Scene) =
     s.Prims
     |> List.choose (function
@@ -19,7 +23,7 @@ let private waler () =
     let beam = Beam.continuous 5500.0 (200000.0 * sec.Ix) [ 2500.0 ]
     let loads = [ Analysis.selfWeightLoad sec; ld G FullSpan 70.0 "70kN/m working" ]
     let combos = Patterns.expand beam [ { Combination.ofFactors "ULS6" [ G, 1.4 ] with Description = "1.4xWorking" } ]
-    { Title = "B1"; Beam = beam; Loads = loads; Items = Review.items loads combos 0.4 0.7 0.47 }
+    data "B1" beam loads (Review.items loads combos 0.4 0.7 0.47)
 
 [<Tests>]
 let tests =
@@ -69,7 +73,7 @@ let tests =
                   Patterns.expand beam
                       [ Combination.ofFactors "ULS2" [ G, 1.2; Q, 1.5 ]; Combination.ofFactors "ULS4" [ G, 0.9; Wu, 1.0 ] ]
                   @ Patterns.equilibrium beam
-              let d = { Title = "B1"; Beam = beam; Loads = loads; Items = Review.items loads combos 0.4 0.7 0.47 }
+              let d = data "B1" beam loads (Review.items loads combos 0.4 0.7 0.47)
               let ids = d.Items |> List.map (fun i -> i.Id)
               Expect.equal
                   ids
@@ -98,6 +102,43 @@ let tests =
                       let m = Analysis.moment c.Det c.All x
                       let ms = solE.Cases |> List.map (fun e -> Analysis.moment e.Det e.All x)
                       Expect.isTrue (m >= List.min ms - 1e-6 && m <= List.max ms + 1e-6) "inside the envelope"
+          }
+
+          test "flange restraints strip: codes above (top) and below (bottom) the line at their positions" {
+              // F both flanges at the supports, purlins (L, top only) at 1,250 crs in span 1, C on the bottom flange of span 2
+              let d =
+                  { waler () with
+                      Restraints =
+                          [ rp 0.0 (Some RF) (Some RF); rp 1250.0 (Some RL) None; rp 2500.0 (Some RF) (Some RC)
+                            rp 4000.0 (Some RL) None; rp 5500.0 (Some RF) (Some RF) ] }
+              let sol = Review.solve d d.Items.Head
+              let s = Review.scene d sol all 1000.0 760.0
+              let codes =
+                  s.Prims
+                  |> List.choose (function
+                      | PText(x, y, t, _, _, Centre, true) when t.Length = 1 && "FPLUC".Contains t -> Some(t, x, y)
+                      | _ -> None)
+              let lineY =
+                  s.Prims
+                  |> List.pick (function
+                      | PLine(_, y1, _, y2, _, w, false) when w = 2.5 && y1 = y2 -> Some y1
+                      | _ -> None)
+              let top = codes |> List.filter (fun (_, _, y) -> y < lineY) |> List.sortBy (fun (_, x, _) -> x)
+              let bottom = codes |> List.filter (fun (_, _, y) -> y > lineY) |> List.sortBy (fun (_, x, _) -> x)
+              Expect.equal (top |> List.map (fun (t, _, _) -> t)) [ "F"; "L"; "F"; "L"; "F" ] "top flange"
+              Expect.equal (bottom |> List.map (fun (t, _, _) -> t)) [ "F"; "C"; "F" ] "bottom flange: no L"
+              let px x = s.X0 + (s.X1 - s.X0) * x / 5500.0
+              within 1e-9 (px 1250.0) (top |> List.item 1 |> fun (_, x, _) -> x) "purlin at 1,250"
+              // the C runs as a band from B to C on the bottom side
+              Expect.isTrue
+                  (s.Prims |> List.exists (function
+                      | PLine(xa, ya, xb, _, _, w, false) when w = 3.0 && ya > lineY -> abs (xa - px 2500.0) < 1e-6 && abs (xb - px 5500.0) < 1e-6
+                      | _ -> false))
+                  "continuous band"
+              Expect.isFalse (hasText (Review.scene d sol { all with Restraints = false } 1000.0 760.0) "Flange restraints") "tick box off"
+              Expect.isFalse (hasText (Review.scene (waler ()) sol all 1000.0 760.0) "Flange restraints") "no table, no strip"
+              let bad = Review.scene { waler () with RestraintsNote = "row 3: top flange code 'X'" } sol all 1000.0 760.0
+              Expect.isTrue (hasText bad "Restraints table: row 3") "a table error is shown, not thrown"
           }
 
           test "the picture is valid SVG text and stays inside the window" {

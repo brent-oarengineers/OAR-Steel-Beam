@@ -703,6 +703,9 @@ let reviewData
     (psiS: obj)
     (shearDefl: obj)
     (windFactor: obj)
+    (restraints: obj)
+    (continuousTop: obj)
+    (continuousBottom: obj)
     : ReviewData =
     let c = ctx designation (box 300.0) span e includeSW loads
     let g = geometry span
@@ -714,7 +717,24 @@ let reviewData
         elif g.Overhang > 0.0 then sprintf "backspan %s + overhang %s mm" (mm g.Span1) (mm g.Overhang)
         else sprintf "span %s mm" (mm g.Span1)
     let kw = if isMissing windFactor then 0.0 else numOr "windFactor" 0.0 windFactor
+    // the restraints are only drawn, so a mistake in that table is reported in the picture, not as a failure
+    let points, note =
+        if isMissing restraints then
+            [], ""
+        else
+            try
+                Inputs.restraints (grid restraints), ""
+            with ex ->
+                [], ex.Message
+    let yes (o: obj) =
+        match (str o).ToUpperInvariant() with
+        | "YES" | "Y" | "TRUE" | "1" -> true
+        | _ -> false
     { Title = String.Join(" · ", [ beamRef.Trim(); c.Sec.Designation; geomText ] |> List.filter (fun s -> s <> ""))
       Beam = beam
       Loads = c.Loads
-      Items = Review.items c.Loads cs (numOr "psiL" 0.4 psiL) (numOr "psiS" 0.7 psiS) kw }
+      Items = Review.items c.Loads cs (numOr "psiL" 0.4 psiL) (numOr "psiS" 0.7 psiS) kw
+      Restraints = points
+      ContinuousTop = yes continuousTop
+      ContinuousBottom = yes continuousBottom
+      RestraintsNote = note }

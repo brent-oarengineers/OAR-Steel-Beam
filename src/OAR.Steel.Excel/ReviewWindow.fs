@@ -82,6 +82,12 @@ module private SheetInputs =
             box (Array2D.init (Array2D.length1 a) (i1 - i0 + 1) (fun i j -> a.[i, j + i0]))
         | _ -> body
 
+    /// The flange restraints table (every column); ExcelMissing when the sheet has none
+    let private restraints (ws: XlSheet) : obj =
+        match tryRange ws "OAR_Flex_Restraints" with
+        | Some r when not (isNull r.ListObject) && not (isNull r.ListObject.DataBodyRange) -> norm r.ListObject.DataBodyRange.Value2
+        | _ -> missing
+
     /// The active combinations: the spilled range that starts at the first cell of the combinations block
     let private combos (ws: XlSheet) : obj =
         match tryRange ws "OAR_Flex_Combos" with
@@ -157,6 +163,9 @@ module private SheetInputs =
             (value ws "PsiS")
             (value ws "ShearDefl")
             (value ws "WindSLSFactor")
+            (restraints ws)
+            (value ws "Cont_Top")
+            (value ws "Cont_Bot")
 
 /// The drawing surface: double-buffered so the hover line doesn't flicker
 type private Canvas() as this =
@@ -302,6 +311,7 @@ type private ReviewForm(load: unit -> ReviewData, pageInfo: unit -> PageInfo) as
     let cbShear = check "Shear"
     let cbMoment = check "Moment"
     let cbDeflection = check "Deflection"
+    let cbRestraints = check "Restraints"
     let refresh = new Button(Text = "Refresh from sheet", AutoSize = true, Margin = Padding(12, 0, 0, 0))
     let savePdf = new Button(Text = "Save PDF", AutoSize = true, Margin = Padding(6, 0, 0, 0))
     let print = new Button(Text = "Print…", AutoSize = true, Margin = Padding(6, 0, 0, 0))
@@ -326,7 +336,8 @@ type private ReviewForm(load: unit -> ReviewData, pageInfo: unit -> PageInfo) as
           Reactions = cbReactions.Checked
           Shear = cbShear.Checked
           Moment = cbMoment.Checked
-          Deflection = cbDeflection.Checked }
+          Deflection = cbDeflection.Checked
+          Restraints = cbRestraints.Checked }
 
     /// Rebuild the picture for the current case, tick boxes and window size
     let redraw () =
@@ -448,7 +459,8 @@ type private ReviewForm(load: unit -> ReviewData, pageInfo: unit -> PageInfo) as
         this.BackColor <- Color.White
         status.Text <- hint
         top.Controls.AddRange([| cbLoads :> Control; cbReactions :> Control; cbShear :> Control; cbMoment :> Control
-                                 cbDeflection :> Control; refresh :> Control; savePdf :> Control; print :> Control |])
+                                 cbDeflection :> Control; cbRestraints :> Control; refresh :> Control; savePdf :> Control
+                                 print :> Control |])
         this.Controls.Add canvas
         this.Controls.Add top
         this.Controls.Add status
@@ -460,7 +472,7 @@ type private ReviewForm(load: unit -> ReviewData, pageInfo: unit -> PageInfo) as
             match (if isNull e.Node then null else e.Node.Tag) with
             | :? ReviewItem as item -> select item
             | _ -> ())
-        for cb in [ cbLoads; cbReactions; cbShear; cbMoment; cbDeflection ] do
+        for cb in [ cbLoads; cbReactions; cbShear; cbMoment; cbDeflection; cbRestraints ] do
             cb.CheckedChanged.Add(fun _ -> redraw ())
         refresh.Click.Add(fun _ -> reload ())
         savePdf.Click.Add(fun _ -> output true)
