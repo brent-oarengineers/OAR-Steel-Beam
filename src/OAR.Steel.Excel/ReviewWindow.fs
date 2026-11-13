@@ -82,6 +82,12 @@ module private SheetInputs =
             box (Array2D.init (Array2D.length1 a) (i1 - i0 + 1) (fun i j -> a.[i, j + i0]))
         | _ -> body
 
+    /// The flange restraints table (every column); ExcelMissing when the sheet has none
+    let private restraints (ws: XlSheet) : obj =
+        match tryRange ws "OAR_Flex_Restraints" with
+        | Some r when not (isNull r.ListObject) && not (isNull r.ListObject.DataBodyRange) -> norm r.ListObject.DataBodyRange.Value2
+        | _ -> missing
+
     /// The active combinations: the spilled range that starts at the first cell of the combinations block
     let private combos (ws: XlSheet) : obj =
         match tryRange ws "OAR_Flex_Combos" with
@@ -105,6 +111,10 @@ module private SheetInputs =
                 else
                     // no spill (older Excel): the block's rows, eight columns ID to Dir; blank rows are ignored
                     norm (ws.Range(anchor, flex.Cells.[flex.Rows.Count, 8]).Value2)
+
+    /// A steel beam sheet the window can read (v0.3.6 or later)
+    let isBeamSheet (ws: XlSheet) =
+        (tryRange ws "SectionSize").IsSome && (tryRange ws "OAR_Flex_Loads").IsSome
 
     /// Job details from the sheet header (blank where the sheet has none), for the printed page
     let pageInfo (ws: XlSheet) : PageInfo =
@@ -153,6 +163,9 @@ module private SheetInputs =
             (value ws "PsiS")
             (value ws "ShearDefl")
             (value ws "WindSLSFactor")
+            (restraints ws)
+            (value ws "Cont_Top")
+            (value ws "Cont_Bot")
 
 /// The drawing surface: double-buffered so the hover line doesn't flicker
 type private Canvas() as this =
@@ -298,6 +311,7 @@ type private ReviewForm(load: unit -> ReviewData, pageInfo: unit -> PageInfo) as
     let cbShear = check "Shear"
     let cbMoment = check "Moment"
     let cbDeflection = check "Deflection"
+    let cbRestraints = check "Restraints"
     let refresh = new Button(Text = "Refresh from sheet", AutoSize = true, Margin = Padding(12, 0, 0, 0))
     let savePdf = new Button(Text = "Save PDF", AutoSize = true, Margin = Padding(6, 0, 0, 0))
     let print = new Button(Text = "Print…", AutoSize = true, Margin = Padding(6, 0, 0, 0))
@@ -322,7 +336,8 @@ type private ReviewForm(load: unit -> ReviewData, pageInfo: unit -> PageInfo) as
           Reactions = cbReactions.Checked
           Shear = cbShear.Checked
           Moment = cbMoment.Checked
-          Deflection = cbDeflection.Checked }
+          Deflection = cbDeflection.Checked
+          Restraints = cbRestraints.Checked }
 
     /// Rebuild the picture for the current case, tick boxes and window size
     let redraw () =
@@ -444,7 +459,8 @@ type private ReviewForm(load: unit -> ReviewData, pageInfo: unit -> PageInfo) as
         this.BackColor <- Color.White
         status.Text <- hint
         top.Controls.AddRange([| cbLoads :> Control; cbReactions :> Control; cbShear :> Control; cbMoment :> Control
-                                 cbDeflection :> Control; refresh :> Control; savePdf :> Control; print :> Control |])
+                                 cbDeflection :> Control; cbRestraints :> Control; refresh :> Control; savePdf :> Control
+                                 print :> Control |])
         this.Controls.Add canvas
         this.Controls.Add top
         this.Controls.Add status
@@ -456,7 +472,7 @@ type private ReviewForm(load: unit -> ReviewData, pageInfo: unit -> PageInfo) as
             match (if isNull e.Node then null else e.Node.Tag) with
             | :? ReviewItem as item -> select item
             | _ -> ())
-        for cb in [ cbLoads; cbReactions; cbShear; cbMoment; cbDeflection ] do
+        for cb in [ cbLoads; cbReactions; cbShear; cbMoment; cbDeflection; cbRestraints ] do
             cb.CheckedChanged.Add(fun _ -> redraw ())
         refresh.Click.Add(fun _ -> reload ())
         savePdf.Click.Add(fun _ -> output true)
@@ -503,6 +519,7 @@ type private ReviewForm(load: unit -> ReviewData, pageInfo: unit -> PageInfo) as
 module ReviewWindow =
 
     let mutable private current: ReviewForm option = None
+    let mutable private sheet: Microsoft.Office.Interop.Excel.Worksheet = null
     let mutable private pending = false
 
     let private openForm () =
@@ -510,10 +527,9 @@ module ReviewWindow =
         | Some f when not f.IsDisposed -> Some f
         | _ -> None
 
-    /// Called by the add-in after any cell is edited: if the window is open it re-reads the sheet and
-    /// redraws. The refresh is queued so it runs once Excel has recalculated (several edits in a row,
-    /// e.g. a paste, give one refresh), and it never takes the focus away from the sheet.
-    let sheetChanged () =
+    /// Queue one refresh for when Excel is idle (after it has recalculated); several requests in a row
+    /// give one refresh, and the window never takes the focus away from the sheet.
+    let private queueReload () =
         if (openForm ()).IsSome && not pending then
             pending <- true
             try
@@ -527,13 +543,26 @@ module ReviewWindow =
             with _ ->
                 pending <- false
 
-    /// Open (or bring forward and refresh) the review window for a sheet. The window stays open beside
-    /// Excel and follows edits to the workbook (see sheetChanged); Refresh from sheet does the same by hand.
+    /// Called by the add-in after any cell is edited: an open window re-reads its sheet and redraws
+    let sheetChanged () = queueReload ()
+
+    /// Called by the add-in when another sheet (or workbook) is brought forward: an open window switches
+    /// to that tab if it is a steel beam sheet, and otherwise keeps showing the beam it had
+    let sheetActivated (sh: obj) =
+        match sh with
+        | :? Microsoft.Office.Interop.Excel.Worksheet as ws when (openForm ()).IsSome && SheetInputs.isBeamSheet ws ->
+            sheet <- ws
+            queueReload ()
+        | _ -> ()
+
+    /// Open (or replace) the review window for a sheet. The window stays open beside Excel, follows edits
+    /// to the workbook (sheetChanged) and the beam tab in front (sheetActivated).
     let show (excelHwnd: int) (ws: Microsoft.Office.Interop.Excel.Worksheet) =
         match openForm () with
         | Some f -> f.Close()
         | None -> ()
-        let form = new ReviewForm((fun () -> SheetInputs.read ws), (fun () -> SheetInputs.pageInfo ws))
+        sheet <- ws
+        let form = new ReviewForm((fun () -> SheetInputs.read sheet), (fun () -> SheetInputs.pageInfo sheet))
         current <- Some form
         let owner =
             { new IWin32Window with

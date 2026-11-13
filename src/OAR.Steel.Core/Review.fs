@@ -33,13 +33,22 @@ type ReviewView =
       Reactions: bool
       Shear: bool
       Moment: bool
-      Deflection: bool }
+      Deflection: bool
+      /// the flange restraints strip (F / P / L / U / C above and below a beam line)
+      Restraints: bool }
 
 type ReviewData =
     { Title: string
       Beam: Beam
       Loads: Load list
-      Items: ReviewItem list }
+      Items: ReviewItem list
+      /// the restraints table as entered (empty when the sheet has none or it could not be read)
+      Restraints: RestraintPoint list
+      /// flange continuously restrained over the whole beam (factor box): top, bottom
+      ContinuousTop: bool
+      ContinuousBottom: bool
+      /// why the restraints could not be read, "" when they were
+      RestraintsNote: string }
 
 /// One combination solved: the beam made determinate (interior reactions added as point loads)
 type ReviewCase =
@@ -495,6 +504,41 @@ module Review =
             if px b - px a > textWidth 8.5 text + 8.0 then
                 add (PText((px a + px b) / 2.0, y + 18.0, text, muted, 8.5, Centre, false))
         y <- y + 30.0
+
+        // ---- flange restraints as entered: codes above the line for the top flange, below for the bottom
+        if view.Restraints && (not data.Restraints.IsEmpty || data.RestraintsNote <> "" || data.ContinuousTop || data.ContinuousBottom) then
+            let yb = y + 37.0
+            add (PText(14.0, y + 9.0, "Flange restraints", ink, 9.0, Left, true))
+            add (PText(124.0, y + 9.0, "F full  ·  P partial  ·  L lateral  ·  U unrestrained  ·  C continuous to the next restraint", muted, 8.5, Left, false))
+            add (PLine(px 0.0, yb, px l, yb, beamColour, 2.5, false))
+            add (PText(x0 - 16.0, yb - 12.0, "top", muted, 8.5, Right, false))
+            add (PText(x0 - 16.0, yb + 12.0, "bottom", muted, 8.5, Right, false))
+            if data.RestraintsNote <> "" then
+                add (PText((x0 + x1) / 2.0, yb - 12.0, "Restraints table: " + data.RestraintsNote, red, 8.5, Centre, false))
+            let codeColour =
+                function
+                | RF -> ink
+                | RP -> "#555555"
+                | RL -> "#2F6EBA"
+                | RU -> red
+                | RC -> "#B07D2B"
+            let pts = data.Restraints |> List.filter (fun p -> p.X >= -1e-6 && p.X <= l + 1e-6) |> List.sortBy (fun p -> p.X)
+            for side, pick, whole in [ -1.0, (fun (p: RestraintPoint) -> p.Top), data.ContinuousTop; 1.0, (fun (p: RestraintPoint) -> p.Bottom), data.ContinuousBottom ] do
+                let flange = pts |> List.choose (fun p -> pick p |> Option.map (fun t -> p.X, t))
+                let band (a: float) (b: float) =
+                    add (PLine(px a, yb + side * 4.0, px b, yb + side * 4.0, codeColour RC, 3.0, false))
+                if whole then
+                    band 0.0 l
+                    add (PText((x0 + x1) / 2.0, yb + side * 12.0, "continuously restrained (factor box)", codeColour RC, 8.5, Centre, true))
+                else
+                    let nexts = if flange.IsEmpty then [] else (flange.Tail |> List.map Some) @ [ None ]
+                    for (x, t), next in List.zip flange nexts do
+                        add (PLine(px x, yb, px x, yb + side * 5.0, codeColour t, 1.5, false))
+                        add (PText(px x, yb + side * 12.0, RestraintType.code t, codeColour t, 9.5, Centre, true))
+                        match t, next with
+                        | RC, Some(x2, _) -> band x x2
+                        | _ -> ()
+            y <- y + 68.0
 
         // ---- diagrams
         let panels =

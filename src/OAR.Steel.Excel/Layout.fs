@@ -283,6 +283,11 @@ module Layout =
             let a = app ()
             a.add_WorkbookBeforePrint(AppEvents_WorkbookBeforePrintEventHandler(fun wb _cancel -> onBeforePrint wb))
             a.add_SheetChange(AppEvents_SheetChangeEventHandler(fun sh _target -> onSheetChange sh))
+            // an open Review loads window follows the beam tab in front
+            a.add_SheetActivate(AppEvents_SheetActivateEventHandler(fun sh -> safely (fun () -> ReviewWindow.sheetActivated sh)))
+            a.add_WorkbookActivate(
+                AppEvents_WorkbookActivateEventHandler(fun wb -> safely (fun () -> ReviewWindow.sheetActivated wb.ActiveSheet))
+            )
             hooked <- a
 
 type AddIn() =
