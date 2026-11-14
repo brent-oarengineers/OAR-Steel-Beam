@@ -706,6 +706,7 @@ let reviewData
     (restraints: obj)
     (continuousTop: obj)
     (continuousBottom: obj)
+    (criteria: obj)
     : ReviewData =
     let c = ctx designation (box 300.0) span e includeSW loads
     let g = geometry span
@@ -726,6 +727,15 @@ let reviewData
                 Inputs.restraints (grid restraints), ""
             with ex ->
                 [], ex.Message
+    // likewise the deflection limits: without them the limit line is simply not drawn
+    let limits =
+        if isMissing criteria then
+            []
+        else
+            try
+                Inputs.deflectionCriteria (grid criteria)
+            with _ ->
+                []
     let yes (o: obj) =
         match (str o).ToUpperInvariant() with
         | "YES" | "Y" | "TRUE" | "1" -> true
@@ -737,4 +747,5 @@ let reviewData
       Restraints = points
       ContinuousTop = yes continuousTop
       ContinuousBottom = yes continuousBottom
-      RestraintsNote = note }
+      RestraintsNote = note
+      Criteria = limits }

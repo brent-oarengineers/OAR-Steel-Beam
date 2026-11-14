@@ -3,8 +3,9 @@
 Each version that reaches `main` is built, tested and published automatically as a GitHub Release.
 The calc sheet shows the version it was calculated with (title block, under the green bar).
 
-## v0.8.4 – portrait option for the Review loads PDF
+## v0.8.4 – Review loads: portrait PDF option, deflection limit line
 - **Portrait** tick box beside Save PDF / Print… in the Review loads window: ticked, the page is A4 portrait (taller diagrams, to sit with the portrait calc sheets); unticked it stays landscape. Text prints the same size either way; long load labels shorten to fit the narrower page.
+- **Deflection limit line** (tick box *Deflection limit*, on by default): for the cases that have a limit in the Serviceability Criteria table, the deflection diagram gets a dashed red line at the limit with its value and how much of it is used, e.g. `limit L/300 = 20.0 mm · 40% used`. One line per span (L = that span) and one over an overhang (L = 2 × overhang), drawn on the side the beam deflects to; where the max-mm cap governs it says so. Applies to G (Δg), Q (Δq), G + ψl·Q, G + ψs·Q and the wind serviceability cases (Δws). Strength combinations and unfactored wind cases have no limit, so no line.
 - Add-in update only.
 
 ## v0.8.3 – Review loads follows the active tab; flange restraints strip
