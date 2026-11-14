@@ -5,9 +5,9 @@ open OAR.Steel
 open Helpers
 
 let private ld case shape mag desc : Load = { Case = case; Shape = shape; Magnitude = mag; Description = desc; Dir = "" }
-let private all = { Loads = true; Reactions = true; Shear = true; Moment = true; Deflection = true; Restraints = true }
+let private all = { Loads = true; Reactions = true; Shear = true; Moment = true; Deflection = true; Restraints = true; Limit = true }
 let private data title beam loads items : ReviewData =
-    { Title = title; Beam = beam; Loads = loads; Items = items; Restraints = []; ContinuousTop = false; ContinuousBottom = false; RestraintsNote = "" }
+    { Title = title; Beam = beam; Loads = loads; Items = items; Restraints = []; ContinuousTop = false; ContinuousBottom = false; RestraintsNote = ""; Criteria = [] }
 let private rp x top bottom : RestraintPoint =
     { X = x; Ref = ""; Top = top; Bottom = bottom; AlphaMTop = None; AlphaMBottom = None; KlOverrideTop = None; KlOverrideBottom = None }
 let private texts (s: Scene) =
@@ -139,6 +139,29 @@ let tests =
               Expect.isFalse (hasText (Review.scene (waler ()) sol all 1000.0 760.0) "Flange restraints") "no table, no strip"
               let bad = Review.scene { waler () with RestraintsNote = "row 3: top flange code 'X'" } sol all 1000.0 760.0
               Expect.isTrue (hasText bad "Restraints table: row 3") "a table error is shown, not thrown"
+          }
+
+          test "deflection limit line: per span for the cases that have a limit, none for strength combinations" {
+              // Δg: span/500 capped at 5.5 mm -> span 1 (2,500): 5.00 mm; span 2 (3,000): 6.00 capped to 5.5
+              let crit = [ for r, m in [ 500.0, Some 5.5; 360.0, None; 300.0, None; 250.0, None; 1000.0, Some 1.5; 150.0, None ] -> { Ratio = r; MaxMm = m } ]
+              let d = { waler () with Criteria = crit }
+              let g = d.Items |> List.find (fun i -> i.Id = "G")
+              Expect.equal g.Limit (Some 0) "G uses the Δg row"
+              Expect.equal (d.Items |> List.find (fun i -> i.Id = "ULS6")).Limit None "no limit for a strength combination"
+              let sol = Review.solve d g
+              let s = Review.scene d sol all 1000.0 760.0
+              Expect.isTrue (hasText s "limit L/500 = 5.00 mm") "span 1"
+              Expect.isTrue (hasText s "limit 5.50 mm (max; L/500 = 6.00)") "span 2, capped by the max"
+              let c = sol.Cases.Head
+              let worst2 = sol.Xs |> List.filter (fun x -> x >= 2500.0) |> List.map (fun x -> Analysis.deflection c.Det c.All x) |> List.max
+              Expect.isTrue (hasText s (sprintf "%.0f%% used" (100.0 * worst2 / 5.5))) "utilisation of span 2"
+              let dashed (sc: Scene) =
+                  sc.Prims |> List.filter (function PLine(_, y1, _, y2, "#C0392B", _, true) when y1 = y2 -> true | _ -> false)
+              Expect.equal (dashed s).Length 2 "one line per span"
+              Expect.isEmpty (dashed (Review.scene d sol { all with Limit = false } 1000.0 760.0)) "tick box off"
+              Expect.isEmpty (dashed (Review.scene (waler ()) sol all 1000.0 760.0)) "no criteria on the sheet"
+              let solU = Review.solve d (d.Items |> List.find (fun i -> i.Id = "ULS6"))
+              Expect.isEmpty (dashed (Review.scene d solU all 1000.0 760.0)) "strength combination"
           }
 
           test "the picture is valid SVG text and stays inside the window" {

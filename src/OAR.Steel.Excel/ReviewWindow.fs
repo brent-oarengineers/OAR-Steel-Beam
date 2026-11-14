@@ -88,6 +88,13 @@ module private SheetInputs =
         | Some r when not (isNull r.ListObject) && not (isNull r.ListObject.DataBodyRange) -> norm r.ListObject.DataBodyRange.Value2
         | _ -> missing
 
+    /// The Serviceability Criteria limits: the span ratio and max mm columns of the DeflCriteria block
+    /// (case | description | – | ratio | max mm | factor); ExcelMissing when the sheet has none
+    let private criteria (ws: XlSheet) : obj =
+        match value ws "DeflCriteria" with
+        | :? (obj[,]) as a when Array2D.length2 a >= 5 -> box (Array2D.init (Array2D.length1 a) 2 (fun i j -> a.[i, j + 3]))
+        | _ -> missing
+
     /// The active combinations: the spilled range that starts at the first cell of the combinations block
     let private combos (ws: XlSheet) : obj =
         match tryRange ws "OAR_Flex_Combos" with
@@ -166,6 +173,7 @@ module private SheetInputs =
             (restraints ws)
             (value ws "Cont_Top")
             (value ws "Cont_Bot")
+            (criteria ws)
 
 /// The drawing surface: double-buffered so the hover line doesn't flicker
 type private Canvas() as this =
@@ -237,8 +245,8 @@ module private Printer =
         with _ ->
             false
 
-    /// A4 landscape, 12 mm margins, on whichever printer the document is set to
-    let setPage (doc: Printing.PrintDocument) =
+    /// A4 landscape or portrait, 12 mm margins, on whichever printer the document is set to
+    let setPage (portrait: bool) (doc: Printing.PrintDocument) =
         let a4 =
             [ for o in doc.PrinterSettings.PaperSizes -> box o ]
             |> List.tryPick (fun o ->
@@ -248,7 +256,7 @@ module private Printer =
         match a4 with
         | Some sz -> doc.DefaultPageSettings.PaperSize <- sz
         | None -> ()
-        doc.DefaultPageSettings.Landscape <- true
+        doc.DefaultPageSettings.Landscape <- not portrait
         doc.DefaultPageSettings.Margins <- Printing.Margins(47, 47, 47, 47)
 
     /// One page: job header, the picture scaled to the page width, footer.
@@ -278,9 +286,10 @@ module private Printer =
         let version = Reflection.Assembly.GetExecutingAssembly().GetName().Version.ToString(3)
         g.DrawString(sprintf "OAR Steel %s  ·  same engine and inputs as the calculation sheet" version, small, grey, left, top + height - 12.0f)
         g.DrawString(DateTime.Now.ToString("dd/MM/yyyy HH:mm"), small, grey, RectangleF(left, top + height - 12.0f, width, 14.0f), far)
-        // the picture: drawn 1,050 logical pixels wide, scaled to the space between header and footer
+        // the picture: drawn at about screen size for the page width (so the text prints the same size on a
+        // landscape or a portrait page), scaled to the space between header and footer
         let areaTop, areaHeight = top + 44.0f, height - 44.0f - 18.0f
-        let logicalWidth = 1050.0
+        let logicalWidth = float width * 0.97
         let k = float width / logicalWidth
         let scene = makeScene logicalWidth (float areaHeight / k)
         let state = g.Save()
@@ -312,9 +321,11 @@ type private ReviewForm(load: unit -> ReviewData, pageInfo: unit -> PageInfo) as
     let cbMoment = check "Moment"
     let cbDeflection = check "Deflection"
     let cbRestraints = check "Restraints"
+    let cbLimit = check "Deflection limit"
     let refresh = new Button(Text = "Refresh from sheet", AutoSize = true, Margin = Padding(12, 0, 0, 0))
     let savePdf = new Button(Text = "Save PDF", AutoSize = true, Margin = Padding(6, 0, 0, 0))
     let print = new Button(Text = "Print…", AutoSize = true, Margin = Padding(6, 0, 0, 0))
+    let cbPortrait = new CheckBox(Text = "Portrait", Checked = false, AutoSize = true, Margin = Padding(10, 3, 0, 0))
     let status =
         new Label(Dock = DockStyle.Bottom, Height = 26, TextAlign = ContentAlignment.MiddleLeft, Padding = Padding(10, 0, 0, 0),
                   BackColor = Color.FromArgb(244, 244, 244))
@@ -337,7 +348,8 @@ type private ReviewForm(load: unit -> ReviewData, pageInfo: unit -> PageInfo) as
           Shear = cbShear.Checked
           Moment = cbMoment.Checked
           Deflection = cbDeflection.Checked
-          Restraints = cbRestraints.Checked }
+          Restraints = cbRestraints.Checked
+          Limit = cbLimit.Checked }
 
     /// Rebuild the picture for the current case, tick boxes and window size
     let redraw () =
@@ -367,7 +379,7 @@ type private ReviewForm(load: unit -> ReviewData, pageInfo: unit -> PageInfo) as
         status.Text <- hint
         redraw ()
 
-    /// Print what is showing (the selected case and the ticked parts) on one A4 landscape page:
+    /// Print what is showing (the selected case and the ticked parts) on one A4 page, landscape or portrait:
     /// to a PDF file when `toPdf`, otherwise through the print dialog
     let output (toPdf: bool) =
         match data, solution with
@@ -385,7 +397,7 @@ type private ReviewForm(load: unit -> ReviewData, pageInfo: unit -> PageInfo) as
                         doc.PrinterSettings.PrinterName <- Printer.pdfPrinter
                         doc.PrinterSettings.PrintToFile <- true
                         doc.PrinterSettings.PrintFileName <- dialog.FileName
-                        Printer.setPage doc
+                        Printer.setPage cbPortrait.Checked doc
                         doc.Print()
                         status.Text <- "Saved " + dialog.FileName
                         try
@@ -396,9 +408,9 @@ type private ReviewForm(load: unit -> ReviewData, pageInfo: unit -> PageInfo) as
                     if toPdf then
                         MessageBox.Show(this, "The 'Microsoft Print to PDF' printer isn't installed on this computer, so pick a printer (or another PDF printer) instead.", "OAR Steel – Review loads") |> ignore
                     use dialog = new PrintDialog(Document = doc, UseEXDialog = true, AllowSomePages = false)
-                    Printer.setPage doc
+                    Printer.setPage cbPortrait.Checked doc
                     if dialog.ShowDialog(this) = DialogResult.OK then
-                        Printer.setPage doc
+                        Printer.setPage cbPortrait.Checked doc
                         doc.Print()
                         status.Text <- "Sent to " + doc.PrinterSettings.PrinterName
             with e ->
@@ -459,8 +471,8 @@ type private ReviewForm(load: unit -> ReviewData, pageInfo: unit -> PageInfo) as
         this.BackColor <- Color.White
         status.Text <- hint
         top.Controls.AddRange([| cbLoads :> Control; cbReactions :> Control; cbShear :> Control; cbMoment :> Control
-                                 cbDeflection :> Control; cbRestraints :> Control; refresh :> Control; savePdf :> Control
-                                 print :> Control |])
+                                 cbDeflection :> Control; cbLimit :> Control; cbRestraints :> Control; refresh :> Control; savePdf :> Control
+                                 print :> Control; cbPortrait :> Control |])
         this.Controls.Add canvas
         this.Controls.Add top
         this.Controls.Add status
@@ -472,7 +484,7 @@ type private ReviewForm(load: unit -> ReviewData, pageInfo: unit -> PageInfo) as
             match (if isNull e.Node then null else e.Node.Tag) with
             | :? ReviewItem as item -> select item
             | _ -> ())
-        for cb in [ cbLoads; cbReactions; cbShear; cbMoment; cbDeflection; cbRestraints ] do
+        for cb in [ cbLoads; cbReactions; cbShear; cbMoment; cbDeflection; cbRestraints; cbLimit ] do
             cb.CheckedChanged.Add(fun _ -> redraw ())
         refresh.Click.Add(fun _ -> reload ())
         savePdf.Click.Add(fun _ -> output true)

@@ -26,7 +26,10 @@ type ReviewItem =
       Combos: Combination list
       IsEnvelope: bool
       /// true when the deflection shown is a serviceability value (unfactored / SLS loads)
-      Service: bool }
+      Service: bool
+      /// row of the Serviceability Criteria table that applies to this case (0 = Δg, 1 = Δg+ψl·q, 2 = Δg+ψs·q,
+      /// 3 = Δq, 5 = Δws); None for wind cases and strength combinations, which have no deflection limit
+      Limit: int option }
 
 type ReviewView =
     { Loads: bool
@@ -35,7 +38,9 @@ type ReviewView =
       Moment: bool
       Deflection: bool
       /// the flange restraints strip (F / P / L / U / C above and below a beam line)
-      Restraints: bool }
+      Restraints: bool
+      /// the deflection limit line on the deflection diagram, for the cases that have one
+      Limit: bool }
 
 type ReviewData =
     { Title: string
@@ -48,7 +53,9 @@ type ReviewData =
       ContinuousTop: bool
       ContinuousBottom: bool
       /// why the restraints could not be read, "" when they were
-      RestraintsNote: string }
+      RestraintsNote: string
+      /// the Serviceability Criteria table (5 or 6 rows; empty when the sheet has none or it could not be read)
+      Criteria: DeflectionCriterion list }
 
 /// One combination solved: the beam made determinate (interior reactions added as point loads)
 type ReviewCase =
@@ -113,17 +120,20 @@ module Review =
             loads
             |> List.exists (fun l -> l.Case = lc && l.Magnitude <> 0.0 && (WindDir.normalise l.Dir = "" || WindDir.same l.Dir d))
         let dirs = WindDir.distinct (loads |> List.filter (fun l -> LoadCase.isWind l.Case) |> List.map (fun l -> l.Dir))
-        let one group service (c: Combination) : ReviewItem =
+        let item group service limit (c: Combination) : ReviewItem =
             { Id = c.Id
               Group = group
               Description = c.Description
               Combos = [ c ]
               IsEnvelope = false
-              Service = service }
+              Service = service
+              Limit = limit }
+        let one group service (c: Combination) = item group service None c
         let windCases = [ Wd; Wid; Wu; Wiu ] |> List.filter has
         let cases =
             [ for lc in [ G; Q ] do
-                  if has lc then yield one "Load cases" true { Combination.single lc with Description = caseTitle lc }
+                  if has lc then
+                      yield item "Load cases" true (Some(if lc = G then 0 else 3)) { Combination.single lc with Description = caseTitle lc }
               if dirs.IsEmpty then
                   for lc in windCases do
                       yield one "Load cases" false { Combination.single lc with Description = caseTitle lc }
@@ -135,11 +145,11 @@ module Review =
         let sls =
             [ if has Q then
                   yield
-                      one "Serviceability" true
+                      item "Serviceability" true (Some 1)
                           { Combination.ofFactors "G+ψl·Q" [ G, 1.0; Q, psiL ] with
                               Description = sprintf "Long term: G + %gQ (Q on the whole beam)" psiL }
                   yield
-                      one "Serviceability" true
+                      item "Serviceability" true (Some 2)
                           { Combination.ofFactors "G+ψs·Q" [ G, 1.0; Q, psiS ] with
                               Description = sprintf "Short term: G + %gQ (Q on the whole beam)" psiS }
               if windFactor > 0.0 then
@@ -148,7 +158,7 @@ module Review =
                           if lcs |> List.exists (fun lc -> hasIn lc d) then
                               let id = if d = "" then name else name + " " + d
                               yield
-                                  one "Serviceability" true
+                                  item "Serviceability" true (Some 5)
                                       { Combination.ofFactors id (lcs |> List.map (fun lc -> lc, windFactor)) with
                                           Dir = d
                                           Description =
@@ -165,7 +175,8 @@ module Review =
                     Description = sprintf "Envelope of the %d active strength combinations (incl. patterns)" strength.Length
                     Combos = strength
                     IsEnvelope = true
-                    Service = false } ]
+                    Service = false
+                    Limit = None } ]
         cases @ sls @ envelope @ (combos |> List.map (one "Combinations" false))
 
     let private solveCase (beam: Beam) (loads: Load list) (c: Combination) : ReviewCase =
@@ -542,26 +553,49 @@ module Review =
 
         // ---- diagrams
         let panels =
-            [ if view.Shear then yield "Shear (kN)", shearAt, false, "#5B7A8C"
-              if view.Moment then yield "Bending moment (kN·m, sagging plotted down)", momentAt, true, "#465A52"
+            [ if view.Shear then yield "Shear (kN)", shearAt, false, "#5B7A8C", false
+              if view.Moment then yield "Bending moment (kN·m, sagging plotted down)", momentAt, true, "#465A52", false
               if view.Deflection then
                   yield
                       (if item.Service then "Deflection (mm, plotted downward)"
                        else "Deflection under these loads (mm, plotted downward) – not a serviceability value"),
                       deflAt,
                       true,
-                      "#8A6D3B" ]
+                      "#8A6D3B",
+                      true ]
         let y = y
         if not panels.IsEmpty && not sol.Cases.IsEmpty then
             let hp = max 70.0 ((height - 10.0 - y) / float panels.Length)
             panels
-            |> List.iteri (fun k (title, f, plotDown, colour) ->
+            |> List.iteri (fun k (title, f, plotDown, colour, isDeflection) ->
                 let yt = y + hp * float k
                 add (PText(14.0, yt + 9.0, title, ink, 9.0, Left, true))
                 let ya, yb = yt + 34.0, yt + hp - 20.0
                 let pts = sol.Xs |> List.map (fun x -> x, range sol f x)
-                let vmin = min 0.0 (pts |> List.map (fun (_, (lo, _)) -> lo) |> List.min)
-                let vmax = max 0.0 (pts |> List.map (fun (_, (_, hi)) -> hi) |> List.max)
+                // deflection limit of this case, one length per span (and the overhang): (from, to, signed limit mm, text).
+                // Drawn on the side the beam deflects to in that length.
+                let limits =
+                    match item.Limit with
+                    | Some i when isDeflection && view.Limit && i < data.Criteria.Length ->
+                        let crit = data.Criteria.[i]
+                        let lengths =
+                            (Beam.spans beam |> List.map (fun (a, b) -> a, b, b - a, "L"))
+                            @ (if beam.SupportB < l - 1e-6 then [ beam.SupportB, l, 2.0 * (l - beam.SupportB), "2 × overhang" ] else [])
+                            @ (if beam.SupportA > 1e-6 then [ 0.0, beam.SupportA, 2.0 * beam.SupportA, "2 × overhang" ] else [])
+                        [ for a, b, len, name in lengths do
+                              let lim = Serviceability.limit len crit
+                              let inside = pts |> List.filter (fun (x, _) -> x >= a - 1e-6 && x <= b + 1e-6) |> List.map (fun (_, (_, v)) -> v)
+                              let worst = if inside.IsEmpty then 0.0 else inside |> List.maxBy abs
+                              let capped = lim < len / crit.Ratio - 1e-9
+                              let text =
+                                  if capped then sprintf "limit %s mm (max; %s/%g = %s)" (fmt lim) name crit.Ratio (fmt (len / crit.Ratio))
+                                  else sprintf "limit %s/%g = %s mm" name crit.Ratio (fmt lim)
+                              let used = if lim > 0.0 then sprintf "  ·  %.0f%% used" (100.0 * abs worst / lim) else ""
+                              yield a, b, (if worst < 0.0 then -lim else lim), text + used ]
+                    | _ -> []
+                let limitValues = limits |> List.map (fun (_, _, v, _) -> v)
+                let vmin = List.fold min (min 0.0 (pts |> List.map (fun (_, (lo, _)) -> lo) |> List.min)) limitValues
+                let vmax = List.fold max (max 0.0 (pts |> List.map (fun (_, (_, hi)) -> hi) |> List.max)) limitValues
                 let span = if vmax - vmin < 1e-9 then 1.0 else vmax - vmin
                 let py (v: float) =
                     let t = (v - vmin) / span
@@ -584,7 +618,8 @@ module Review =
                 else
                     curve snd
                 add (PLine(px 0.0, zero, px l, zero, beamColour, 1.0, false))
-                // peak labels: the largest and smallest values, each on the outer side of the curve
+                // peak labels: the largest and smallest values, each on the outer side of the curve.
+                // Returns the box the label takes up (left, right, y) so the limit labels can keep clear of it.
                 let label (x: float, v: float) =
                     if abs v > 1e-6 * (abs vmax + abs vmin + 1e-9) then
                         let yv = py v
@@ -592,11 +627,33 @@ module Review =
                         let text = sprintf "%s  @ %.2f m" (fmt v) (x / 1000.0)
                         let half = textWidth 8.5 text / 2.0
                         let cx = max (8.0 + half) (min (width - 8.0 - half) (px x))
-                        add (PText(cx, (if yv < zero then yv - 10.0 else yv + 10.0), text, ink, 8.5, Centre, false))
+                        let ty = if yv < zero then yv - 10.0 else yv + 10.0
+                        add (PText(cx, ty, text, ink, 8.5, Centre, false))
+                        [ cx - half, cx + half, ty ]
+                    else
+                        []
                 let hi = pts |> List.map (fun (x, (_, h)) -> x, h) |> List.maxBy snd
                 let lo = pts |> List.map (fun (x, (lw, _)) -> x, lw) |> List.minBy snd
-                if snd hi > 0.0 then label hi
-                if snd lo < 0.0 then label lo
+                let taken = (if snd hi > 0.0 then label hi else []) @ (if snd lo < 0.0 then label lo else [])
+                // limit lines, labelled at the start of the length (or its end, or with a shorter text) where free
+                for a, b, v, text in limits do
+                    let yl = py v
+                    add (PLine(px a, yl, px b, yl, red, 1.3, true))
+                    let ty = if yl < zero then yl - 9.0 else yl + 9.0
+                    let room = px b - px a - 12.0
+                    let free (left: float) (right: float) =
+                        taken |> List.forall (fun (l0, r0, y0) -> right < l0 - 4.0 || left > r0 + 4.0 || abs (y0 - ty) > 11.0)
+                    let short = text.Substring(0, max 0 (text.IndexOf "  ·  "))
+                    let shortest = "limit " + short.Substring(short.LastIndexOf "= " + 2)
+                    let options =
+                        [ for t in [ text; short; shortest ] do
+                              let w = textWidth 8.5 t
+                              if t <> "" && w <= room then
+                                  yield t, px a + 6.0, Left, px a + 6.0, px a + 6.0 + w
+                                  yield t, px b - 6.0, Right, px b - 6.0 - w, px b - 6.0 ]
+                    match options |> List.tryFind (fun (_, _, _, left, right) -> free left right) with
+                    | Some(t, x, align, _, _) -> add (PText(x, ty, t, red, 8.5, align, false))
+                    | None -> ()
                 if vmax - vmin < 1e-9 then add (PText((x0 + x1) / 2.0, zero - 10.0, "zero", muted, 8.5, Centre, false)))
 
         { Width = width
