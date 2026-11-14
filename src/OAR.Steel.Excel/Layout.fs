@@ -238,17 +238,17 @@ module Layout =
                     status a ("Clear inputs failed: " + why)
         | _ -> status a "Clear inputs: the active sheet is not an OAR steel beam sheet (v0.3 or later)"
 
-    /// OAR > Review loads: the load / reaction / diagram window for the active beam sheet
+    /// OAR > View graphics: the load / reaction / diagram window for the active beam sheet
     let reviewActiveSheet () =
         let a = app ()
         try
             match a.ActiveSheet with
             | :? Worksheet as ws ->
                 ReviewWindow.show a.Hwnd ws
-                status a "Review loads – window opened (Refresh from sheet re-reads the inputs)"
-            | _ -> status a "Review loads: the active sheet is not a worksheet"
+                status a "View graphics – window opened (Refresh from sheet re-reads the inputs)"
+            | _ -> status a "View graphics: the active sheet is not a worksheet"
         with e ->
-            status a ("Review loads failed: " + e.Message)
+            status a ("View graphics failed: " + e.Message)
 
     [<ExcelCommand(Name = "OAR.ReviewLoads", Description = "Open the load review window for the active steel beam sheet")>]
     let reviewLoadsCommand () = reviewActiveSheet ()
@@ -272,7 +272,7 @@ module Layout =
 
     let private onSheetChange (sh: obj) =
         clearStatus ()
-        // an open Review loads window follows the edit (any sheet: a linked reaction may sit on another tab)
+        // an open View graphics window follows the edit (any sheet: a linked reaction may sit on another tab)
         safely ReviewWindow.sheetChanged
         match sh with
         | :? Worksheet as ws -> safely (fun () -> restoreSheet ws)
@@ -283,7 +283,7 @@ module Layout =
             let a = app ()
             a.add_WorkbookBeforePrint(AppEvents_WorkbookBeforePrintEventHandler(fun wb _cancel -> onBeforePrint wb))
             a.add_SheetChange(AppEvents_SheetChangeEventHandler(fun sh _target -> onSheetChange sh))
-            // an open Review loads window follows the beam tab in front
+            // an open View graphics window follows the beam tab in front
             a.add_SheetActivate(AppEvents_SheetActivateEventHandler(fun sh -> safely (fun () -> ReviewWindow.sheetActivated sh)))
             a.add_WorkbookActivate(
                 AppEvents_WorkbookActivateEventHandler(fun wb -> safely (fun () -> ReviewWindow.sheetActivated wb.ActiveSheet))
@@ -312,7 +312,7 @@ type Ribbon() =
                   screentip="Hide unused rows in the combination, load, restraint and result tables on this sheet. Printing does this automatically and shows the rows again afterwards." />
           <button id="oarShowAll" label="Show all rows" onAction="OnShowAll"
                   screentip="Unhide every hidden row on this sheet." />
-          <button id="oarReview" label="Review loads" onAction="OnReview"
+          <button id="oarReview" label="View graphics" onAction="OnReview"
                   screentip="Draw the beam with the loads of any load case or factored combination, the support reactions, and the shear, moment and deflection diagrams." />
           <separator id="oarSep1" />
           <button id="oarClear" label="Clear inputs" onAction="OnClear"

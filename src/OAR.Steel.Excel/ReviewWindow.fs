@@ -1,4 +1,4 @@
-/// OAR > Review loads: a window that draws the beam with the loads of any load case or combination
+/// OAR > View graphics: a window that draws the beam with the loads of any load case or combination
 /// (factored), the support reactions, and the shear, moment and deflection diagrams.
 ///
 /// All the engineering and the picture itself come from OAR.Steel.Core (Review module). This file only
@@ -157,7 +157,7 @@ module private SheetInputs =
             | Some r -> norm r.Value2
             | None -> value ws "Span"
         if Object.ReferenceEquals(size, missing) || Object.ReferenceEquals(span, missing) then
-            failwith "this isn't an OAR steel beam sheet, or its layout is too old for Review loads (needs v0.3.6 or later)"
+            failwith "this isn't an OAR steel beam sheet, or its layout is too old for View graphics (needs v0.3.6 or later)"
         Functions.reviewData
             (text (value ws "BeamRef"))
             size
@@ -406,7 +406,7 @@ type private ReviewForm(load: unit -> ReviewData, pageInfo: unit -> PageInfo) as
                             ()
                 else
                     if toPdf then
-                        MessageBox.Show(this, "The 'Microsoft Print to PDF' printer isn't installed on this computer, so pick a printer (or another PDF printer) instead.", "OAR Steel – Review loads") |> ignore
+                        MessageBox.Show(this, "The 'Microsoft Print to PDF' printer isn't installed on this computer, so pick a printer (or another PDF printer) instead.", "OAR Steel – Graphics") |> ignore
                     use dialog = new PrintDialog(Document = doc, UseEXDialog = true, AllowSomePages = false)
                     Printer.setPage cbPortrait.Checked doc
                     if dialog.ShowDialog(this) = DialogResult.OK then
@@ -414,7 +414,7 @@ type private ReviewForm(load: unit -> ReviewData, pageInfo: unit -> PageInfo) as
                         doc.Print()
                         status.Text <- "Sent to " + doc.PrinterSettings.PrinterName
             with e ->
-                MessageBox.Show(this, "Couldn't print: " + e.Message, "OAR Steel – Review loads", MessageBoxButtons.OK, MessageBoxIcon.Warning) |> ignore
+                MessageBox.Show(this, "Couldn't print: " + e.Message, "OAR Steel – Graphics", MessageBoxButtons.OK, MessageBoxIcon.Warning) |> ignore
         | _ -> ()
 
     /// Read the sheet again and fill the list, keeping the selected case if it is still there
@@ -427,7 +427,7 @@ type private ReviewForm(load: unit -> ReviewData, pageInfo: unit -> PageInfo) as
             let d = load ()
             data <- Some d
             problem <- ""
-            this.Text <- "OAR Steel – Review loads – " + d.Title
+            this.Text <- "OAR Steel – Graphics – " + d.Title
             tree.BeginUpdate()
             tree.Nodes.Clear()
             let mutable first: TreeNode = null
@@ -462,7 +462,7 @@ type private ReviewForm(load: unit -> ReviewData, pageInfo: unit -> PageInfo) as
             redraw ()
 
     do
-        this.Text <- "OAR Steel – Review loads"
+        this.Text <- "OAR Steel – Graphics"
         this.Font <- new Font("Segoe UI", 9.0f)
         this.ClientSize <- Size(1220, 860)
         this.MinimumSize <- Size(820, 560)

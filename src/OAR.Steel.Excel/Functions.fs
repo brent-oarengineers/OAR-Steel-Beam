@@ -9,7 +9,7 @@ open OAR.Steel
 [<Literal>]
 let Category = "OAR Steel"
 
-let private version = "0.8.4"
+let private version = "0.8.5"
 
 // ---------- conversion helpers ----------
 
@@ -689,7 +689,7 @@ let oarLoadDiagram
 
 // ---------- load review window ----------
 
-/// Everything the OAR > Review loads window needs, from the same sheet values the worksheet functions take
+/// Everything the OAR > View graphics window needs, from the same sheet values the worksheet functions take
 /// (so the window shows exactly what the sheet calculates). Raises a readable error if an input is bad.
 let reviewData
     (beamRef: string)
