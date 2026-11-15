@@ -20,31 +20,23 @@ Release folder: `X:\Programs\Spreadsheets\Add-Ins\OAR Steel\` (also found as
 `\\LOA-TrueNAS\Data\Programs\Spreadsheets\Add-Ins\OAR Steel\`, so a different drive letter on a PC doesn't matter).
 
 ## How a PC stays up to date
-Excel registers the **OAR Steel Loader** (`OAR.Steel-Loader64.xll`), not the add-in itself. Every time Excel starts the
-loader:
-1. reads `VERSION.txt` on the share – the approved version;
-2. copies that version's add-in to `%LOCALAPPDATA%\OAR\versions\v<version>\` if it isn't there yet;
-3. loads it. The status bar says "OAR Steel updated to v…" the first time a new version loads.
+OAR Steel is loaded by the shared **OAR Loader** (repo `OAR-Excel-Loader`, release folder
+`Add-Ins\OAR Loader\`), which does the same for OAR Timber and OAR Concrete. Each time Excel starts it reads
+`VERSION.txt` in `Add-Ins\OAR Steel\`, copies that version to `%LOCALAPPDATA%\OAR\addins\OAR Steel\v<version>\`
+if it isn't on the PC yet, and loads it. Details, and the rules every OAR add-in follows, are in that repo's
+`README.md` and `ADDIN-CONTRACT.md`. Log: `%LOCALAPPDATA%\OAR\loader.log`.
 
-Each version has its own folder, so a second Excel window still open on the old version doesn't block anything.
-The last three versions are kept. If the share can't be reached within a few seconds (laptop out of the office), the
-version used last time loads. Log: `%LOCALAPPDATA%\OAR\loader.log`.
-
-**Rolling back:** extract the older release zip over the share. Its `VERSION.txt` makes it the approved version again,
-and PCs load it at their next Excel start.
+**Rolling back:** extract the older release zip over the share; its `VERSION.txt` makes it the approved version again.
 
 ## Installing on a PC (once per user)
 1. Close Excel.
-2. Double-click `X:\Programs\Spreadsheets\Add-Ins\OAR Steel\Install-OARSteel.cmd`. It copies the loader to
-   `%LOCALAPPDATA%\OAR\` and registers it with Excel. On a PC set up the old way it swaps the old registration for
-   the loader.
+2. Double-click `X:\Programs\Spreadsheets\Add-Ins\OAR Loader\Install-OARAddins.cmd`. It registers the loader and
+   removes the old OAR Steel registration. (`Add-Ins\OAR Steel\Install-OARSteel.cmd`, and any old Startup shortcut
+   to it, now just runs that.)
 3. Open Excel and check `=OAR.VERSION()`.
 
-A Startup-folder shortcut to the script from the old set-up can stay; it just keeps the loader itself current. It is no
-longer needed for add-in updates. Install log: `%LOCALAPPDATA%\OAR\install.log`.
-
 Brent's development PC: if Excel has an OAR Steel add-in registered from somewhere else (a build from the repo), the
-script leaves it alone and doesn't add the loader.
+installer leaves it alone and the loader skips OAR Steel, so it is never loaded twice.
 
 ## Calc records
 The workbook recalculates with whatever add-in version is installed when it is opened. The issued PDF is the

@@ -7,8 +7,6 @@ Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "OAR.Steel.Core", "src\OAR.S
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "OAR.Steel.Excel", "src\OAR.Steel.Excel\OAR.Steel.Excel.fsproj", "{0D89E6F9-59E7-522F-9524-8D721CCC832C}"
 EndProject
-Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "OAR.Steel.Loader", "src\OAR.Steel.Loader\OAR.Steel.Loader.fsproj", "{7B1E4C2A-5D3F-4A8B-9C6E-2F1A0B3C4D5E}"
-EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "OAR.Steel.Tests", "tests\OAR.Steel.Tests\OAR.Steel.Tests.fsproj", "{CBB3BECC-2112-5A44-8C09-5213E9413F9E}"
 EndProject
 Global

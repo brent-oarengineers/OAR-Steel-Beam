@@ -3,13 +3,12 @@
 Each version that reaches `main` is built, tested and published automatically as a GitHub Release.
 The calc sheet shows the version it was calculated with (title block, under the green bar).
 
-## v0.8.6 – updates at every Excel start
-- **New: OAR Steel Loader.** Excel now registers a small loader add-in instead of the add-in itself. Every time Excel starts, the loader checks the office share for the approved version (`VERSION.txt` in `Add-Ins\OAR Steel`), copies it into its own folder under `%LOCALAPPDATA%\OAR\versions\` if it isn't on the PC yet, and loads it. No logging out and no script to run after a release: close and reopen Excel. The status bar says "OAR Steel updated to vX" the first time a new version loads.
-- Each version sits in its own folder, so an Excel window still open on the old version never blocks the update. The last three versions are kept; older ones are removed.
-- Away from the office (share not reachable within a few seconds) the version used last time loads.
-- Rolling back: extract an older release zip over the share; its `VERSION.txt` makes that version the approved one again.
-- **One-off step per PC**: with Excel closed, double-click `Install-OARSteel.cmd` on the share once. It swaps the old registration for the loader. A development registration (an add-in built from the repo) is left alone.
-- Loader log: `%LOCALAPPDATA%\OAR\loader.log`. No change to the template or the calculations.
+## v0.8.6 – updates at every Excel start (OAR Loader)
+- OAR Steel is now loaded by the shared **OAR Loader** (new repo `OAR-Excel-Loader`), which also loads OAR Timber and OAR Concrete. Each time Excel starts it loads the approved OAR Steel version from the office share, copying it to the PC first when it's new. No logging out and no script to run after a release: close and reopen Excel.
+- The release zip now includes `VERSION.txt` (the approved version, read by the loader).
+- `Install-OARSteel.cmd` now just runs the loader's installer, so an old Startup shortcut to it does no harm.
+- **One-off per PC** (after the loader's first release is on the share): with Excel closed, double-click `Add-Ins\OAR Loader\Install-OARAddins.cmd`.
+- No change to the add-in, the template or the calculations.
 
 ## v0.8.5 – ribbon button renamed to View graphics
 - **OAR > Review loads** is now **OAR > View graphics** (it shows moments, shear, deflection and reactions, not just loads). Window title and messages renamed to match; nothing else changes.

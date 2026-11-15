@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<DnaLibrary Name="OAR Steel Loader" RuntimeVersion="v4.0" xmlns="http://schemas.excel-dna.net/addin/2020/07/dnalibrary">
-  <ExternalLibrary Path="OAR.Steel.Loader.dll" ExplicitExports="false" LoadFromBytes="true" Pack="true" IncludePdb="false" />
-  <Reference Path="FSharp.Core.dll" Pack="true" />
-</DnaLibrary>
