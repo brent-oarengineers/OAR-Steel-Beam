@@ -44,6 +44,11 @@ module Logic =
         let newest = local |> List.sortDescending |> List.truncate keep
         local |> List.filter (fun v -> not (List.contains v newest) && Some v <> inUse)
 
+module private Native =
+    /// Windows' own delete: .NET Framework refuses the "file:stream" form of a path
+    [<System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)>]
+    extern bool DeleteFile(string lpFileName)
+
 module private Run =
 
     let shares =
@@ -113,6 +118,9 @@ module private Run =
             Directory.CreateDirectory dir |> ignore
             let tmp = target + ".copying"
             File.Copy(source, tmp, true)
+            // a release zip downloaded from GitHub and extracted in Explorer marks its files as "from the
+            // internet" (a Zone.Identifier stream, which the copy carries along); Excel blocks such add-ins
+            Native.DeleteFile(tmp + ":Zone.Identifier") |> ignore
             File.Move(tmp, target)
             log (sprintf "copied v%O from %s" v source)
 
@@ -168,6 +176,7 @@ module private Run =
                 // nothing in the version folders: the copy the old login script installed, if it is there
                 let legacy = Path.Combine(root, fileName)
                 if File.Exists legacy then
+                    Native.DeleteFile(legacy + ":Zone.Identifier") |> ignore
                     ExcelIntegration.RegisterXLL legacy |> ignore
                     log (sprintf "loaded %s (no version folders yet)" legacy)
                 else
