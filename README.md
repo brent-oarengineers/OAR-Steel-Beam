@@ -106,9 +106,9 @@ row whose key cell shows nothing; the next edit on that sheet unhides them. The 
 *Tidy for print* (to preview) and *Show all rows*. To make another block collapse, add a name
 `OAR_Flex_<anything>` (scope: the sheet) over its key column.
 
-## 3b. Review loads window
+## 3b. View graphics window
 
-**OAR > Review loads** opens a window for the active beam sheet: the beam drawn to scale with the loads of
+**OAR > View graphics** opens a window for the active beam sheet: the beam drawn to scale with the loads of
 any load case, serviceability case or factored combination (pick it in the list on the left), the support
 reactions, and the shear, moment and deflection diagrams, each switched on or off with a tick box. Moving
 the mouse along the beam shows x, V, M and δ at that point. *Envelope* gives the max and min over the

@@ -1,6 +1,6 @@
 namespace OAR.Steel
 
-/// Load review: the picture behind OAR > Review loads. Everything here is plain data (lines, polygons and
+/// Load review: the picture behind OAR > View graphics. Everything here is plain data (lines, polygons and
 /// text in pixel coordinates) so it can be tested without Excel; the add-in window only paints it.
 
 type Align =
