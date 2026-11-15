@@ -1,12 +1,14 @@
 # OAR Steel add-in: install / update for the current user.
 #
-# Copies the approved add-in from the office share to %LOCALAPPDATA%\OAR and, the first time only,
-# registers it with Excel so it loads automatically. Safe to run at every login (via Install-OARSteel.cmd
-# in the Startup folder): it only copies when the share has a newer file, and skips quietly if Excel
-# has the add-in open.
+# Installs the OAR Steel Loader in %LOCALAPPDATA%\OAR and, the first time only, registers it with Excel.
+# The loader then does the updating: every time Excel starts it fetches the approved OAR Steel version from
+# the office share (when newer) and loads it - no logging out, no script to run after a release.
+#
+# Run once by double-clicking Install-OARSteel.cmd (Excel closed). Running it again is harmless; a shortcut
+# in the Startup folder from the old set-up can stay (it just keeps the loader itself up to date).
 #
 # Settings: the first folder in $Shares that exists is used. The UNC path works even if a PC maps
-# the NAS to a different drive letter. Change these if the release folder moves.
+# the NAS to a different drive letter. Change these (and in Loader.fs) if the release folder moves.
 
 $Shares = @(
     '\\LOA-TrueNAS\Data\Programs\Spreadsheets\Add-Ins\OAR Steel',
@@ -28,13 +30,13 @@ try {
 
 if (-not $Share) { Log "release folder not reachable: $($Shares -join ' | ')"; exit 0 }
 
-$fileName = "OAR.Steel-AddIn$bits.xll"
+$fileName = "OAR.Steel-Loader$bits.xll"
 $source   = Join-Path $Share $fileName
 $target   = Join-Path $Local $fileName
 
-if (-not (Test-Path $source)) { Log "file missing: $source"; exit 0 }
+if (-not (Test-Path $source)) { Log "file missing: $source (release older than v0.8.6?)"; exit 0 }
 
-# copy when missing or the share copy is newer
+# copy the loader when missing or the share copy is newer
 $needCopy = (-not (Test-Path $target)) -or ((Get-Item $source).LastWriteTimeUtc -gt (Get-Item $target).LastWriteTimeUtc)
 if ($needCopy) {
     try {
@@ -42,17 +44,33 @@ if ($needCopy) {
         Unblock-File -Path $target -ErrorAction SilentlyContinue
         Log "updated $fileName from $source"
     } catch {
-        Log "could not update $fileName (Excel probably has it open) - will retry next login"
+        Log "could not update $fileName (Excel probably has it open) - will retry next time"
     }
 }
 
-# register with Excel once (Excel 2016 / 2019 / 2021 / 365 all use version key 16.0)
+# register the loader with Excel (Excel 2016 / 2019 / 2021 / 365 all use version key 16.0):
+# - already registered: nothing to do
+# - the add-in itself registered by the old script (%LOCALAPPDATA%\OAR\OAR.Steel-AddIn..): swap it for the loader
+# - an OAR Steel add-in registered from anywhere else (a development build): leave it alone
+# - nothing yet: add the loader
 $key = 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options'
 if (-not (Test-Path $key)) { New-Item -Path $key -Force | Out-Null }
-$props   = Get-ItemProperty -Path $key
-$openVals = $props.PSObject.Properties | Where-Object { $_.Name -match '^OPEN\d*$' }
-$already = $openVals | Where-Object { $_.Value -like "*OAR.Steel*AddIn*" }
-if (-not $already) {
+$props    = Get-ItemProperty -Path $key
+$openVals = @($props.PSObject.Properties | Where-Object { $_.Name -match '^OPEN\d*$' })
+$oar      = @($openVals | Where-Object { $_.Value -like '*OAR.Steel*' })
+$loader   = $oar | Where-Object { $_.Value -like '*OAR.Steel-Loader*' }
+$oldLocal = $oar | Where-Object { $_.Value -like "*$Local\OAR.Steel-AddIn*" }
+
+if ($loader) {
+    # nothing to do
+} elseif ($oldLocal) {
+    foreach ($o in $oldLocal) {
+        Set-ItemProperty -Path $key -Name $o.Name -Value "/R `"$target`""
+        Log "replaced $($o.Value) with the loader ($($o.Name))"
+    }
+} elseif ($oar.Count -gt 0) {
+    Log "OAR Steel registered from elsewhere ($($oar[0].Value)) - development PC, left alone"
+} else {
     $i = 0
     while ($true) {
         $name = if ($i -eq 0) { 'OPEN' } else { "OPEN$i" }

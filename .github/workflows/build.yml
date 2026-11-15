@@ -29,6 +29,9 @@ jobs:
       - name: Build add-in
         run: dotnet build src/OAR.Steel.Excel -c Release
 
+      - name: Build loader
+        run: dotnet build src/OAR.Steel.Loader -c Release
+
       - name: Collect release files
         shell: pwsh
         run: |
@@ -39,6 +42,12 @@ jobs:
           New-Item -ItemType Directory -Force dist | Out-Null
           Copy-Item "$pub/OAR.Steel.Excel-AddIn64-packed.xll" "dist/OAR.Steel-AddIn64.xll"
           Copy-Item "$pub/OAR.Steel.Excel-AddIn-packed.xll"   "dist/OAR.Steel-AddIn32.xll"
+          $lpub = "src/OAR.Steel.Loader/bin/Release/net48/publish"
+          if (-not (Test-Path "$lpub/OAR.Steel.Loader-AddIn64-packed.xll")) { $lpub = "src/OAR.Steel.Loader/bin/Release/net48" }
+          Copy-Item "$lpub/OAR.Steel.Loader-AddIn64-packed.xll" "dist/OAR.Steel-Loader64.xll"
+          Copy-Item "$lpub/OAR.Steel.Loader-AddIn-packed.xll"   "dist/OAR.Steel-Loader32.xll"
+          # the approved version, read by the loader at every Excel start
+          $version | Out-File -Encoding ascii -NoNewline dist/VERSION.txt
           Copy-Item "template/OAR - Steel Beam Design.xlsx"   "dist/OAR - Steel Beam Design.xlsx"
           Copy-Item "deploy/Install-OARSteel.ps1"              "dist/"
           Copy-Item "deploy/Install-OARSteel.cmd"              "dist/"
@@ -58,7 +67,7 @@ jobs:
           $addin = "$root/Add-Ins/OAR Steel"
           $hist  = "$addin/Releases/v$env:VERSION"
           New-Item -ItemType Directory -Force $hist, "$root/Calc Templates" | Out-Null
-          Copy-Item dist/OAR.Steel-AddIn64.xll, dist/OAR.Steel-AddIn32.xll, dist/Install-OARSteel.cmd, dist/Install-OARSteel.ps1, dist/CHANGELOG.md, dist/RELEASE_NOTES.md $addin
+          Copy-Item dist/OAR.Steel-AddIn64.xll, dist/OAR.Steel-AddIn32.xll, dist/OAR.Steel-Loader64.xll, dist/OAR.Steel-Loader32.xll, dist/VERSION.txt, dist/Install-OARSteel.cmd, dist/Install-OARSteel.ps1, dist/CHANGELOG.md, dist/RELEASE_NOTES.md $addin
           Copy-Item dist/OAR.Steel-AddIn64.xll, dist/OAR.Steel-AddIn32.xll $hist
           Copy-Item "dist/OAR - Steel Beam Design.xlsx" "$root/Calc Templates/"
           Compress-Archive -Path "$root/*" -DestinationPath "dist/OAR-Steel-v$env:VERSION.zip" -Force

@@ -1,4 +1,4 @@
 @echo off
-rem OAR Steel add-in: install / update. Put a shortcut to this file in each user's Startup folder
-rem (Win+R, shell:startup) or run it once by double-clicking.
+rem OAR Steel add-in: install. Double-click once per user with Excel closed. After that the add-in updates
+rem itself every time Excel starts (the OAR Steel Loader fetches the approved version from the office share).
 powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%~dp0Install-OARSteel.ps1"
