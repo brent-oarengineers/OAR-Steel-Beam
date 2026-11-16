@@ -3,6 +3,10 @@
 Each version that reaches `main` is built, tested and published automatically as a GitHub Release.
 The calc sheet shows the version it was calculated with (title block, under the green bar).
 
+## v0.8.7 – restraint dimensions in View graphics
+- The flange restraints strip now has dimension lines: the distances between the top flange restraints above the codes, and between the bottom flange restraints below them, including to the beam ends. These are the segment lengths the member checks use, so the restraint layout can be checked at a glance. Also printed.
+- Add-in update only.
+
 ## v0.8.6 – updates at every Excel start (OAR Loader)
 - OAR Steel is now loaded by the shared **OAR Loader** (new repo `OAR-Excel-Loader`), which also loads OAR Timber and OAR Concrete. Each time Excel starts it loads the approved OAR Steel version from the office share, copying it to the PC first when it's new. No logging out and no script to run after a release: close and reopen Excel.
 - The release zip now includes `VERSION.txt` (the approved version, read by the loader).
