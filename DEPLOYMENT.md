@@ -10,27 +10,33 @@
    (ignore the "Source code" downloads GitHub adds to every release).
 5. Download the zip and extract it into `X:\Programs\Spreadsheets\`, choosing **Replace** when asked.
    Its folders match the server:
-   - `Add-Ins\OAR Steel\` – add-ins (64/32-bit), install script, changelog, release notes
-   - `Add-Ins\OAR Steel\Releases\v0.2.7\` – archive copy of this version's add-ins
+   - `Add-Ins\OAR Steel\` – add-ins (64/32-bit), loaders, `VERSION.txt`, install script, changelog, release notes
+   - `Add-Ins\OAR Steel\Releases\v0.8.6\` – archive copy of this version's add-ins
    - `Calc Templates\OAR - Steel Beam Design.xlsx` – the calc template
 
-Staff pick up the new add-in at their next login.
+That's the release. Each PC picks the new version up **the next time Excel starts** – nobody needs to log out.
 
-Release folder: `X:\Programs\Spreadsheets\Add-Ins\OAR Steel\` (the script also finds it as
+Release folder: `X:\Programs\Spreadsheets\Add-Ins\OAR Steel\` (also found as
 `\\LOA-TrueNAS\Data\Programs\Spreadsheets\Add-Ins\OAR Steel\`, so a different drive letter on a PC doesn't matter).
 
+## How a PC stays up to date
+OAR Steel is loaded by the shared **OAR Loader** (repo `OAR-Excel-Loader`, release folder
+`Add-Ins\OAR Loader\`), which does the same for OAR Timber and OAR Concrete. Each time Excel starts it reads
+`VERSION.txt` in `Add-Ins\OAR Steel\`, copies that version to `%LOCALAPPDATA%\OAR\addins\OAR Steel\v<version>\`
+if it isn't on the PC yet, and loads it. Details, and the rules every OAR add-in follows, are in that repo's
+`README.md` and `ADDIN-CONTRACT.md`. Log: `%LOCALAPPDATA%\OAR\loader.log`.
+
+**Rolling back:** extract the older release zip over the share; its `VERSION.txt` makes it the approved version again.
+
 ## Installing on a PC (once per user)
-1. Press Win+R, type `shell:startup`, Enter. Create a shortcut there to
-   `X:\Programs\Spreadsheets\Add-Ins\OAR Steel\Install-OARSteel.cmd`.
-2. Double-click the shortcut once (Excel closed). It copies the add-in to `%LOCALAPPDATA%\OAR\` and registers it
-   with Excel, so it loads automatically from then on.
+1. Close Excel.
+2. Double-click `X:\Programs\Spreadsheets\Add-Ins\OAR Loader\Install-OARAddins.cmd`. It registers the loader and
+   removes the old OAR Steel registration. (`Add-Ins\OAR Steel\Install-OARSteel.cmd`, and any old Startup shortcut
+   to it, now just runs that.)
 3. Open Excel and check `=OAR.VERSION()`.
 
-At every login the script copies a newer add-in from the NAS if there is one. It never loads the add-in from the NAS
-directly, because Excel locks a loaded add-in and the NAS copy could then not be updated. A log is kept in
-`%LOCALAPPDATA%\OAR\install.log`.
-
-Brent's development PC: the script sees the existing OAR registration and leaves it alone.
+Brent's development PC: if Excel has an OAR Steel add-in registered from somewhere else (a build from the repo), the
+installer leaves it alone and the loader skips OAR Steel, so it is never loaded twice.
 
 ## Calc records
 The workbook recalculates with whatever add-in version is installed when it is opened. The issued PDF is the
