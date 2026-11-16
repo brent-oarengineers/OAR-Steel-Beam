@@ -518,7 +518,7 @@ module Review =
 
         // ---- flange restraints as entered: codes above the line for the top flange, below for the bottom
         if view.Restraints && (not data.Restraints.IsEmpty || data.RestraintsNote <> "" || data.ContinuousTop || data.ContinuousBottom) then
-            let yb = y + 37.0
+            let yb = y + 58.0
             add (PText(14.0, y + 9.0, "Flange restraints", ink, 9.0, Left, true))
             add (PText(124.0, y + 9.0, "F full  ·  P partial  ·  L lateral  ·  U unrestrained  ·  C continuous to the next restraint", muted, 8.5, Left, false))
             add (PLine(px 0.0, yb, px l, yb, beamColour, 2.5, false))
@@ -542,6 +542,18 @@ module Review =
                     band 0.0 l
                     add (PText((x0 + x1) / 2.0, yb + side * 12.0, "continuously restrained (factor box)", codeColour RC, 8.5, Centre, true))
                 else
+                    // dimensions between this flange's restraints (and to the beam ends), outside the codes:
+                    // the segment lengths the member checks use
+                    if not flange.IsEmpty then
+                        let yd = yb + side * 28.0
+                        let marks = (0.0 :: l :: (flange |> List.map fst)) |> List.map (fun x -> System.Math.Round(x, 3)) |> List.distinct |> List.sort
+                        add (PLine(px 0.0, yd, px l, yd, muted, 0.8, false))
+                        for m in marks do
+                            add (PLine(px m, yd - 4.0, px m, yd + 4.0, muted, 0.8, false))
+                        for a, b in List.pairwise marks do
+                            let text = (b - a).ToString("#,0", System.Globalization.CultureInfo.InvariantCulture)
+                            if px b - px a > textWidth 8.0 text + 4.0 then
+                                add (PText((px a + px b) / 2.0, yd + side * 8.0, text, muted, 8.0, Centre, false))
                     let nexts = if flange.IsEmpty then [] else (flange.Tail |> List.map Some) @ [ None ]
                     for (x, t), next in List.zip flange nexts do
                         add (PLine(px x, yb, px x, yb + side * 5.0, codeColour t, 1.5, false))
@@ -549,7 +561,7 @@ module Review =
                         match t, next with
                         | RC, Some(x2, _) -> band x x2
                         | _ -> ()
-            y <- y + 68.0
+            y <- y + 110.0
 
         // ---- diagrams
         let panels =

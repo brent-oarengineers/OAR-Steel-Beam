@@ -135,6 +135,16 @@ let tests =
                       | PLine(xa, ya, xb, _, _, w, false) when w = 3.0 && ya > lineY -> abs (xa - px 2500.0) < 1e-6 && abs (xb - px 5500.0) < 1e-6
                       | _ -> false))
                   "continuous band"
+              // dimensions: top flange 1,250 / 1,250 / 1,500 / 1,500; bottom flange 2,500 / 3,000
+              let dims (above: bool) =
+                  s.Prims
+                  |> List.choose (function
+                      | PText(x, y, txt, _, 8.0, Centre, false) when (y < lineY) = above && txt |> Seq.forall (fun c -> System.Char.IsDigit c || c = ',') -> Some(x, txt)
+                      | _ -> None)
+                  |> List.sortBy fst
+                  |> List.map snd
+              Expect.equal (dims true) [ "1,250"; "1,250"; "1,500"; "1,500" ] "top flange segment lengths"
+              Expect.equal (dims false) [ "2,500"; "3,000" ] "bottom flange segment lengths"
               Expect.isFalse (hasText (Review.scene d sol { all with Restraints = false } 1000.0 760.0) "Flange restraints") "tick box off"
               Expect.isFalse (hasText (Review.scene (waler ()) sol all 1000.0 760.0) "Flange restraints") "no table, no strip"
               let bad = Review.scene { waler () with RestraintsNote = "row 3: top flange code 'X'" } sol all 1000.0 760.0
