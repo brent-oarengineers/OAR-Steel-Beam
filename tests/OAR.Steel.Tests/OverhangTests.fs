@@ -407,6 +407,42 @@ let tests =
               within 0.005 (1.0 / 12.66) over.Utilisation "overhang load factor 12.66"
           }
 
+          // Space Gass B8: 310UB40.4 Gr 300, 7.0 m backspan + 1.5 m overhang, 0.9G + Wu with stepped suction
+          // (G 1.5 kN/m; Wu 6.0 kN/m 0-2 m, 3.5 kN/m 2-8.5 m), purlins (L, top) at 1-6 m, tip U/U.
+          // Group 1 bottom FF: kl 1.00, Le 7.000, αm 1.16, αs 0.31, φMo 69.24, Mbx 65.95, M* 14.72 at 3.0 m.
+          // Group 2 overhang FU: kl 1.00, Le 1.500, αm 2.25, Mbx 182.30, M* 2.42. Reactions 11.47 / 11.81 kN hold-down.
+          test "Space Gass B8: uplift with stepped suction, unrestrained bottom flange over the backspan" {
+              let s = Sections.find "310UB40.4"
+              let b = Beam.supported 8500.0 (200000.0 * s.Ix) 0.0 7000.0
+              let ld case shape mag : Load = { Case = case; Shape = shape; Magnitude = mag; Description = ""; Dir = "" }
+              let loads = [ ld G FullSpan 1.5; ld Wu (Partial(0.0, 2000.0)) 6.0; ld Wu (Partial(2000.0, 8500.0)) 3.5 ]
+              let combo = Combination.ofFactors "ULS5" [ G, 0.9; Wu, 1.0 ]
+              let ra, rb = Analysis.reactions b (Analysis.actions 8500.0 combo loads)
+              let rbHand = -(9300.0 * 1000.0 + 13975.0 * 5250.0) / 7000.0 // net uplift 4.65 x 2 m and 2.15 x 6.5 m
+              within 1e-6 rbHand rb "RB hold-down 11.81"
+              within 1e-6 (-23275.0 - rbHand) ra "RA hold-down 11.47"
+              let pts =
+                  [ pt 0.0 (Some RF) (Some RF) ] @ [ for x in 1000.0 .. 1000.0 .. 6000.0 -> pt x (Some RL) None ]
+                  @ [ pt 7000.0 (Some RF) (Some RF); pt 8500.0 (Some RU) (Some RU) ]
+              let k = { k1 with KlDown = 1.4; KlUp = 1.0; KlTipDown = 2.0; KlTipUp = 1.0 }
+              let r = Uls.checkCombination s 300 200000.0 b loads pts k combo
+              let back = r |> List.find (fun c -> c.Flange = Bottom && c.X1 = 0.0)
+              Expect.equal (back.X2, back.Ends) (7000.0, "FF") "bottom flange spans support to support"
+              within 1e-12 1.0 back.Kl "uplift: kl 1.00"
+              within 1e-9 7000.0 back.MemberCap.Le "Le 7.000"
+              near 0.005 1.16 back.MemberCap.AlphaM "αm 1.16"
+              near 0.005 0.31 back.MemberCap.AlphaS "αs 0.31"
+              within 0.005 69.24 (0.9 * Units.toKNm back.MemberCap.Mo) "φMo 69.24"
+              within 0.005 65.95 (Units.toKNm back.MemberCap.PhiMb) "Mbx 65.95"
+              within 0.0005 (14.72 / 65.95) back.Utilisation "M*/φMb 0.22"
+              let over = r |> List.find (fun c -> c.Flange = Top && c.X1 = 7000.0)
+              Expect.equal over.Ends "FU" "overhang top flange FU"
+              within 1e-12 1.0 over.Kl "free tip under uplift: kl 1.00"
+              within 1e-9 1500.0 over.MemberCap.Le "Le 1.500"
+              within 1e-12 2.25 over.MemberCap.AlphaM "αm 2.25"
+              within 0.005 182.30 (Units.toKNm over.MemberCap.PhiMb) "Mbx 182.30 (= φMsx)"
+          }
+
           test "mixed loading on a free-tip cantilever: 1.25 adopted, moment-weighted estimate noted" {
               let s = Sections.find "360UB44.7"
               let b = Beam.supported 8000.0 (200000.0 * s.Ix) 0.0 6000.0
