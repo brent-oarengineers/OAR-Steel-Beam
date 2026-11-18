@@ -297,16 +297,18 @@ type AddIn() =
 
         member _.AutoClose() = ()
 
-/// OAR tab: preview the tidy layout before printing, or bring the hidden rows back
+/// OAR tab: preview the tidy layout before printing, or bring the hidden rows back.
+/// The tab uses the shared idQ "oar:OarTab" (namespace "OAR.Engineers"), so OAR Steel, Timber, Concrete and
+/// Project all put their groups on one "OAR" tab.
 [<ComVisible(true)>]
 type Ribbon() =
     inherit ExcelRibbon()
 
     override _.GetCustomUI(_ribbonId: string) =
-        """<customUI xmlns="http://schemas.microsoft.com/office/2009/07/customui">
+        """<customUI xmlns="http://schemas.microsoft.com/office/2009/07/customui" xmlns:oar="OAR.Engineers">
   <ribbon>
     <tabs>
-      <tab id="oarTab" label="OAR">
+      <tab idQ="oar:OarTab" label="OAR">
         <group id="oarSteelGroup" label="Steel beam">
           <button id="oarTidy" label="Tidy for print" onAction="OnTidy"
                   screentip="Hide unused rows in the combination, load, restraint and result tables on this sheet. Printing does this automatically and shows the rows again afterwards." />
