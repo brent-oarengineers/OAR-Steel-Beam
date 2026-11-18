@@ -3,6 +3,10 @@
 Each version that reaches `main` is built, tested and published automatically as a GitHub Release.
 The calc sheet shows the version it was calculated with (title block, under the green bar).
 
+## v0.8.8 – one OAR ribbon tab
+- The Steel beam group now goes on the shared **OAR** tab (`idQ="oar:OarTab"`), the same tab OAR Concrete, OAR Timber and OAR Project use, instead of a tab of its own. Excel used to show two tabs both called "OAR".
+- Add-in update only; no change to the template or the calculations.
+
 ## v0.8.7 – restraint dimensions in View graphics
 - The flange restraints strip now has dimension lines: the distances between the top flange restraints above the codes, and between the bottom flange restraints below them, including to the beam ends. These are the segment lengths the member checks use, so the restraint layout can be checked at a glance. Also printed.
 - Add-in update only.
