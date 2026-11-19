@@ -95,6 +95,15 @@ module private SheetInputs =
         | :? (obj[,]) as a when Array2D.length2 a >= 5 -> box (Array2D.init (Array2D.length1 a) 2 (fun i j -> a.[i, j + 3]))
         | _ -> missing
 
+    /// The k factors box (kl / kr / continuous / kl free tip, top and bottom) from its named cells;
+    /// ExcelMissing on layouts without it
+    let private kFactors (ws: XlSheet) : obj =
+        let rows = [ "kl"; "kr"; "Cont"; "klTip" ] |> List.filter (fun n -> (tryRange ws (n + "_Top")).IsSome)
+        if rows.Length < 2 then
+            missing
+        else
+            box (Array2D.init rows.Length 2 (fun i j -> value ws (rows.[i] + (if j = 0 then "_Top" else "_Bot"))))
+
     /// The active combinations: the spilled range that starts at the first cell of the combinations block
     let private combos (ws: XlSheet) : obj =
         match tryRange ws "OAR_Flex_Combos" with
@@ -174,6 +183,8 @@ module private SheetInputs =
             (value ws "Cont_Top")
             (value ws "Cont_Bot")
             (criteria ws)
+            (value ws "Grade")
+            (kFactors ws)
 
 /// The drawing surface: double-buffered so the hover line doesn't flicker
 type private Canvas() as this =
@@ -322,6 +333,7 @@ type private ReviewForm(load: unit -> ReviewData, pageInfo: unit -> PageInfo) as
     let cbDeflection = check "Deflection"
     let cbRestraints = check "Restraints"
     let cbLimit = check "Deflection limit"
+    let cbCapacity = check "Moment capacity"
     let refresh = new Button(Text = "Refresh from sheet", AutoSize = true, Margin = Padding(12, 0, 0, 0))
     let savePdf = new Button(Text = "Save PDF", AutoSize = true, Margin = Padding(6, 0, 0, 0))
     let print = new Button(Text = "Print…", AutoSize = true, Margin = Padding(6, 0, 0, 0))
@@ -349,7 +361,8 @@ type private ReviewForm(load: unit -> ReviewData, pageInfo: unit -> PageInfo) as
           Moment = cbMoment.Checked
           Deflection = cbDeflection.Checked
           Restraints = cbRestraints.Checked
-          Limit = cbLimit.Checked }
+          Limit = cbLimit.Checked
+          Capacity = cbCapacity.Checked }
 
     /// Rebuild the picture for the current case, tick boxes and window size
     let redraw () =
@@ -471,7 +484,7 @@ type private ReviewForm(load: unit -> ReviewData, pageInfo: unit -> PageInfo) as
         this.BackColor <- Color.White
         status.Text <- hint
         top.Controls.AddRange([| cbLoads :> Control; cbReactions :> Control; cbShear :> Control; cbMoment :> Control
-                                 cbDeflection :> Control; cbLimit :> Control; cbRestraints :> Control; refresh :> Control; savePdf :> Control
+                                 cbDeflection :> Control; cbLimit :> Control; cbCapacity :> Control; cbRestraints :> Control; refresh :> Control; savePdf :> Control
                                  print :> Control; cbPortrait :> Control |])
         this.Controls.Add canvas
         this.Controls.Add top
@@ -484,7 +497,7 @@ type private ReviewForm(load: unit -> ReviewData, pageInfo: unit -> PageInfo) as
             match (if isNull e.Node then null else e.Node.Tag) with
             | :? ReviewItem as item -> select item
             | _ -> ())
-        for cb in [ cbLoads; cbReactions; cbShear; cbMoment; cbDeflection; cbRestraints; cbLimit ] do
+        for cb in [ cbLoads; cbReactions; cbShear; cbMoment; cbDeflection; cbRestraints; cbLimit; cbCapacity ] do
             cb.CheckedChanged.Add(fun _ -> redraw ())
         refresh.Click.Add(fun _ -> reload ())
         savePdf.Click.Add(fun _ -> output true)

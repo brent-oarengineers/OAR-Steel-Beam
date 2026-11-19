@@ -40,7 +40,9 @@ type ReviewView =
       /// the flange restraints strip (F / P / L / U / C above and below a beam line)
       Restraints: bool
       /// the deflection limit line on the deflection diagram, for the cases that have one
-      Limit: bool }
+      Limit: bool
+      /// the member moment capacity φMb of each segment on the moment diagram, for strength combinations
+      Capacity: bool }
 
 type ReviewData =
     { Title: string
@@ -55,7 +57,9 @@ type ReviewData =
       /// why the restraints could not be read, "" when they were
       RestraintsNote: string
       /// the Serviceability Criteria table (5 or 6 rows; empty when the sheet has none or it could not be read)
-      Criteria: DeflectionCriterion list }
+      Criteria: DeflectionCriterion list
+      /// the member bending checks of every strength combination (empty when they could not be made)
+      Segments: SegmentCheck list }
 
 /// One combination solved: the beam made determinate (interior reactions added as point loads)
 type ReviewCase =
@@ -565,8 +569,8 @@ module Review =
 
         // ---- diagrams
         let panels =
-            [ if view.Shear then yield "Shear (kN)", shearAt, false, "#5B7A8C", false
-              if view.Moment then yield "Bending moment (kN·m, sagging plotted down)", momentAt, true, "#465A52", false
+            [ if view.Shear then yield "Shear (kN)", shearAt, false, "#5B7A8C", 0
+              if view.Moment then yield "Bending moment (kN·m, sagging plotted down)", momentAt, true, "#465A52", 1
               if view.Deflection then
                   yield
                       (if item.Service then "Deflection (mm, plotted downward)"
@@ -574,21 +578,57 @@ module Review =
                       deflAt,
                       true,
                       "#8A6D3B",
-                      true ]
+                      2 ]
         let y = y
         if not panels.IsEmpty && not sol.Cases.IsEmpty then
-            let hp = max 70.0 ((height - 10.0 - y) / float panels.Length)
+            // the moment panel gets more room when it also shows the capacities (its scale has to reach them)
+            let weightOf kind =
+                if kind = 1 && view.Capacity && not item.Service && panels.Length > 1 then 1.8 else 1.0
+            let weights = panels |> List.map (fun (_, _, _, _, kind) -> weightOf kind)
+            let unit = max 70.0 ((height - 10.0 - y) / List.sum weights)
+            let tops = weights |> List.scan (fun acc w -> acc + w * unit) y
             panels
-            |> List.iteri (fun k (title, f, plotDown, colour, isDeflection) ->
-                let yt = y + hp * float k
+            |> List.iteri (fun k (title, f, plotDown, colour, kind) ->
+                let yt = tops.[k]
+                let hp = weights.[k] * unit
                 add (PText(14.0, yt + 9.0, title, ink, 9.0, Left, true))
                 let ya, yb = yt + 34.0, yt + hp - 20.0
                 let pts = sol.Xs |> List.map (fun x -> x, range sol f x)
                 // deflection limit of this case, one length per span (and the overhang): (from, to, signed limit mm, text).
                 // Drawn on the side the beam deflects to in that length.
+                // or, on the moment diagram of a strength combination, φMb of each segment it checks: sagging
+                // (top flange in compression) on the sagging side, hogging (bottom flange) on the hogging side.
+                // For the envelope, the lowest φMb and highest share used of each segment over the combinations.
+                let ids = item.Combos |> List.map (fun c -> c.Id) |> Set.ofList
+                let capacities =
+                    if kind = 1 && view.Capacity then
+                        data.Segments
+                        |> List.filter (fun c -> ids.Contains c.Combo)
+                        |> List.groupBy (fun c -> c.Flange, System.Math.Round(c.X1, 3), System.Math.Round(c.X2, 3))
+                        |> List.map (fun ((flange, a, b), cs) ->
+                            let cap = cs |> List.map (fun c -> Units.toKNm c.MemberCap.PhiMb) |> List.min
+                            let used = cs |> List.map (fun c -> c.Utilisation) |> List.max
+                            flange, a, b, cap, used)
+                        // neighbouring segments of one flange with the same φMb (e.g. purlins at equal spacing) as one line
+                        |> List.sortBy (fun (f, a, _, _, _) -> (f = Bottom), a)
+                        |> List.fold
+                            (fun acc (f, a, b, cap, used) ->
+                                match acc with
+                                | (f0, a0, b0, cap0, used0) :: rest when f0 = f && abs (b0 - a) < 1.0 && abs (cap0 - cap) < 0.0005 * cap ->
+                                    (f, a0, b, min cap0 cap, max used0 used) :: rest
+                                | _ -> (f, a, b, cap, used) :: acc)
+                            []
+                        |> List.rev
+                        |> List.map (fun (flange, a, b, cap, used) ->
+                            let top = (flange = Top)
+                            a, b, (if top then cap else -cap),
+                            sprintf "φMb %s = %s kN·m  ·  %.0f%% used" (if top then "top" else "bottom") (fmt cap) (100.0 * used))
+                    else
+                        []
                 let limits =
                     match item.Limit with
-                    | Some i when isDeflection && view.Limit && i < data.Criteria.Length ->
+                    | _ when kind = 1 -> capacities
+                    | Some i when kind = 2 && view.Limit && i < data.Criteria.Length ->
                         let crit = data.Criteria.[i]
                         let lengths =
                             (Beam.spans beam |> List.map (fun (a, b) -> a, b, b - a, "L"))
@@ -656,7 +696,7 @@ module Review =
                     let free (left: float) (right: float) =
                         taken |> List.forall (fun (l0, r0, y0) -> right < l0 - 4.0 || left > r0 + 4.0 || abs (y0 - ty) > 11.0)
                     let short = text.Substring(0, max 0 (text.IndexOf "  ·  "))
-                    let shortest = "limit " + short.Substring(short.LastIndexOf "= " + 2)
+                    let shortest = short.Substring(0, max 0 (short.IndexOf ' ')) + " " + short.Substring(short.LastIndexOf "= " + 2)
                     let options =
                         [ for t in [ text; short; shortest ] do
                               let w = textWidth 8.5 t

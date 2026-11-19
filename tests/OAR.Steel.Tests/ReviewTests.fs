@@ -5,9 +5,9 @@ open OAR.Steel
 open Helpers
 
 let private ld case shape mag desc : Load = { Case = case; Shape = shape; Magnitude = mag; Description = desc; Dir = "" }
-let private all = { Loads = true; Reactions = true; Shear = true; Moment = true; Deflection = true; Restraints = true; Limit = true }
+let private all = { Loads = true; Reactions = true; Shear = true; Moment = true; Deflection = true; Restraints = true; Limit = true; Capacity = true }
 let private data title beam loads items : ReviewData =
-    { Title = title; Beam = beam; Loads = loads; Items = items; Restraints = []; ContinuousTop = false; ContinuousBottom = false; RestraintsNote = ""; Criteria = [] }
+    { Title = title; Beam = beam; Loads = loads; Items = items; Restraints = []; ContinuousTop = false; ContinuousBottom = false; RestraintsNote = ""; Criteria = []; Segments = [] }
 let private rp x top bottom : RestraintPoint =
     { X = x; Ref = ""; Top = top; Bottom = bottom; AlphaMTop = None; AlphaMBottom = None; KlOverrideTop = None; KlOverrideBottom = None }
 let private texts (s: Scene) =
@@ -172,6 +172,42 @@ let tests =
               Expect.isEmpty (dashed (Review.scene (waler ()) sol all 1000.0 760.0)) "no criteria on the sheet"
               let solU = Review.solve d (d.Items |> List.find (fun i -> i.Id = "ULS6"))
               Expect.isEmpty (dashed (Review.scene d solU all 1000.0 760.0)) "strength combination"
+          }
+
+          test "moment capacity lines: φMb per segment, sagging side for the top flange, hogging for the bottom" {
+              let d0 = waler ()
+              let sec = Sections.find "200UC46.2"
+              let pts = [ rp 0.0 (Some RF) (Some RF); rp 2500.0 (Some RF) (Some RF); rp 5500.0 (Some RF) (Some RF) ]
+              let k =
+                  { KlDown = 1.4; KlUp = 1.0; KrTop = 1.0; KrBottom = 1.0; ContinuousTop = false; ContinuousBottom = false
+                    KlTipDown = 2.0; KlTipUp = 1.0 }
+              let combos = d0.Items |> List.collect (fun i -> if i.Group = "Combinations" then i.Combos else [])
+              let segs = Uls.checkAll sec 300 200000.0 d0.Beam d0.Loads pts k combos
+              let d = { d0 with Restraints = pts; Segments = segs }
+              let uls = d.Items |> List.find (fun i -> i.Id = "ULS6")
+              let sol = Review.solve d uls
+              let s = Review.scene d sol all 1000.0 760.0
+              // every checked segment has its line and label
+              for c in segs do
+                  let cap = Units.toKNm c.MemberCap.PhiMb
+                  let side = if c.Flange = Top then "top" else "bottom"
+                  Expect.isTrue
+                      (hasText s (sprintf "φMb %s = %s kN·m" side (Review.fmt cap)) || hasText s (sprintf "φMb %s kN·m" (Review.fmt cap)))
+                      (sprintf "label for %s %g–%g" side c.X1 c.X2)
+              let dashed (sc: Scene) =
+                  sc.Prims |> List.filter (function PLine(_, y1, _, y2, "#C0392B", _, true) when y1 = y2 -> true | _ -> false)
+              Expect.isLessThanOrEqual (dashed s).Length (segs |> List.map (fun c -> c.Flange, c.X1, c.X2) |> List.distinct).Length "at most one line per segment"
+              Expect.isGreaterThan (dashed s).Length 0 "lines drawn"
+              // a top flange (sagging) line sits below the zero line (sagging is plotted down), a bottom one above
+              let zeroY =
+                  s.Prims |> List.pick (function PLine(_, y1, _, y2, "#2B2B2B", 1.0, false) when y1 = y2 -> Some y1 | _ -> None)
+              let topSeg = segs |> List.find (fun c -> c.Flange = Top)
+              let px x = s.X0 + (s.X1 - s.X0) * x / 5500.0
+              let lineAt (x1: float) =
+                  dashed s |> List.filter (function PLine(xa, _, _, _, _, _, _) -> abs (xa - px x1) < 1e-6 | _ -> false)
+              Expect.isTrue (lineAt topSeg.X1 |> List.exists (function PLine(_, y, _, _, _, _, _) -> y > zeroY | _ -> false)) "sagging side"
+              Expect.isEmpty (dashed (Review.scene d sol { all with Capacity = false } 1000.0 760.0)) "tick box off"
+              Expect.isEmpty (dashed (Review.scene d (Review.solve d d.Items.Head) { all with Limit = false } 1000.0 760.0)) "not on a load case"
           }
 
           test "the picture is valid SVG text and stays inside the window" {

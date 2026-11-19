@@ -9,7 +9,7 @@ open OAR.Steel
 [<Literal>]
 let Category = "OAR Steel"
 
-let private version = "0.8.8"
+let private version = "0.8.9"
 
 // ---------- conversion helpers ----------
 
@@ -707,8 +707,10 @@ let reviewData
     (continuousTop: obj)
     (continuousBottom: obj)
     (criteria: obj)
+    (gr: obj)
+    (kfactors: obj)
     : ReviewData =
-    let c = ctx designation (box 300.0) span e includeSW loads
+    let c = ctx designation gr span e includeSW loads
     let g = geometry span
     let beam = withShearOpt c.Sec shearDefl c.Beam
     let cs = strengthCombos beam combos @ Patterns.equilibrium beam
@@ -748,4 +750,13 @@ let reviewData
       ContinuousTop = yes continuousTop
       ContinuousBottom = yes continuousBottom
       RestraintsNote = note
-      Criteria = limits }
+      Criteria = limits
+      // the member checks behind the φMb lines; without the restraints or k factors there are no lines
+      Segments =
+        if points.IsEmpty || isMissing kfactors then
+            []
+        else
+            try
+                Uls.checkAll c.Sec c.Grade c.E c.Beam c.Loads points (Inputs.kFactors (grid kfactors)) (strengthCombos c.Beam combos)
+            with _ ->
+                [] }
