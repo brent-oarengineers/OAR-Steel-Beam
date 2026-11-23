@@ -23,7 +23,7 @@ let private waler () =
     let beam = Beam.continuous 5500.0 (200000.0 * sec.Ix) [ 2500.0 ]
     let loads = [ Analysis.selfWeightLoad sec; ld G FullSpan 70.0 "70kN/m working" ]
     let combos = Patterns.expand beam [ { Combination.ofFactors "ULS6" [ G, 1.4 ] with Description = "1.4xWorking" } ]
-    data "B1" beam loads (Review.items loads combos 0.4 0.7 0.47)
+    data "B1" beam loads (Review.items beam loads combos 0.4 0.7 0.47)
 
 [<Tests>]
 let tests =
@@ -73,11 +73,12 @@ let tests =
                   Patterns.expand beam
                       [ Combination.ofFactors "ULS2" [ G, 1.2; Q, 1.5 ]; Combination.ofFactors "ULS4" [ G, 0.9; Wu, 1.0 ] ]
                   @ Patterns.equilibrium beam
-              let d = data "B1" beam loads (Review.items loads combos 0.4 0.7 0.47)
+              let d = data "B1" beam loads (Review.items beam loads combos 0.4 0.7 0.47)
               let ids = d.Items |> List.map (fun i -> i.Id)
               Expect.equal
                   ids
-                  [ "G"; "Q"; "Wu"; "G+ψl·Q"; "G+ψs·Q"; "Ws up"; "Envelope"; "ULS2"; "ULS2-span"; "ULS2-cant"; "ULS4"; "EQ" ]
+                  [ "G"; "Wu"; "G+ψl·Q"; "G+ψl·Q-span"; "G+ψl·Q-cant"; "G+ψs·Q"; "G+ψs·Q-span"; "G+ψs·Q-cant"; "Q"; "Q-span"; "Q-cant"
+                    "Ws up"; "Envelope"; "ULS2"; "ULS2-span"; "ULS2-cant"; "ULS4"; "EQ" ]
                   "list"
               let scene id = let sol = Review.solve d (d.Items |> List.find (fun i -> i.Id = id)) in sol, Review.scene d sol all 1000.0 760.0
               let _, s2 = scene "ULS2"
@@ -208,6 +209,32 @@ let tests =
               Expect.isTrue (lineAt topSeg.X1 |> List.exists (function PLine(_, y, _, _, _, _, _) -> y > zeroY | _ -> false)) "sagging side"
               Expect.isEmpty (dashed (Review.scene d sol { all with Capacity = false } 1000.0 760.0)) "tick box off"
               Expect.isEmpty (dashed (Review.scene d (Review.solve d d.Items.Head) { all with Limit = false } 1000.0 760.0)) "not on a load case"
+          }
+
+          test "serviceability patterns: Q only and patterned Q, with their deflection limits" {
+              let sec = Sections.find "230PFC"
+              let beam = Beam.supported 7000.0 (200000.0 * sec.Ix) 0.0 5000.0
+              let loads = [ ld G FullSpan 1.77 "floor"; ld Q FullSpan 4.5 "floor" ]
+              let crit = [ for r in [ 500.0; 360.0; 300.0; 250.0; 1000.0 ] -> { Ratio = r; MaxMm = None } ]
+              let d = { data "B1" beam loads (Review.items beam loads [] 0.4 0.7 0.0) with Criteria = crit }
+              let byId id = d.Items |> List.find (fun i -> i.Id = id)
+              Expect.equal (byId "Q-cant").Limit (Some 3) "Q patterns use the Δq limit"
+              Expect.equal (byId "G+ψl·Q-span").Limit (Some 1) "long term patterns use the Δg+ψl·q limit"
+              Expect.stringContains (byId "G+ψl·Q").Description "whole beam" "base case says Q is on the whole beam"
+              Expect.stringContains (byId "G+ψl·Q-cant").Description "overhang only" "pattern says where Q is"
+              // Q on the overhang only: Q acts only between 5 and 7 m, and the overhang deflects more than with Q everywhere
+              let tip id = let sol = Review.solve d (byId id) in let c = sol.Cases.Head in Analysis.deflection c.Det c.All 7000.0
+              let solC = Review.solve d (byId "Q-cant")
+              let qOn = solC.Cases.Head.Applied |> List.choose (function Dist(w, a, b) -> Some(a, b) | _ -> None)
+              Expect.equal qOn [ 5000.0, 7000.0 ] "Q on the overhang only"
+              Expect.isGreaterThan (abs (tip "Q-cant")) (abs (tip "Q")) "pattern gives the larger tip deflection"
+              // the Δq limit line for the overhang: 2 × 2,000 / 250
+              let s = Review.scene d solC all 1000.0 760.0
+              Expect.isTrue (hasText s "limit 2 × overhang/250 = 16.0 mm") "overhang limit"
+              // simply supported: no patterns, no "whole beam" note
+              let ss = Beam.simple 5000.0 (200000.0 * sec.Ix)
+              let items = Review.items ss loads [] 0.4 0.7 0.0
+              Expect.equal (items |> List.map (fun i -> i.Id)) [ "G"; "G+ψl·Q"; "G+ψs·Q"; "Q" ] "simply supported"
           }
 
           test "the picture is valid SVG text and stays inside the window" {

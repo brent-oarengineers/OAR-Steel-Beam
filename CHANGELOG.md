@@ -3,6 +3,11 @@
 Each version that reaches `main` is built, tested and published automatically as a GitHub Release.
 The calc sheet shows the version it was calculated with (title block, under the green bar).
 
+## v0.8.10 – serviceability patterns in View graphics
+- The **Serviceability** list in View graphics now has the same Q patterns as the sheet's deflection checks: for G + ψl·Q, G + ψs·Q and **Q only**, Q on the whole beam, then on the backspan only (`-span`) and the overhang only (`-cant`) – or on each span only (`-span1`, `-span2`) for a two-span beam. Each has its deflection limit line (Δg+ψl·q, Δg+ψs·q or Δq; over an overhang L = 2 × overhang).
+- Q only moved from *Load cases* to *Serviceability* (with its patterns), so it isn't listed twice.
+- Add-in update only.
+
 ## v0.8.9 – moment capacity on the View graphics moment diagram
 - **Moment capacity lines** (tick box *Moment capacity*, on by default): for a strength combination, the moment diagram gets a dashed red line at the member moment capacity φMb of each segment it checks, labelled with φMb and the share used, e.g. `φMb top = 182 kN·m · 34% used` – the same style as the deflection limit lines. Top-flange segments (sagging) are drawn on the sagging side, bottom-flange segments (hogging) on the hogging side, each over its own length between restraints.
 - Neighbouring segments of one flange with the same φMb (purlins at equal spacing) are drawn as one line. For the Envelope, each segment shows its lowest φMb and highest share used over the combinations.
