@@ -118,7 +118,7 @@ module Review =
 
     /// The list of things that can be reviewed. `combos` = the active combinations already expanded with
     /// their pattern variants (and the equilibrium combination, if any).
-    let items (loads: Load list) (combos: Combination list) (psiL: float) (psiS: float) (windFactor: float) : ReviewItem list =
+    let items (beam: Beam) (loads: Load list) (combos: Combination list) (psiL: float) (psiS: float) (windFactor: float) : ReviewItem list =
         let has lc = loads |> List.exists (fun l -> l.Case = lc && l.Magnitude <> 0.0)
         let hasIn lc (d: string) =
             loads
@@ -135,9 +135,8 @@ module Review =
         let one group service (c: Combination) = item group service None c
         let windCases = [ Wd; Wid; Wu; Wiu ] |> List.filter has
         let cases =
-            [ for lc in [ G; Q ] do
-                  if has lc then
-                      yield item "Load cases" true (Some(if lc = G then 0 else 3)) { Combination.single lc with Description = caseTitle lc }
+            [ // Q is under Serviceability, with its patterns
+              if has G then yield item "Load cases" true (Some 0) { Combination.single G with Description = caseTitle G }
               if dirs.IsEmpty then
                   for lc in windCases do
                       yield one "Load cases" false { Combination.single lc with Description = caseTitle lc }
@@ -148,14 +147,16 @@ module Review =
                               yield one "Load cases" false { Combination.singleDir lc d with Description = caseTitle lc + ", " + d } ]
         let sls =
             [ if has Q then
-                  yield
-                      item "Serviceability" true (Some 1)
-                          { Combination.ofFactors "G+ψl·Q" [ G, 1.0; Q, psiL ] with
-                              Description = sprintf "Long term: G + %gQ (Q on the whole beam)" psiL }
-                  yield
-                      item "Serviceability" true (Some 2)
-                          { Combination.ofFactors "G+ψs·Q" [ G, 1.0; Q, psiS ] with
-                              Description = sprintf "Short term: G + %gQ (Q on the whole beam)" psiS }
+                  // each case with Q on the whole beam, then patterned the same way as the sheet's deflection checks:
+                  // Q on the backspan only and the overhang only, or on each span of a two-span beam only
+                  let patterned (limit: int) (c: Combination) =
+                      let whole = if Beam.isContinuous beam || Patterns.hasOverhang beam then " (Q on the whole beam)" else ""
+                      Patterns.expand beam [ c ]
+                      |> List.map (fun p ->
+                          item "Serviceability" true (Some limit) (if p.Outside.IsNone then { p with Description = p.Description + whole } else p))
+                  yield! patterned 1 { Combination.ofFactors "G+ψl·Q" [ G, 1.0; Q, psiL ] with Description = sprintf "Long term: G + %gQ" psiL }
+                  yield! patterned 2 { Combination.ofFactors "G+ψs·Q" [ G, 1.0; Q, psiS ] with Description = sprintf "Short term: G + %gQ" psiS }
+                  yield! patterned 3 { Combination.ofFactors "Q" [ Q, 1.0 ] with Description = "Live load only: Q (unfactored)" }
               if windFactor > 0.0 then
                   for d in (if dirs.IsEmpty then [ "" ] else dirs) do
                       for name, lcs in [ "Ws down", [ Wd; Wid ]; "Ws up", [ Wu; Wiu ] ] do

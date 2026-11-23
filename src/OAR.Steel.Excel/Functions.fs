@@ -9,7 +9,7 @@ open OAR.Steel
 [<Literal>]
 let Category = "OAR Steel"
 
-let private version = "0.8.9"
+let private version = "0.8.10"
 
 // ---------- conversion helpers ----------
 
@@ -745,7 +745,7 @@ let reviewData
     { Title = String.Join(" · ", [ beamRef.Trim(); c.Sec.Designation; geomText ] |> List.filter (fun s -> s <> ""))
       Beam = beam
       Loads = c.Loads
-      Items = Review.items c.Loads cs (numOr "psiL" 0.4 psiL) (numOr "psiS" 0.7 psiS) kw
+      Items = Review.items beam c.Loads cs (numOr "psiL" 0.4 psiL) (numOr "psiS" 0.7 psiS) kw
       Restraints = points
       ContinuousTop = yes continuousTop
       ContinuousBottom = yes continuousBottom
