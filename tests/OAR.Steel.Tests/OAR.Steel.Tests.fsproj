@@ -22,6 +22,7 @@
     <Compile Include="RhsTests.fs" />
     <Compile Include="WindSlsTests.fs" />
     <Compile Include="ReviewTests.fs" />
+    <Compile Include="GradeMessageTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 

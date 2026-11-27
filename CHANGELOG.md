@@ -3,6 +3,14 @@
 Each version that reaches `main` is built, tested and published automatically as a GitHub Release.
 The calc sheet shows the version it was calculated with (title block, under the green bar).
 
+## v0.8.11 – clearer message for a grade the section doesn't come in
+- An RHS / SHS with a grade it isn't made in (e.g. the default Grade 300) used to show #REF! through the strength rows. Now:
+  - the Status box reads **CHECK INPUTS**, and the line under Max utilisation gives the reason, e.g. `200x200x9 SHS comes in C350L0 or C450L0 only: set the steel grade to 350 (C350L0) or 450 (C450L0) (got 300)`;
+  - the Grade cell turns red;
+  - the utilisation column shows blank instead of #REF!, so Max utilisation stays readable.
+- Same for any section without data for the grade entered.
+- Update both the add-in (message) and the template (Design Summary). Existing sheets: set the grade to 350.
+
 ## v0.8.10 – serviceability patterns in View graphics
 - The **Serviceability** list in View graphics now has the same Q patterns as the sheet's deflection checks: for G + ψl·Q, G + ψs·Q and **Q only**, Q on the whole beam, then on the backspan only (`-span`) and the overhang only (`-cant`) – or on each span only (`-span1`, `-span2`) for a two-span beam. Each has its deflection limit line (Δg+ψl·q, Δg+ψs·q or Δq; over an overhang L = 2 × overhang).
 - Q only moved from *Load cases* to *Serviceability* (with its patterns), so it isn't listed twice.
