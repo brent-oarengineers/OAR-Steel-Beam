@@ -189,4 +189,9 @@ module Sections =
         | Some v -> v
         | None ->
             let have = s.Fy |> Map.toList |> List.map (fst >> string)
-            failwithf "%s: no yield stress data for Grade %d (available: %s)" s.Designation grade (String.Join(", ", have))
+            if Family.isHollow s.Family then
+                let grades = s.Fy |> Map.toList |> List.map (fun (g, _) -> sprintf "%d (C%dL0)" g g)
+                failwithf "%s comes in %s only: set the steel grade to %s (got %d)" s.Designation
+                    (String.Join(" or ", s.Fy |> Map.toList |> List.map (fun (g, _) -> sprintf "C%dL0" g))) (String.Join(" or ", grades)) grade
+            else
+                failwithf "%s: no yield stress data for Grade %d (available: %s)" s.Designation grade (String.Join(", ", have))

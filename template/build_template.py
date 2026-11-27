@@ -192,7 +192,7 @@ for row in sum_rows:
         out(f"F{rr}", None, "0.0"); name(row[4], f"$F${rr}")
         label(f"G{rr}", row[5], 8, GREY, al=C)
         put(f"H{rr}", "", font(9))
-    out(f"I{rr}", f'=IF(OR(E{rr}="",N(F{rr})=0),"",ABS(E{rr})/F{rr})', "0%")
+    out(f"I{rr}", f'=IFERROR(IF(OR(E{rr}="",N(F{rr})=0),"",ABS(E{rr})/F{rr}),"")', "0%")
     put(f"J{rr}", f'=IF(I{rr}="","–",IF(I{rr}<=1,"OK","NG"))', font(9, b=True), al=C)
     ws.merge_cells(f"J{rr}:K{rr}")
     util_cells.append(f"I{rr}")
@@ -201,11 +201,12 @@ urng = f"I{sum_hdr+1}:I{sum_last}"
 put(f"F{s0+2}", f'=IF(COUNT({urng})=0,"–",MAX({urng}))', font(12, b=True, color=GREEN),
     al=Alignment(horizontal="left", vertical="center", indent=1), nf="0%")
 thin_t = Side(style="thin", color=TAUPE)
-put(f"I{s0+2}", f'=IF(AddinOld,"UPDATE ADD-IN",IF(COUNT({urng})=0,"PENDING",IF(MAX({urng})<=1,"PASS","FAIL")))', font(10, b=True, color="8C8C8C"),
+put(f"I{s0+2}", f'=IF(AddinOld,"UPDATE ADD-IN",IF(ISTEXT(Zex),"CHECK INPUTS",IF(COUNT({urng})=0,"PENDING",IF(MAX({urng})<=1,"PASS","FAIL"))))', font(10, b=True, color="8C8C8C"),
     al=C, border=Border(left=thin_t, top=thin_t, bottom=thin_t))
 ws[f"J{s0+2}"].border = Border(top=thin_t, bottom=thin_t)
 ws[f"K{s0+2}"].border = Border(right=thin_t, top=thin_t, bottom=thin_t)
-put(f"F{s0+3}", f'=IF(COUNT({urng})=0,"","Governs: "&INDEX(D{sum_hdr+1}:D{sum_last},MATCH(MAX({urng}),{urng},0)))',
+# the section / grade message when the section can't be checked (e.g. an SHS with Grade 300), else what governs
+put(f"F{s0+3}", f'=IF(ISTEXT(Zex),Zex,IF(COUNT({urng})=0,"","Governs: "&INDEX(D{sum_hdr+1}:D{sum_last},MATCH(MAX({urng}),{urng},0))))',
     font(7, color=GREY), al=L)
 name("Sum_MaxUtil", f"$F${s0+2}"); name("Sum_Status", f"$I${s0+2}")
 # conditional formats
@@ -213,6 +214,7 @@ ws.conditional_formatting.add(urng, DataBarRule(start_type="num", start_value=0,
                                                 color="9DB3A9", showValue=True))
 red_txt = DifferentialStyle(font=Font(color="C00000", bold=True))
 ws.conditional_formatting.add(urng, Rule(type="expression", dxf=red_txt, formula=[f"AND(ISNUMBER(I{sum_hdr+1}),I{sum_hdr+1}>1)"]))
+ws.conditional_formatting.add(f"F{s0+3}", Rule(type="expression", dxf=red_txt, formula=["ISTEXT(Zex)"]))
 ws.conditional_formatting.add(f"J{sum_hdr+1}:J{sum_last}", Rule(type="cellIs", operator="equal", formula=['"NG"'],
     dxf=DifferentialStyle(font=Font(color="FFFFFF", bold=True), fill=PatternFill("solid", bgColor="C00000"))))
 ws.conditional_formatting.add(f"J{sum_hdr+1}:J{sum_last}", Rule(type="cellIs", operator="equal", formula=['"OK"'],
@@ -276,6 +278,7 @@ dv_grade.promptTitle = "Steel grade"
 dv_grade.prompt = "UB / UC / PFC: 300 typical.  RHS / SHS: 350 = C350L0, 450 = C450L0."
 dv_grade.showInputMessage = True
 for dv in (dv_type, dv_yn, dv_sup, dv_grade): ws.add_data_validation(dv)
+GRADE_CELL = f"E{r+3}"
 dv_type.add(f"E{r+1}"); dv_grade.add(f"E{r+3}"); dv_sup.add(f"E{r+5}"); dv_yn.add(f"E{r+7}"); dv_yn.add(f"E{r+8}")
 ws[f"E{r+5}"].alignment = L
 ws.merge_cells(f"E{r+5}:F{r+5}")
@@ -295,6 +298,9 @@ for i, (lab, nm, unit, nf) in enumerate(props):
     label(f"I{rr}", unit, color=GREY)
     name(nm, f"$H${rr}")
     SECTION_PROP_CELLS.append((f"H{rr}", {"Zex": "Ze", "phiMsx": "phiMsx"}.get(nm, nm)))
+# grade the section doesn't come in (e.g. Grade 300 for an SHS): grade cell red; the message shows in the Design Summary
+ws.conditional_formatting.add(GRADE_CELL, Rule(type="expression", formula=["ISTEXT(Zex)"],
+    dxf=DifferentialStyle(font=Font(color="C00000", bold=True), fill=PatternFill("solid", bgColor="F8D7D3"))))
 
 # ---------------- Serviceability criteria ----------------
 r = r + 10
